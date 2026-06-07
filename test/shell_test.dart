@@ -1,0 +1,63 @@
+import 'package:aura_music_player/app.dart';
+import 'package:aura_music_player/domain/models/song.dart';
+import 'package:aura_music_player/domain/repositories/library_repository.dart';
+import 'package:aura_music_player/presentation/pages/library/library_page.dart';
+import 'package:aura_music_player/presentation/providers/library_providers.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+/// Instant, deterministic repository so tests don't depend on the sample
+/// repository's simulated scan latency.
+class _InstantRepo implements LibraryRepository {
+  const _InstantRepo();
+  @override
+  Future<List<Song>> fetchSongs({bool forceRescan = false}) async => [
+        Song(
+          id: '1',
+          title: 'Test Song',
+          artist: 'Test Artist',
+          album: 'Test Album',
+          albumId: 'al1',
+          artistId: 'ar1',
+          duration: const Duration(seconds: 200),
+          filePath: '/m/1.flac',
+          dateAdded: DateTime(2024),
+        ),
+      ];
+}
+
+Widget _app() => ProviderScope(
+      overrides: [
+        libraryRepositoryProvider.overrideWithValue(const _InstantRepo()),
+      ],
+      child: const AuraApp(),
+    );
+
+void main() {
+  testWidgets('Boots into Library, shows nav bar and a scanned song',
+      (tester) async {
+    await tester.pumpWidget(_app());
+    await tester.pumpAndSettle();
+
+    expect(find.byType(LibraryPage), findsOneWidget);
+    expect(find.text('Test Song'), findsOneWidget);
+
+    expect(find.text('Library'), findsWidgets);
+    expect(find.text('Artists'), findsOneWidget);
+    expect(find.text('Albums'), findsOneWidget);
+    expect(find.text('Playlists'), findsOneWidget);
+    expect(find.text('Search'), findsWidgets);
+  });
+
+  testWidgets('Tapping a nav tab switches the active section', (tester) async {
+    await tester.pumpWidget(_app());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Albums'));
+    await tester.pumpAndSettle();
+
+    // The grouped album derived from the single test song.
+    expect(find.text('Test Album'), findsOneWidget);
+  });
+}

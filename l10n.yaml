@@ -1,0 +1,10 @@
+# Flutter localization generation config.
+# Running `flutter pub get` (with `generate: true` in pubspec) produces
+# lib/core/l10n/app_localizations.dart from the .arb files below.
+arb-dir: lib/core/l10n
+template-arb-file: app_en.arb
+output-dir: lib/core/l10n
+output-localization-file: app_localizations.dart
+output-class: AppLocalizations
+synthetic-package: false
+nullable-getter: false

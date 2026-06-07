@@ -1,0 +1,27 @@
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+.pub-cache/
+.pub/
+*.iml
+
+# Generated
+*.g.dart
+*.freezed.dart
+lib/core/l10n/app_localizations*.dart
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+
+# Keys / signing — never commit
+**/key.properties
+**/*.keystore
+**/*.jks

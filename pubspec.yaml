@@ -1,0 +1,111 @@
+name: aura_music_player
+description: Aura — a refined, local-first music player. Mature minimalism, Liquid Glass.
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+  flutter: ">=3.24.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # ── Active now (build steps 1–2: shell, theme, i18n, library) ────────────
+  flutter_riverpod: ^2.5.1
+  intl: ^0.19.0
+
+  # Library scan & file access — step 2 (device path; SampleLibraryRepository
+  # is active until wired on a real device — see device_library_repository.dart)
+  on_audio_query: ^2.9.0
+  permission_handler: ^11.3.0
+  isar: ^3.1.0
+  isar_flutter_libs: ^3.1.0
+  path_provider: ^2.1.3
+  shared_preferences: ^2.2.3
+
+  # Audio engine — step 3 (real engine: JustAudioController. FakeAudioController
+  # is the active backend until flipped on device — see just_audio_controller.dart)
+  just_audio: ^0.9.38
+  just_audio_background: ^0.0.1-beta.11
+
+  # ── Enabled per build step (uncomment as each step lands) ────────────────
+  # Equalizer & DSP — step 9 (Android system-EQ bridge; the visual EQ is the
+  # active cross-platform path and needs no plugin — see system_equalizer_controller.dart)
+  # equalizer_flutter: ^1.0.1
+  # volume_controller: ^2.0.7
+  # audio_service: ^0.18.13  # only for a custom background handler; conflicts
+  #                          # with just_audio_background, so not used together
+  #
+  # file_picker: ^8.0.0  # folder browser — step 2 (settings)
+  #
+  # Tag editing — step 10
+  # audiotagger: ^2.2.1
+  #
+  # Lyrics — step 7
+  # flutter_lyric: ^3.0.0
+  # lrc: ^1.2.0
+  #
+  # UI & animations
+  # flutter_animate: ^4.5.0
+  # animations: ^2.0.11
+  # palette_dart: ^0.1.0
+  # cached_network_image: ^3.3.1
+  #
+  # Equalizer & DSP — step 9
+  # equalizer_flutter: ^1.0.1
+  # volume_controller: ^2.0.7
+  #
+  # Home-screen widgets + background refresh — step 13 (native widget
+  # layouts; in-app preview + state mapper are active, no plugin needed —
+  # see home_widget_sync.dart). Android Auto via audio_service handler.
+  # home_widget: ^0.6.0
+  # workmanager: ^0.5.2
+  #
+  # State management codegen
+  # riverpod_annotation: ^2.3.5
+  #
+  # Networking (lyrics fetch) — step 7 (LRCLIB client; real but not the active
+  # source — SampleLyricsRepository is, see lrclib_lyrics_repository.dart)
+  dio: ^5.4.3
+  #
+  # Utilities
+  # path_provider: ^2.1.3
+  # rxdart: ^0.27.7
+  # freezed: ^2.5.2
+  # json_annotation: ^4.9.0
+  # logger: ^2.4.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+  # Enabled with their runtime counterparts:
+  # build_runner: ^2.4.9
+  # freezed_annotation: ^2.4.1
+  # isar_generator: ^3.1.0
+  # riverpod_generator: ^2.4.0
+  # flutter_launcher_icons: ^0.13.1
+  # flutter_native_splash: ^2.4.0
+
+flutter:
+  uses-material-design: true
+  generate: true # drives gen-l10n from l10n.yaml on `flutter pub get`
+
+  # Inter is referenced by AppTextTheme. Until the .ttf weights are added to
+  # assets/fonts/, text falls back to the platform sans-serif (no error).
+  # To bundle it, drop the Inter weights in assets/fonts/ and uncomment:
+  # fonts:
+  #   - family: Inter
+  #     fonts:
+  #       - asset: assets/fonts/Inter-Light.ttf
+  #         weight: 300
+  #       - asset: assets/fonts/Inter-Regular.ttf
+  #         weight: 400
+  #       - asset: assets/fonts/Inter-Medium.ttf
+  #         weight: 500
+  #       - asset: assets/fonts/Inter-SemiBold.ttf
+  #         weight: 600
