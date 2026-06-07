@@ -2,7 +2,6 @@ import 'package:aura_music_player/app.dart';
 import 'package:aura_music_player/data/audio/fake_audio_controller.dart';
 import 'package:aura_music_player/presentation/pages/playlists/playlist_detail_page.dart';
 import 'package:aura_music_player/presentation/providers/playback_providers.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 

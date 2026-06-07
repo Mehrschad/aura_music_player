@@ -188,7 +188,7 @@ class SettingsPage extends ConsumerWidget {
             label: l10n.clearCache,
             icon: Icons.delete_sweep_outlined,
             onTap: () {
-              ref.read(lyricsOverridesProvider.notifier).state = const {};
+              ref.read(lyricsOverridesProvider.notifier).clear();
               ScaffoldMessenger.of(context)
                   .showSnackBar(SnackBar(content: Text(l10n.cacheCleared)));
             },

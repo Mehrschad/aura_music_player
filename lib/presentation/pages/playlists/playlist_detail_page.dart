@@ -221,7 +221,6 @@ class _ReorderableSongs extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
-    final l10n = AppLocalizations.of(context);
     final repo = ref.read(playlistRepositoryProvider);
 
     return ReorderableListView.builder(

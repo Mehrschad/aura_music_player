@@ -22,6 +22,7 @@ jobs:
           cache: true
 
       - run: flutter pub get
+      - run: flutter gen-l10n
       - run: flutter analyze
       - run: flutter test
 

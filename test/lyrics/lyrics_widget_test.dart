@@ -4,7 +4,6 @@ import 'package:aura_music_player/domain/models/song.dart';
 import 'package:aura_music_player/presentation/pages/lyrics/lyrics_page.dart';
 import 'package:aura_music_player/presentation/providers/playback_providers.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:aura_music_player/core/l10n/app_localizations.dart';

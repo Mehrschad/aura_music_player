@@ -23,6 +23,9 @@ class LyricsOverrides extends StateNotifier<Map<String, Lyrics>> {
 
   void save(String songId, Lyrics lyrics) =>
       state = {...state, songId: lyrics};
+
+  /// Clears all saved lyric overrides (the lyrics "cache" in Settings).
+  void clear() => state = const {};
 }
 
 final lyricsOverridesProvider =

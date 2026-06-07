@@ -9,7 +9,6 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/color_scheme.dart';
 import '../../../core/theme/typography.dart';
 import '../../../core/utils/seed_color.dart';
-import '../../../domain/audio/equalizer_presets.dart';
 import '../../../domain/models/equalizer.dart';
 import '../../providers/equalizer_providers.dart';
 import '../../providers/playback_providers.dart';

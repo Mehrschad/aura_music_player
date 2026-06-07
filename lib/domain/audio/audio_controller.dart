@@ -40,6 +40,12 @@ abstract interface class AudioController {
   Future<void> skipToPrevious();
   Future<void> skipToIndex(int index);
 
+  /// Queue mutations.
+  Future<void> playNext(Song song);
+  Future<void> addToQueue(Song song);
+  Future<void> removeFromQueue(int index);
+  Future<void> moveInQueue(int oldIndex, int newIndex);
+
   Future<void> setShuffle(bool enabled);
   Future<void> setRepeatMode(RepeatMode mode);
 
