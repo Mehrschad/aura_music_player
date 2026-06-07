@@ -24,6 +24,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          flutter-version: '3.10.0' # تنظیم روی یک نسخه قدیمی‌تر و سازگارتر
 
       - name: Install dependencies
         run: flutter pub get
