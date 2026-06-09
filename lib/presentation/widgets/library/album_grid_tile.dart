@@ -32,6 +32,8 @@ class AlbumGridTile extends StatelessWidget {
                 size: c.maxWidth,
                 borderRadius: RadiusTokens.brMd,
                 hasArtwork: album.hasArtwork,
+                artworkId: int.tryParse(album.id),
+                isAlbum: true,
               ),
             ),
           ),

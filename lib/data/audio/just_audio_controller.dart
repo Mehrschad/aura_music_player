@@ -44,7 +44,10 @@ class JustAudioController implements AudioController {
   final List<StreamSubscription<dynamic>> _subs = [];
 
   @override
-  Stream<PlaybackState> get stateStream => _stateController.stream;
+  Stream<PlaybackState> get stateStream async* {
+    yield _state;
+    yield* _stateController.stream;
+  }
 
   @override
   PlaybackState get state => _state;
