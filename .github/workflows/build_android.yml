@@ -20,8 +20,13 @@ jobs:
       - name: Create Android platform files
         run: flutter create --platforms=android --no-pub .
 
-      - name: Remove boilerplate test created by flutter create (references MyApp which does not exist)
+      - name: Remove boilerplate test (references MyApp which does not exist)
         run: rm -f test/widget_test.dart
+
+      - name: Patch Kotlin version (flutter create generates 1.7.1 but packages need 1.9.x)
+        run: |
+          sed -i 's/org.jetbrains.kotlin.android" version "[^"]*"/org.jetbrains.kotlin.android" version "1.9.22"/' android/settings.gradle
+          grep 'kotlin' android/settings.gradle
 
       - run: flutter pub get
 
