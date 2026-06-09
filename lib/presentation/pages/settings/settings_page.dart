@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -555,10 +556,29 @@ class _FolderList extends StatelessWidget {
   }
 
   Future<void> _addFolder(BuildContext context) async {
+    // Open the system folder picker; fall back to manual text entry if the
+    // picker is unavailable (e.g. emulator without a file manager).
+    String? path;
+    try {
+      path = await FilePicker.platform.getDirectoryPath();
+    } catch (_) {
+      path = null;
+    }
+
+    if (path == null && context.mounted) {
+      path = await _showManualDialog(context);
+    }
+
+    if (path != null && path.trim().isNotEmpty) {
+      notifier.addSourceFolder(path.trim());
+    }
+  }
+
+  Future<String?> _showManualDialog(BuildContext context) {
     final controller = TextEditingController();
     final l10n = AppLocalizations.of(context);
     final colors = context.colors;
-    final path = await showDialog<String>(
+    return showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: colors.surfaceElevated,
@@ -573,15 +593,13 @@ class _FolderList extends StatelessWidget {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.of(ctx).pop(), child: Text(l10n.cancel)),
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text(l10n.cancel)),
           TextButton(
               onPressed: () => Navigator.of(ctx).pop(controller.text),
               child: Text(l10n.save)),
         ],
       ),
     );
-    if (path != null && path.trim().isNotEmpty) {
-      notifier.addSourceFolder(path.trim());
-    }
   }
 }

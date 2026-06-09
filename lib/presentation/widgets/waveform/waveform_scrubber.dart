@@ -76,6 +76,12 @@ class _WaveformScrubberState extends ConsumerState<WaveformScrubber> {
       slider: true,
       label: l10n.a11ySeekBar,
       value: '${(fraction * 100).round()}%',
+      increasedValue: hasDuration
+          ? '${((fraction + 0.05).clamp(0.0, 1.0) * 100).round()}%'
+          : null,
+      decreasedValue: hasDuration
+          ? '${((fraction - 0.05).clamp(0.0, 1.0) * 100).round()}%'
+          : null,
       onIncrease: hasDuration ? () => _seekToFraction(fraction + 0.05) : null,
       onDecrease: hasDuration ? () => _seekToFraction(fraction - 0.05) : null,
       child: Column(

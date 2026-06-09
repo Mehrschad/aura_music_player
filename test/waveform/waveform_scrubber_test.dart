@@ -1,3 +1,4 @@
+import 'package:aura_music_player/core/l10n/app_localizations.dart';
 import 'package:aura_music_player/data/audio/fake_audio_controller.dart';
 import 'package:aura_music_player/domain/models/song.dart';
 import 'package:aura_music_player/presentation/providers/playback_providers.dart';
@@ -32,6 +33,8 @@ void main() {
         overrides: [audioControllerProvider.overrideWithValue(fake)],
         child: MaterialApp(
           theme: AppTheme.dark(flavor: DarkFlavor.amoled),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: Center(
               child: SizedBox(

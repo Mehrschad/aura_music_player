@@ -5,6 +5,29 @@ allprojects {
     }
 }
 
+// AGP 8 requires every Android library module to declare an explicit namespace.
+// Older Flutter plugins (e.g. isar 3.x, isar_flutter_libs 3.x) rely on the
+// legacy `package` attribute in AndroidManifest.xml instead.  The block below
+// reads that value and injects it as the Gradle namespace so the build succeeds
+// without modifying any plugin source.
+subprojects {
+    afterEvaluate { project ->
+        if (project.plugins.hasPlugin("com.android.library")) {
+            def androidExt = project.extensions.getByName("android")
+            // Force all library subprojects to compileSdk 34 so Material3
+            // attributes like android:attr/lStar (API 31+) are always found.
+            androidExt.compileSdk = 34
+            if (androidExt.namespace == null) {
+                def mf = project.file("src/main/AndroidManifest.xml")
+                if (mf.exists()) {
+                    def pkg = new groovy.xml.XmlSlurper().parse(mf).@package.toString()
+                    if (pkg) androidExt.namespace = pkg
+                }
+            }
+        }
+    }
+}
+
 rootProject.buildDir = "../build"
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"

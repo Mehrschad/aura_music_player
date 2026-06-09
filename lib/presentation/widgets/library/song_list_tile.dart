@@ -37,7 +37,12 @@ class SongListTile extends StatelessWidget {
           ),
           child: Row(
             children: [
-              AuraArtwork(seed: song.artworkSeed, size: 48, hasArtwork: song.hasArtwork),
+              AuraArtwork(
+            seed: song.artworkSeed,
+            size: 48,
+            hasArtwork: song.hasArtwork,
+            artworkId: int.tryParse(song.id),
+          ),
               const SizedBox(width: SpacingTokens.md),
               Expanded(
                 child: Column(

@@ -32,6 +32,12 @@ class _InstantRepo implements LibraryRepository {
 void main() {
   testWidgets('mini player expands to Now Playing; favourite and repeat work',
       (tester) async {
+    // The default 800×600 test viewport is too narrow for NowPlayingPage
+    // (artwork is width*0.72, so 576px at 800px wide, leaving no room for the
+    // rest of the column).  A phone-like 400×800 surface fits comfortably.
+    await tester.binding.setSurfaceSize(const Size(480, 1100));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: [

@@ -38,6 +38,14 @@ class _BreathingArtworkState extends State<BreathingArtwork>
   @override
   void initState() {
     super.initState();
+    // _syncBreathing is deferred to didChangeDependencies because
+    // MediaQuery.disableAnimationsOf(context) must not be called before
+    // initState completes.
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
     _syncBreathing();
   }
 

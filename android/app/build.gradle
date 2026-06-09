@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace "com.example.aura_music_player"
-    compileSdk 33
+    compileSdk 34
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
@@ -20,7 +20,7 @@ android {
     defaultConfig {
         applicationId "com.example.aura_music_player"
         minSdk 21
-        targetSdk 33
+        targetSdk 34
         versionCode flutter.versionCode
         versionName flutter.versionName
     }

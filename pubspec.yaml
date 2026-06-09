@@ -39,7 +39,7 @@ dependencies:
   # audio_service: ^0.18.13  # only for a custom background handler; conflicts
   #                          # with just_audio_background, so not used together
   #
-  # file_picker: ^8.0.0  # folder browser — step 2 (settings)
+  file_picker: ^8.0.0  # folder browser — step 2 (settings)
   #
   # Tag editing — step 10
   # audiotagger: ^2.2.1

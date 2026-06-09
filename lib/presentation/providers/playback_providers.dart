@@ -1,18 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../data/audio/fake_audio_controller.dart';
+import '../../data/audio/just_audio_controller.dart';
 import '../../domain/audio/audio_controller.dart';
 import '../../domain/models/playback.dart';
 import '../../domain/models/song.dart';
 
-/// The active playback engine.
-///
-/// [FakeAudioController] for now — fully functional with no native setup. On a
-/// real device, override this (here or in `main.dart`'s `ProviderScope`) with
-/// `JustAudioController()` after the one-time background-session setup; nothing
-/// downstream changes.
+/// The active playback engine — backed by just_audio + just_audio_background.
 final audioControllerProvider = Provider<AudioController>((ref) {
-  final controller = FakeAudioController();
+  final controller = JustAudioController();
   ref.onDispose(controller.dispose);
   return controller;
 });

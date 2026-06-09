@@ -11,6 +11,7 @@ import '../../widgets/async_state_view.dart';
 import '../../widgets/library/album_grid_tile.dart';
 import '../../widgets/player_bar_inset.dart';
 import '../../widgets/section_header.dart';
+import 'album_detail_page.dart';
 
 class AlbumsPage extends ConsumerWidget {
   const AlbumsPage({super.key});
@@ -53,8 +54,11 @@ class AlbumsPage extends ConsumerWidget {
                 itemCount: albums.length,
                 itemBuilder: (_, i) => AlbumGridTile(
                   album: albums[i],
-                  // Album detail screen arrives with the player (step 4).
-                  onTap: () {},
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => AlbumDetailPage(album: albums[i]),
+                    ),
+                  ),
                 ),
               ),
             ),

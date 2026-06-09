@@ -79,11 +79,11 @@ class InMemoryPlaylistRepository implements PlaylistRepository {
     final i = _indexOf(id);
     if (i == -1) return;
     final existing = _playlists[i].songIds;
-    final merged = [
-      ...existing,
-      for (final s in songIds)
-        if (!existing.contains(s)) s,
-    ];
+    final seen = Set<String>.from(existing);
+    final merged = [...existing];
+    for (final s in songIds) {
+      if (seen.add(s)) merged.add(s);
+    }
     _playlists[i] =
         _playlists[i].copyWith(songIds: merged, updatedAt: DateTime.now());
     _emit();

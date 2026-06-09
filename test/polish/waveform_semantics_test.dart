@@ -10,6 +10,9 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   testWidgets('waveform scrubber exposes a seek slider to screen readers',
       (tester) async {
+    final semanticsHandle = tester.ensureSemantics();
+    addTearDown(semanticsHandle.dispose);
+
     final fake = FakeAudioController(autoTick: false);
     addTearDown(fake.dispose);
 
