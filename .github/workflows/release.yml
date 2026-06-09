@@ -27,7 +27,7 @@ jobs:
           cache: true
 
       - name: Create Android platform files
-        run: flutter create --platforms=android .
+        run: flutter create --platforms=android --no-pub .
 
       - run: flutter pub get
       - run: flutter gen-l10n
