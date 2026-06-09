@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/local/audio_query/device_library_repository.dart';
 import '../../data/local/tag_editor/audiotagger_tag_writer.dart';
-import '../../data/repositories/sample_library_repository.dart';
 import '../../domain/library/library_grouping.dart';
 import '../../domain/library/song_search.dart';
 import '../../domain/library/song_sorting.dart';
@@ -10,17 +10,17 @@ import '../../domain/models/artist.dart';
 import '../../domain/models/library_sort.dart';
 import '../../domain/models/song.dart';
 import '../../domain/repositories/library_repository.dart';
+import 'settings_providers.dart';
 
-/// The active library data source.
-///
-/// Overridden to [SampleLibraryRepository] for now. On a real device, override
-/// this in `main.dart`'s `ProviderScope(overrides: [...])` (or here) with
-/// `DeviceLibraryRepository()` — nothing downstream changes.
-final libraryRepositoryProvider = Provider<LibraryRepository>(
-  (ref) => const SampleLibraryRepository(),
-);
+/// The active library data source — backed by the device media store.
+/// Rebuilt whenever [sourceFolders] changes so the scan is always in sync
+/// with the user's folder selection.
+final libraryRepositoryProvider = Provider<LibraryRepository>((ref) {
+  final folders = ref.watch(settingsProvider.select((s) => s.sourceFolders));
+  return DeviceLibraryRepository(sourceFolders: folders);
+});
 
-/// The raw song index, loaded asynchronously (models the device scan).
+/// The raw song index, loaded asynchronously from the device media store.
 final songsProvider = FutureProvider<List<Song>>((ref) {
   return ref.watch(libraryRepositoryProvider).fetchSongs();
 });

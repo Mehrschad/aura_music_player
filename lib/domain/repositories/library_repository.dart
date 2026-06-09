@@ -9,6 +9,13 @@ import '../models/song.dart';
 ///     without a device.
 ///   • the device scanner (`on_audio_query` + Isar cache) — wired on a real
 ///     phone; see `data/local/audio_query/device_library_repository.dart`.
+/// Thrown when the user denies audio/storage permissions.
+class LibraryPermissionDenied implements Exception {
+  const LibraryPermissionDenied();
+  @override
+  String toString() => 'LibraryPermissionDenied: audio permission was denied';
+}
+
 abstract interface class LibraryRepository {
   /// Returns every song in the library.
   ///
