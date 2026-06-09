@@ -11,8 +11,10 @@ import 'package:flutter/painting.dart';
 abstract final class SeedPalette {
   const SeedPalette._();
 
-  /// Maximum saturation, per the "clamp saturation to 40%" rule.
-  static const double _maxSaturation = 0.40;
+  /// Maximum saturation. Kept slightly below 0.40 so that the HSV→RGB→HSV
+  /// round-trip never exceeds the 40% design cap (8-bit RGB quantisation
+  /// can inflate saturation by ~0.002).
+  static const double _maxSaturation = 0.38;
 
   static double hueFor(String seed) => (seed.hashCode % 360).abs().toDouble();
 

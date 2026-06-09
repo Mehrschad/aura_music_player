@@ -34,7 +34,13 @@ class FakeAudioController implements AudioController {
   List<int> _order = const [];
 
   @override
-  Stream<PlaybackState> get stateStream => _stateController.stream;
+  Stream<PlaybackState> get stateStream async* {
+    // Yield the current synchronous state immediately so StreamProviders that
+    // subscribe after playQueue/pause has already been called don't start in
+    // the loading state.
+    yield _state;
+    yield* _stateController.stream;
+  }
 
   @override
   PlaybackState get state => _state;
