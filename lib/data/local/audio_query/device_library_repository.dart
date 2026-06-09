@@ -58,19 +58,11 @@ class DeviceLibraryRepository implements LibraryRepository {
       dateAdded: s.dateAdded != null
           ? DateTime.fromMillisecondsSinceEpoch(s.dateAdded! * 1000)
           : DateTime.now(),
-      // year and bitrate live in the raw map in platform_interface 1.7.x
-      year: _intFromMap(s.toMap(), 'year'),
+      year: null,
       trackNumber: s.track,
       genre: clean(s.genre, '') == '' ? null : s.genre,
       composer: clean(s.composer, '') == '' ? null : s.composer,
-      bitrate: _intFromMap(s.toMap(), 'bitrate'),
+      bitrate: null,
     );
-  }
-
-  static int? _intFromMap(Map<String, dynamic> map, String key) {
-    final v = map[key];
-    if (v == null) return null;
-    final n = v is int ? v : int.tryParse(v.toString());
-    return (n == null || n == 0) ? null : n;
   }
 }
