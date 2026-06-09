@@ -2,7 +2,7 @@ name: Build Flutter APK
 
 on:
   push:
-    branches: [ "main" ] # اگر نام شاخه اصلی تو master است، این را به master تغییر بده
+    branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
 
@@ -24,7 +24,11 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          flutter-version: '3.10.0' # تنظیم روی یک نسخه قدیمی‌تر و سازگارتر
+          flutter-version: '3.24.0'
+          cache: true
+
+      - name: Create Android platform files
+        run: flutter create --platforms=android --no-pub .
 
       - name: Install dependencies
         run: flutter pub get
@@ -37,3 +41,4 @@ jobs:
         with:
           name: release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30

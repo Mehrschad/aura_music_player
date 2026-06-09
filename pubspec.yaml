@@ -15,7 +15,7 @@ dependencies:
 
   # ── Active now (build steps 1–2: shell, theme, i18n, library) ────────────
   flutter_riverpod: ^2.5.1
-  intl: ^0.20.2
+  intl: any
 
   # Library scan & file access — step 2 (device path; SampleLibraryRepository
   # is active until wired on a real device — see device_library_repository.dart)
