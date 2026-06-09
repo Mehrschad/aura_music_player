@@ -14,6 +14,9 @@ subprojects {
     afterEvaluate { project ->
         if (project.plugins.hasPlugin("com.android.library")) {
             def androidExt = project.extensions.getByName("android")
+            // Force all library subprojects to compileSdk 34 so Material3
+            // attributes like android:attr/lStar (API 31+) are always found.
+            androidExt.compileSdk = 34
             if (androidExt.namespace == null) {
                 def mf = project.file("src/main/AndroidManifest.xml")
                 if (mf.exists()) {

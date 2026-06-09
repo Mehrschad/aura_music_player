@@ -35,7 +35,7 @@ void main() {
     // The default 800×600 test viewport is too narrow for NowPlayingPage
     // (artwork is width*0.72, so 576px at 800px wide, leaving no room for the
     // rest of the column).  A phone-like 400×800 surface fits comfortably.
-    await tester.binding.setSurfaceSize(const Size(400, 800));
+    await tester.binding.setSurfaceSize(const Size(480, 1100));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     await tester.pumpWidget(
