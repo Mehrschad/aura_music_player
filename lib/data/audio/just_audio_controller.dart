@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:just_audio/just_audio.dart';
-import 'package:just_audio_background/just_audio_background.dart';
 
 import '../../domain/audio/audio_controller.dart';
 import '../../domain/models/playback.dart';
@@ -122,21 +121,8 @@ class JustAudioController implements AudioController {
     await _player.play();
   }
 
-  /// Wraps a [Song] as a tagged audio source. The [MediaItem] tag is what
-  /// `just_audio_background` surfaces in the notification and on the lock
-  /// screen.
   AudioSource _toSource(Song song) {
-    return AudioSource.uri(
-      Uri.file(song.filePath),
-      tag: MediaItem(
-        id: song.id,
-        title: song.title,
-        artist: song.artist,
-        album: song.album,
-        duration: song.duration,
-        // artUri is populated once the artwork cache (device path) lands.
-      ),
-    );
+    return AudioSource.uri(Uri.file(song.filePath));
   }
 
   @override
