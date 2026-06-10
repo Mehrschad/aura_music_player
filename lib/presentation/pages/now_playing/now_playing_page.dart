@@ -53,6 +53,11 @@ class NowPlayingPage extends ConsumerWidget {
       onVerticalDragEnd: (d) {
         if ((d.primaryVelocity ?? 0) > 600) Navigator.of(context).maybePop();
       },
+      onHorizontalDragEnd: (d) {
+        final v = d.primaryVelocity ?? 0;
+        if (v < -600) controller.skipToNext();
+        if (v > 600) controller.skipToPrevious();
+      },
       child: Scaffold(
       backgroundColor: colors.background,
       body: Stack(

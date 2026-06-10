@@ -42,6 +42,8 @@ class ArtistListTile extends StatelessWidget {
                   seed: artist.artworkSeed,
                   size: 48,
                   borderRadius: RadiusTokens.brXs,
+                  hasArtwork: artist.hasArtwork,
+                  artworkId: artist.firstSongId,
                 ),
               ),
               const SizedBox(width: SpacingTokens.md),

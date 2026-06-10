@@ -44,6 +44,10 @@ List<Artist> groupArtists(List<Song> songs) {
         byId.putIfAbsent(s.artistId, () => _ArtistAcc(id: s.artistId, name: s.artist));
     acc.songCount++;
     acc.albumIds.add(s.albumId);
+    if (s.hasArtwork && acc.firstSongId == null) {
+      acc.firstSongId = int.tryParse(s.id);
+      acc.hasArtwork = true;
+    }
   }
   final artists = byId.values
       .map((a) => Artist(
@@ -51,6 +55,8 @@ List<Artist> groupArtists(List<Song> songs) {
             name: a.name,
             albumCount: a.albumIds.length,
             songCount: a.songCount,
+            hasArtwork: a.hasArtwork,
+            firstSongId: a.firstSongId,
           ))
       .toList()
     ..sort((x, y) => x.name.toLowerCase().compareTo(y.name.toLowerCase()));
@@ -73,4 +79,6 @@ class _ArtistAcc {
   final String name;
   int songCount = 0;
   final Set<String> albumIds = {};
+  bool hasArtwork = false;
+  int? firstSongId;
 }

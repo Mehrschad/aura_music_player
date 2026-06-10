@@ -9,7 +9,7 @@ import '../models/song.dart';
 ///     mini player, controls, queue advance, shuffle and repeat all be
 ///     exercised on any platform with no audio hardware or native setup.
 ///   • [JustAudioController] — the real engine (just_audio +
-///     just_audio_background) with gapless queueing and lock-screen /
+///     audio_service) with gapless queueing and lock-screen /
 ///     notification controls. Drops in by overriding one provider on device.
 abstract interface class AudioController {
   /// Infrequent state: current track, queue, playing flag, shuffle, repeat,

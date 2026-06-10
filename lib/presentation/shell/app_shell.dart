@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../pages/albums/albums_page.dart';
@@ -18,9 +19,14 @@ import 'nav_provider.dart';
 /// playlist) can be pushed WITHOUT hiding the mini player and nav bar.
 /// [NowPlayingPage] is the exception — it uses `rootNavigator: true` to cover
 /// the whole screen.
-class AppShell extends ConsumerWidget {
+class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
 
+  @override
+  ConsumerState<AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends ConsumerState<AppShell> {
   static const List<Widget> _roots = [
     LibraryPage(),
     ArtistsPage(),
@@ -29,22 +35,45 @@ class AppShell extends ConsumerWidget {
     SearchPage(),
   ];
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final tab = ref.watch(selectedTabProvider);
-    return Scaffold(
-      extendBody: true,
-      body: IndexedStack(
-        index: tab.index,
-        children: [for (final page in _roots) _TabNavigator(root: page)],
+  DateTime? _lastBackPress;
+
+  void _onBackPressed() {
+    final now = DateTime.now();
+    final last = _lastBackPress;
+    if (last != null && now.difference(last) < const Duration(seconds: 2)) {
+      SystemNavigator.pop();
+      return;
+    }
+    _lastBackPress = now;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Press back again to exit'),
+        duration: Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
       ),
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: const [
-          _HomeWidgetBridge(),
-          MiniPlayer(),
-          GlassNavBar(),
-        ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tab = ref.watch(selectedTabProvider);
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (_) => _onBackPressed(),
+      child: Scaffold(
+        extendBody: true,
+        body: IndexedStack(
+          index: tab.index,
+          children: [for (final page in _roots) _TabNavigator(root: page)],
+        ),
+        bottomNavigationBar: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            _HomeWidgetBridge(),
+            MiniPlayer(),
+            GlassNavBar(),
+          ],
+        ),
       ),
     );
   }

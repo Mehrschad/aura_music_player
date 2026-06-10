@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:audio_service/audio_service.dart' as bg;
 import 'package:just_audio/just_audio.dart';
 
 import '../../domain/audio/audio_controller.dart';
@@ -7,29 +8,13 @@ import '../../domain/models/playback.dart';
 import '../../domain/models/song.dart';
 
 /// The real, on-device [AudioController], backed by `just_audio` for decoding
-/// and `just_audio_background` for the system media session (notification,
-/// lock-screen controls, headset/Bluetooth buttons, audio focus).
+/// and `audio_service` for the system media session (notification, lock-screen
+/// controls, headset/Bluetooth buttons, audio focus).
 ///
-/// To enable on a device:
-///   1. `just_audio` and `just_audio_background` are already uncommented in
-///      `pubspec.yaml`.
-///   2. Initialise the background session **before** `runApp` in `main.dart`:
-///      ```dart
-///      await JustAudioBackground.init(
-///        androidNotificationChannelId: 'com.aura.audio',
-///        androidNotificationChannelName: 'Aura playback',
-///        androidNotificationOngoing: true,
-///      );
-///      ```
-///   3. Android: declare the service + permission in `AndroidManifest.xml`
-///      (see just_audio_background's README — a `MediaSessionService` entry and
-///      `FOREGROUND_SERVICE` / `FOREGROUND_SERVICE_MEDIA_PLAYBACK`). iOS: enable
-///      the *Audio, AirPlay, and Picture in Picture* background mode.
-///   4. Point `audioControllerProvider` at this class instead of
-///      [FakeAudioController].
-///
-/// Nothing else in the app changes — the UI depends only on [AudioController].
-class JustAudioController implements AudioController {
+/// Extends [bg.BaseAudioHandler] so the background service can invoke play/pause/
+/// seek from the notification and lock-screen controls. The same instance is also
+/// exposed via [AudioController] for UI-layer consumption.
+class JustAudioController extends bg.BaseAudioHandler implements AudioController {
   JustAudioController() {
     _wireStreams();
   }
@@ -60,7 +45,6 @@ class JustAudioController implements AudioController {
   // ── Stream fan-in ───────────────────────────────────────────────────────
 
   void _wireStreams() {
-    // Recompute the snapshot whenever any contributing stream fires.
     _subs.add(_player.playerStateStream.listen((_) => _recompute()));
     _subs.add(_player.currentIndexStream.listen((_) => _recompute()));
     _subs.add(_player.durationStream.listen((_) => _recompute()));
@@ -82,7 +66,52 @@ class JustAudioController implements AudioController {
     if (next == _state) return;
     _state = next;
     if (!_stateController.isClosed) _stateController.add(next);
+    _broadcastServiceState(ps);
   }
+
+  /// Pushes the current state to [audio_service] so the notification and
+  /// lock-screen controls stay in sync. Called every time [_recompute] fires.
+  void _broadcastServiceState(PlayerState ps) {
+    final playing = ps.playing;
+    final processing = _processingStateMap[ps.processingState] ??
+        bg.AudioProcessingState.idle;
+
+    playbackState.add(bg.PlaybackState(
+      controls: [
+        bg.MediaControl.skipToPrevious,
+        playing ? bg.MediaControl.pause : bg.MediaControl.play,
+        bg.MediaControl.skipToNext,
+      ],
+      androidCompactActionIndices: const [0, 1, 2],
+      systemActions: const {bg.MediaAction.seek},
+      processingState: processing,
+      playing: playing,
+      updatePosition: _player.position,
+      bufferedPosition: _player.bufferedPosition,
+      speed: _player.speed,
+      queueIndex: _player.currentIndex,
+    ));
+
+    // Update the notification's track metadata whenever the track changes.
+    final song = _state.currentSong;
+    if (song != null) {
+      mediaItem.add(bg.MediaItem(
+        id: song.id,
+        title: song.title,
+        artist: song.artist,
+        album: song.album,
+        duration: song.duration,
+      ));
+    }
+  }
+
+  static const _processingStateMap = {
+    ProcessingState.idle: bg.AudioProcessingState.idle,
+    ProcessingState.loading: bg.AudioProcessingState.loading,
+    ProcessingState.buffering: bg.AudioProcessingState.buffering,
+    ProcessingState.ready: bg.AudioProcessingState.ready,
+    ProcessingState.completed: bg.AudioProcessingState.completed,
+  };
 
   PlaybackStatus _statusFrom(ProcessingState s) => switch (s) {
         ProcessingState.idle => PlaybackStatus.idle,
@@ -104,7 +133,7 @@ class JustAudioController implements AudioController {
         RepeatMode.one => LoopMode.one,
       };
 
-  // ── Transport ─────────────────────────────────────────────────────────
+  // ── Transport (AudioController interface) ────────────────────────────────
 
   @override
   Future<void> playQueue(List<Song> songs, {int startIndex = 0}) async {
@@ -125,15 +154,13 @@ class JustAudioController implements AudioController {
     return AudioSource.uri(Uri.file(song.filePath));
   }
 
+  // ── BaseAudioHandler overrides (called by notification / lock-screen) ────
+
   @override
   Future<void> play() => _player.play();
 
   @override
   Future<void> pause() => _player.pause();
-
-  @override
-  Future<void> togglePlayPause() =>
-      _player.playing ? _player.pause() : _player.play();
 
   @override
   Future<void> seek(Duration position) => _player.seek(position);
@@ -143,6 +170,15 @@ class JustAudioController implements AudioController {
 
   @override
   Future<void> skipToPrevious() => _player.seekToPrevious();
+
+  @override
+  Future<void> stop() => _player.stop();
+
+  // ── AudioController extras ───────────────────────────────────────────────
+
+  @override
+  Future<void> togglePlayPause() =>
+      _player.playing ? _player.pause() : _player.play();
 
   @override
   Future<void> skipToIndex(int index) => _player.seek(Duration.zero, index: index);
@@ -205,9 +241,6 @@ class JustAudioController implements AudioController {
     await source.move(oldIndex, newIndex);
     _recompute();
   }
-
-  @override
-  Future<void> stop() => _player.stop();
 
   @override
   Future<void> dispose() async {

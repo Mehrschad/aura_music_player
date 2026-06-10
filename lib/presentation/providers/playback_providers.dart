@@ -5,7 +5,12 @@ import '../../domain/audio/audio_controller.dart';
 import '../../domain/models/playback.dart';
 import '../../domain/models/song.dart';
 
-/// The active playback engine — backed by just_audio + just_audio_background.
+/// The active playback engine.
+///
+/// In production this provider is overridden in [main] with the
+/// [AudioService]-backed [JustAudioController] so the background service and
+/// lock-screen notification stay in sync with UI state. In tests it is
+/// overridden with [FakeAudioController] for deterministic simulation.
 final audioControllerProvider = Provider<AudioController>((ref) {
   final controller = JustAudioController();
   ref.onDispose(controller.dispose);
@@ -15,7 +20,6 @@ final audioControllerProvider = Provider<AudioController>((ref) {
 /// The infrequent player snapshot (track, queue, playing, shuffle, repeat).
 final playbackStateProvider = StreamProvider<PlaybackState>((ref) {
   final controller = ref.watch(audioControllerProvider);
-  // Seed with the synchronous current value so the first frame isn't "loading".
   return controller.stateStream;
 });
 
