@@ -40,7 +40,7 @@
   "rescan": "Neu scannen",
   "searchHint": "Songs, Künstler, Alben suchen",
   "searchPrompt": "Mediathek durchsuchen",
-  "searchNoResults": "Keine Ergebnisse für „{query}"",
+  "searchNoResults": "Keine Ergebnisse für \"{query}\"",
   "@searchNoResults": {
     "placeholders": {
       "query": {
