@@ -21,7 +21,10 @@ lib/core/l10n/app_localizations*.dart
 # OS
 .DS_Store
 
-# Keys / signing — never commit
-**/key.properties
-**/*.keystore
-**/*.jks
+# Keys / signing
+# Exception: the development keystore and properties are tracked so that
+# CI (and anyone cloning the repo) can build the release APK out of the box.
+# For Play Store production uploads, replace with your own production keystore
+# via Play App Signing and keep THAT keystore out of version control.
+!android/key.properties
+!android/app/aura_release.keystore

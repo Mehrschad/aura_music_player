@@ -1,4 +1,4 @@
-package com.example.aura_music_player
+package io.mehrschad.aura
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -44,11 +44,17 @@ Future<void> main() async {
     audioController = await AudioService.init<JustAudioController>(
       builder: () => JustAudioController(),
       config: const AudioServiceConfig(
-        androidNotificationChannelId: 'com.ryanheise.aura.channel.audio',
+        androidNotificationChannelId: 'io.mehrschad.aura.channel.audio',
         androidNotificationChannelName: 'Aura',
+        androidNotificationChannelDescription: 'Music playback controls',
         androidNotificationIcon: 'mipmap/ic_launcher',
         androidNotificationOngoing: true,
         androidStopForegroundOnPause: true,
+        androidEnableQueue: true,
+        // Show a compact media notification on the lock screen.
+        notificationColor: Color(0xFF1A1A2E),
+        artDownscaleWidth: 512,
+        artDownscaleHeight: 512,
       ),
     );
   } catch (_) {

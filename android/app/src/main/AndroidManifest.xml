@@ -1,28 +1,54 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Audio library scanning (on_audio_query) -->
+    <!-- ── Storage / media permissions ── -->
+    <!-- Android 13+: granular audio permission -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
+    <!-- Android ≤12: broad external storage read -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32"/>
+    <!-- Android 12+: manage media files (renames, deletes via MediaStore) -->
+    <uses-permission android:name="android.permission.MANAGE_MEDIA"/>
 
-    <!-- Background audio playback (audio_service) -->
+    <!-- ── Background audio / foreground service ── -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
+    <!-- Keep CPU alive during playback when screen is off -->
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
 
-    <!-- Network access for lyrics / cover art fetching -->
+    <!-- ── Notifications ── -->
+    <!-- Media notification on Android 13+ -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Show full-screen intent on lock screen (Android 11+) -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
+
+    <!-- ── Network (lyrics / artwork fetching) ── -->
     <uses-permission android:name="android.permission.INTERNET"/>
 
-    <!-- Media notifications on Android 13+ -->
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-
-    <!-- Allow audio service to restart after device reboot -->
+    <!-- ── Boot receiver (resume after reboot) ── -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+
+    <!-- ── Hardware feature declaration ── -->
+    <!-- Declares this is a media-playback app; shown in Play Store filter -->
+    <uses-feature
+        android:name="android.hardware.audio.output"
+        android:required="false"/>
+
+    <!-- Android 11+ package visibility: query media apps -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MEDIA_BUTTON"/>
+        </intent>
+        <intent>
+            <action android:name="android.media.browse.MediaBrowserService"/>
+        </intent>
+    </queries>
 
     <application
         android:label="Aura"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:hardwareAccelerated="true">
 
         <activity
             android:name=".MainActivity"
@@ -40,23 +66,42 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- Handle media button from lock screen / notification -->
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON"/>
+            </intent-filter>
         </activity>
 
-        <!-- Background audio service (audio_service) -->
+        <!-- ── Background audio service (audio_service package) ── -->
+        <!--
+          foregroundServiceType="mediaPlayback" → Android recognises this as an
+          official media player; grants the media session priority.
+          stopWithTask="false" → audio keeps playing when app is swiped away.
+          exported="true" → required for MediaBrowserServiceCompat (Android Auto,
+          WearOS, lock-screen controls).
+        -->
         <service
             android:name="com.ryanheise.audioservice.AudioService"
+            android:label="Aura"
             android:exported="true"
             android:stopWithTask="false"
             android:foregroundServiceType="mediaPlayback">
+            <!-- MediaBrowserService: enables Android Auto, WearOS, lock screen -->
             <intent-filter>
                 <action android:name="android.media.browse.MediaBrowserService"/>
             </intent-filter>
         </service>
 
+        <!-- ── Hardware media button receiver ── -->
+        <!--
+          android:priority="1000" → this app wins media-button dispatch over
+          other apps (Bluetooth headset, wired headphone button, car stereo).
+          exported="true" → required so the system can deliver the broadcast.
+        -->
         <receiver
             android:name="com.ryanheise.audioservice.MediaButtonReceiver"
             android:exported="true">
-            <intent-filter>
+            <intent-filter android:priority="1000">
                 <action android:name="android.intent.action.MEDIA_BUTTON"/>
             </intent-filter>
         </receiver>
