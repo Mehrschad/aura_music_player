@@ -50,11 +50,7 @@ Future<void> main() async {
         androidNotificationIcon: 'mipmap/ic_launcher',
         androidNotificationOngoing: true,
         androidStopForegroundOnPause: true,
-        androidEnableQueue: true,
-        // Show a compact media notification on the lock screen.
         notificationColor: Color(0xFF1A1A2E),
-        artDownscaleWidth: 512,
-        artDownscaleHeight: 512,
       ),
     );
   } catch (_) {

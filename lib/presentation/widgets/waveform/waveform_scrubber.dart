@@ -35,7 +35,7 @@ class WaveformScrubber extends ConsumerStatefulWidget {
 }
 
 class _WaveformScrubberState extends ConsumerState<WaveformScrubber>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   double? _dragFraction;
 
   late final AnimationController _thumbController = AnimationController(
