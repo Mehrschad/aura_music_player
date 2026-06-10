@@ -482,43 +482,16 @@ class _TimerChip extends StatelessWidget {
   }
 }
 
-/// A liquid-glass scrolling lyrics capsule — shows the full lyrics list in a
-/// fixed-height glass box that smoothly slides each line into view. Tap to
-/// open the full-screen immersive lyrics page.
-class _InlineLyrics extends ConsumerStatefulWidget {
+/// A liquid-glass single-line lyrics capsule. Shows only the active lyric line;
+/// when the line changes the new text slides up and fades in while the old text
+/// fades out — the strong backdrop blur makes the transition look like a light
+/// refraction effect through the glass.
+class _InlineLyrics extends ConsumerWidget {
   const _InlineLyrics({required this.accent});
   final Color accent;
 
   @override
-  ConsumerState<_InlineLyrics> createState() => _InlineLyricsState();
-}
-
-class _InlineLyricsState extends ConsumerState<_InlineLyrics> {
-  final ScrollController _scroll = ScrollController();
-
-  static const double _lineH = 28.0; // height per lyric line slot
-  static const double _visibleLines = 3.0;
-  static const double _capsuleH = _lineH * _visibleLines + 20; // +padding
-
-  @override
-  void dispose() {
-    _scroll.dispose();
-    super.dispose();
-  }
-
-  void _scrollToLine(int index) {
-    if (!_scroll.hasClients) return;
-    // Target: centre the active line in the capsule.
-    final target = (index * _lineH) - (_lineH * (_visibleLines / 2 - 0.5));
-    _scroll.animateTo(
-      target.clamp(0.0, _scroll.position.maxScrollExtent),
-      duration: const Duration(milliseconds: 350),
-      curve: Curves.easeInOutCubic,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final lyricsAsync = ref.watch(currentLyricsProvider);
     final currentIndex = ref.watch(currentLyricLineProvider);
     final colors = context.colors;
@@ -528,63 +501,58 @@ class _InlineLyricsState extends ConsumerState<_InlineLyrics> {
       return const SizedBox.shrink();
     }
 
-    // Auto-scroll whenever the active line changes.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (currentIndex >= 0) _scrollToLine(currentIndex);
-    });
+    final currentLine = currentIndex >= 0 && currentIndex < lyrics.lines.length
+        ? lyrics.lines[currentIndex].text
+        : null;
+
+    if (currentLine == null) return const SizedBox.shrink();
 
     return GestureDetector(
       onTap: () => openLyrics(context),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(26),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          // Strong blur creates visible refraction as content animates beneath.
+          filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
           child: Container(
-            height: _capsuleH,
+            height: 52,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
             decoration: BoxDecoration(
-              color: colors.onSurface.withOpacity(0.07),
-              borderRadius: BorderRadius.circular(20),
+              color: colors.onSurface.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(26),
               border: Border.all(
-                color: colors.onSurface.withOpacity(0.12),
+                color: accent.withOpacity(0.22),
                 width: 1,
               ),
             ),
-            child: ScrollConfiguration(
-              behavior: const ScrollBehavior().copyWith(scrollbars: false),
-              child: ListView.builder(
-                controller: _scroll,
-                physics: const NeverScrollableScrollPhysics(),
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                itemCount: lyrics.lines.length,
-                itemExtent: _lineH,
-                itemBuilder: (context, i) {
-                  final isCurrent = i == currentIndex;
-                  final isPast = i < currentIndex;
-                  final color = isCurrent
-                      ? widget.accent
-                      : isPast
-                          ? colors.onSurfaceFaint
-                          : colors.onSurfaceMuted;
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: AnimatedDefaultTextStyle(
-                      duration: const Duration(milliseconds: 250),
-                      style: TextStyle(
-                        fontSize: isCurrent ? 14.5 : 12.5,
-                        color: color,
-                        fontWeight:
-                            isCurrent ? FontWeight.w600 : FontWeight.w400,
-                        height: 1.0,
-                      ),
-                      child: Text(
-                        lyrics.lines[i].text,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  );
-                },
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 500),
+              transitionBuilder: (child, animation) {
+                final slide = Tween<Offset>(
+                  begin: const Offset(0.0, 0.6),
+                  end: Offset.zero,
+                ).animate(CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOutCubic,
+                ));
+                return FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(position: slide, child: child),
+                );
+              },
+              child: Center(
+                key: ValueKey(currentLine),
+                child: Text(
+                  currentLine,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: AppTextTheme.body.copyWith(
+                    color: accent,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14.5,
+                  ),
+                ),
               ),
             ),
           ),

@@ -136,7 +136,10 @@ class _SortSheet extends StatelessWidget {
                   trailing: f == current.field
                       ? Icon(Icons.check, size: 18, color: colors.onSurface)
                       : null,
-                  onTap: () => onChanged(current.withField(f)),
+                  onTap: () {
+                    onChanged(current.withField(f));
+                    Navigator.pop(ctx);
+                  },
                 ),
               const SizedBox(height: SpacingTokens.sm),
             ],

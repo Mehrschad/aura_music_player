@@ -33,6 +33,7 @@ class SongGridTile extends StatelessWidget {
                 size: c.maxWidth,
                 borderRadius: RadiusTokens.brMd,
                 hasArtwork: song.hasArtwork,
+                artworkId: int.tryParse(song.id),
               ),
             ),
           ),

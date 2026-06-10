@@ -12,13 +12,6 @@ import '../widgets/player/mini_player.dart';
 import 'glass_nav_bar.dart';
 import 'nav_provider.dart';
 
-/// The root scaffold: the five primary sections stacked behind a floating
-/// Liquid Glass nav bar.
-///
-/// Each tab has its own nested [Navigator] so that detail pages (album, artist,
-/// playlist) can be pushed WITHOUT hiding the mini player and nav bar.
-/// [NowPlayingPage] is the exception — it uses `rootNavigator: true` to cover
-/// the whole screen.
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
 
@@ -27,31 +20,48 @@ class AppShell extends ConsumerStatefulWidget {
 }
 
 class _AppShellState extends ConsumerState<AppShell> {
-  static const List<Widget> _roots = [
-    LibraryPage(),
-    ArtistsPage(),
-    AlbumsPage(),
-    PlaylistsPage(),
-    SearchPage(),
-  ];
+  // One key per tab so we can pop their inner navigators.
+  final List<GlobalKey<NavigatorState>> _navKeys = List.generate(
+    AppTab.values.length,
+    (_) => GlobalKey<NavigatorState>(),
+  );
 
   DateTime? _lastBackPress;
 
-  void _onBackPressed() {
+  Future<bool> _handleBack() async {
+    final tabIndex = ref.read(selectedTabProvider).index;
+    final key = _navKeys[tabIndex];
+
+    // 1. If the current tab's nested navigator has pages, pop one.
+    if (key.currentState?.canPop() ?? false) {
+      key.currentState!.pop();
+      return false; // don't exit
+    }
+
+    // 2. If not on Library tab, go to Library tab.
+    if (tabIndex != AppTab.library.index) {
+      ref.read(selectedTabProvider.notifier).state = AppTab.library;
+      return false;
+    }
+
+    // 3. Double-press to exit from Library root.
     final now = DateTime.now();
     final last = _lastBackPress;
     if (last != null && now.difference(last) < const Duration(seconds: 2)) {
       SystemNavigator.pop();
-      return;
+      return false;
     }
     _lastBackPress = now;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Press back again to exit'),
-        duration: Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Press back again to exit'),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+    return false;
   }
 
   @override
@@ -59,12 +69,18 @@ class _AppShellState extends ConsumerState<AppShell> {
     final tab = ref.watch(selectedTabProvider);
     return PopScope(
       canPop: false,
-      onPopInvoked: (_) => _onBackPressed(),
+      onPopInvoked: (_) => _handleBack(),
       child: Scaffold(
         extendBody: true,
         body: IndexedStack(
           index: tab.index,
-          children: [for (final page in _roots) _TabNavigator(root: page)],
+          children: [
+            for (var i = 0; i < AppTab.values.length; i++)
+              _TabNavigator(
+                navigatorKey: _navKeys[i],
+                root: _rootForTab(AppTab.values[i]),
+              ),
+          ],
         ),
         bottomNavigationBar: Column(
           mainAxisSize: MainAxisSize.min,
@@ -77,18 +93,25 @@ class _AppShellState extends ConsumerState<AppShell> {
       ),
     );
   }
+
+  Widget _rootForTab(AppTab tab) => switch (tab) {
+        AppTab.library => const LibraryPage(),
+        AppTab.artists => const ArtistsPage(),
+        AppTab.albums => const AlbumsPage(),
+        AppTab.playlists => const PlaylistsPage(),
+        AppTab.search => const SearchPage(),
+      };
 }
 
-/// A nested [Navigator] for a single bottom-nav tab.
-/// Pushes within this tab stay INSIDE, so the host Scaffold's bottom bar
-/// (mini player + nav bar) remains visible.
 class _TabNavigator extends StatelessWidget {
-  const _TabNavigator({required this.root});
+  const _TabNavigator({required this.navigatorKey, required this.root});
+  final GlobalKey<NavigatorState> navigatorKey;
   final Widget root;
 
   @override
   Widget build(BuildContext context) {
     return Navigator(
+      key: navigatorKey,
       onGenerateRoute: (_) => MaterialPageRoute<void>(builder: (_) => root),
     );
   }
