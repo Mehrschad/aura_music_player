@@ -90,14 +90,15 @@ class _QueueSheet extends ConsumerWidget {
                           leading: AuraArtwork(
                               seed: song.artworkSeed,
                               size: 40,
-                              hasArtwork: song.hasArtwork),
+                              hasArtwork: song.hasArtwork,
+                              artworkId: int.tryParse(song.id)),
                           title: Text(song.title,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: AppTextTheme.body.copyWith(
                                   color: isCurrent
                                       ? colors.onSurface
-                                      : colors.onSurfaceMuted)),
+                                      : colors.onSurfaceMuted, fontWeight: isCurrent ? FontWeight.w600 : FontWeight.w400)),
                           subtitle: Text(song.artist,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,

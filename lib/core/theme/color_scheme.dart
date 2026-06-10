@@ -98,8 +98,8 @@ class AppColors extends ThemeExtension<AppColors> {
     onSurfaceFaint: Color(0xFF8A8A90),
     accent: Color(0xFF1C1C1E),
     divider: Color(0xFFE6E6EA),
-    glassTint: Color(0x14000000), // ~8% black tint on light glass
-    glassBorder: Color(0x14FFFFFF),
+    glassTint: Color(0x0C000000), // ~8% black tint on light glass
+    glassBorder: Color(0x18000000),
     scrim: Color(0x66FFFFFF),
   );
 

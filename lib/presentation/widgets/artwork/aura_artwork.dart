@@ -55,6 +55,7 @@ class AuraArtwork extends StatelessWidget {
             artworkHeight: physSize,
             artworkBorder: BorderRadius.zero,
             artworkFit: BoxFit.cover,
+            artworkQuality: FilterQuality.high,
             keepOldArtwork: true,
             nullArtworkWidget: placeholder,
           )
@@ -62,7 +63,12 @@ class AuraArtwork extends StatelessWidget {
 
     return ClipRRect(
       borderRadius: borderRadius,
-      child: SizedBox(width: size, height: size, child: child),
+      child: Container(
+        width: size,
+        height: size,
+        color: const Color(0xFF181820),
+        child: child,
+      ),
     );
   }
 }

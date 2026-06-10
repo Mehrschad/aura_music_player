@@ -9,7 +9,7 @@ enum InterruptionBehavior { pause, duck, ignore }
 enum DisplayDensity { comfortable, standard, compact }
 
 /// Selectable UI language; [system] follows the device locale.
-enum LocalePref { system, en, fa, ar }
+enum LocalePref { system, en, fa, ar, de }
 
 /// All user-facing preferences. Immutable; the [SettingsNotifier] swaps in new
 /// instances and the [SettingsRepository] persists them.

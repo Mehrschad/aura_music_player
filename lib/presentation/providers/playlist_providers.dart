@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../data/repositories/in_memory_playlist_repository.dart';
+import '../../data/repositories/shared_prefs_playlist_repository.dart';
 import '../../domain/library/playlist_logic.dart';
 import '../../domain/models/playlist.dart';
 import '../../domain/models/song.dart';
@@ -8,9 +8,9 @@ import '../../domain/repositories/playlist_repository.dart';
 import 'favorites_providers.dart';
 import 'library_providers.dart';
 
-/// The active playlist store. Override with `IsarPlaylistRepository()` on device.
+/// The active playlist store — persists via SharedPreferences.
 final playlistRepositoryProvider = Provider<PlaylistRepository>((ref) {
-  final repo = InMemoryPlaylistRepository();
+  final repo = SharedPrefsPlaylistRepository();
   ref.onDispose(repo.dispose);
   return repo;
 });

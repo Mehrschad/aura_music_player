@@ -83,6 +83,7 @@ Locale? localeFor(LocalePref p) => switch (p) {
       LocalePref.en => const Locale('en'),
       LocalePref.fa => const Locale('fa'),
       LocalePref.ar => const Locale('ar'),
+      LocalePref.de => const Locale('de'),
     };
 
 VisualDensity visualDensityFor(DisplayDensity d) => switch (d) {

@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -21,26 +22,39 @@ import '../../widgets/player/play_pause_button.dart';
 import '../../widgets/player/queue_sheet.dart';
 import '../../widgets/waveform/waveform_scrubber.dart';
 
-/// The full-screen, immersive player. Album art is the canvas; everything else
-/// recedes. Background is a muted wash derived from the art (a `palette_dart`
-/// stand-in — see [SeedPalette]).
-class NowPlayingPage extends ConsumerWidget {
+class NowPlayingPage extends ConsumerStatefulWidget {
   const NowPlayingPage({super.key});
 
+  @override
+  ConsumerState<NowPlayingPage> createState() => _NowPlayingPageState();
+}
+
+class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
+    with SingleTickerProviderStateMixin {
   static const Duration _seekStep = Duration(seconds: 10);
 
-  void _seekBy(WidgetRef ref, Duration delta, Duration trackDuration) {
-    final controller = ref.read(audioControllerProvider);
-    var target = controller.position + delta;
+  late final AnimationController _ambientCtrl = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 28),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _ambientCtrl.dispose();
+    super.dispose();
+  }
+
+  void _seekBy(Duration delta, Duration trackDuration) {
+    final ctrl = ref.read(audioControllerProvider);
+    var target = ctrl.position + delta;
     if (target < Duration.zero) target = Duration.zero;
     if (target > trackDuration) target = trackDuration;
-    controller.seek(target);
+    ctrl.seek(target);
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final colors = context.colors;
-    final l10n = AppLocalizations.of(context);
     final state = ref.watch(playbackStateProvider).valueOrNull ?? PlaybackState.empty;
     final song = state.currentSong;
 
@@ -48,11 +62,11 @@ class NowPlayingPage extends ConsumerWidget {
       return Scaffold(backgroundColor: colors.background, body: const SizedBox());
     }
 
-    final controller = ref.read(audioControllerProvider);
+    final ctrl = ref.read(audioControllerProvider);
     final accent = SeedPalette.accent(song.artworkSeed);
     final dynamicColor = ref.watch(settingsProvider.select((s) => s.dynamicColor));
     final wash = dynamicColor ? SeedPalette.wash(song.artworkSeed) : colors.background;
-    final artSize = MediaQuery.sizeOf(context).width * 0.72;
+    final isLandscape = MediaQuery.orientationOf(context) == Orientation.landscape;
 
     return GestureDetector(
       onVerticalDragEnd: (d) {
@@ -60,100 +74,255 @@ class NowPlayingPage extends ConsumerWidget {
       },
       onHorizontalDragEnd: (d) {
         final v = d.primaryVelocity ?? 0;
-        if (v < -600) controller.skipToNext();
-        if (v > 600) controller.skipToPrevious();
+        if (v < -600) ctrl.skipToNext();
+        if (v > 600) ctrl.skipToPrevious();
       },
       child: Scaffold(
-      backgroundColor: colors.background,
-      body: Stack(
-        children: [
-          // Muted dynamic-colour wash behind everything.
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [wash.withOpacity(0.18), colors.background],
-                  stops: const [0, 0.55],
+        backgroundColor: colors.background,
+        body: Stack(
+          children: [
+            // ── Layer 1: blurred album-art wash ─────────────────────────────
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [wash.withOpacity(0.22), colors.background],
+                    stops: const [0.0, 0.60],
+                  ),
                 ),
               ),
             ),
-          ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.xl),
-              child: Column(
-                children: [
-                  _TopBar(
-                    title: l10n.nowPlaying,
-                    onOpenLyrics: () => openLyrics(context),
+            // ── Layer 2: ambient animated orbs ───────────────────────────────
+            Positioned.fill(
+              child: AnimatedBuilder(
+                animation: _ambientCtrl,
+                builder: (_, __) => CustomPaint(
+                  painter: _AmbientPainter(
+                    t: _ambientCtrl.value,
+                    accent: accent,
                   ),
-                  const Spacer(),
-                  GestureDetector(
-                    onDoubleTapDown: (details) {
-                      final left = details.localPosition.dx < artSize / 2;
-                      _seekBy(ref, left ? -_seekStep : _seekStep, song.duration);
-                    },
-                    onDoubleTap: () {}, // double-tap recognised via the down hit
-                    child: Semantics(
-                      image: true,
-                      label: l10n.a11yAlbumArt,
-                      child: BreathingArtwork(
-                        seed: song.artworkSeed,
-                        size: artSize,
-                        playing: state.playing,
-                        hasArtwork: song.hasArtwork,
-                        artworkId: int.tryParse(song.id),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: SpacingTokens.lg),
-                  _InlineLyrics(accent: accent),
-                  const SizedBox(height: SpacingTokens.lg),
-                  _TrackText(title: song.title, subtitle: '${song.artist} \u00b7 ${song.album}'),
-                  const SizedBox(height: SpacingTokens.lg),
-                  Row(
-                    children: [
-                      _FavoriteButton(songId: song.id, accent: accent),
-                      Expanded(
-                        child: WaveformScrubber(
-                          duration: song.duration,
-                          accent: accent,
-                          seed: song.artworkSeed,
-                        ),
-                      ),
-                      const SizedBox(width: 48), // balance the favourite button
-                    ],
-                  ),
-                  const SizedBox(height: SpacingTokens.md),
-                  _TransportRow(
-                    state: state,
-                    onPrevious: controller.skipToPrevious,
-                    onNext: state.hasNext ? controller.skipToNext : null,
-                    onSeekBack: () => _seekBy(ref, -_seekStep, song.duration),
-                    onSeekForward: () => _seekBy(ref, _seekStep, song.duration),
-                    onPlayPause: controller.togglePlayPause,
-                  ),
-                  const Spacer(),
-                  _BottomRow(state: state, accent: accent),
-                  const SizedBox(height: SpacingTokens.lg),
-                ],
+                ),
               ),
             ),
-          ),
-        ],
-      ),
+            // ── Layer 3: frosted-glass scrim over the orbs ──────────────────
+            Positioned.fill(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 0, sigmaY: 0),
+                child: const SizedBox.expand(),
+              ),
+            ),
+            // ── Layer 4: content ─────────────────────────────────────────────
+            SafeArea(
+              child: isLandscape
+                  ? _LandscapeBody(
+                      state: state,
+                      song: song,
+                      accent: accent,
+                      seekStep: _seekStep,
+                      onSeekBy: _seekBy,
+                    )
+                  : _PortraitBody(
+                      state: state,
+                      song: song,
+                      accent: accent,
+                      seekStep: _seekStep,
+                      onSeekBy: _seekBy,
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _TopBar extends StatelessWidget {
-  const _TopBar({
-    required this.title,
-    required this.onOpenLyrics,
+// ── Portrait layout ─────────────────────────────────────────────────────────
+
+class _PortraitBody extends ConsumerWidget {
+  const _PortraitBody({
+    required this.state,
+    required this.song,
+    required this.accent,
+    required this.seekStep,
+    required this.onSeekBy,
   });
+
+  final PlaybackState state;
+  final dynamic song; // Song
+  final Color accent;
+  final Duration seekStep;
+  final void Function(Duration, Duration) onSeekBy;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final colors = context.colors;
+    final ctrl = ref.read(audioControllerProvider);
+    final size = MediaQuery.sizeOf(context);
+    final artSize = size.width * 0.76;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.xl),
+      child: Column(
+        children: [
+          _TopBar(
+            title: l10n.nowPlaying,
+            onOpenLyrics: () => openLyrics(context),
+          ),
+          const Spacer(flex: 2),
+
+          // ── Artwork with glow shadow ────────────────────────────────────
+          _ArtworkWithGlow(
+            song: song,
+            size: artSize,
+            accent: accent,
+            state: state,
+          ),
+
+          const Spacer(flex: 2),
+
+          // ── Lyrics single-line capsule ──────────────────────────────────
+          _LyricsCapsule(accent: accent),
+          const SizedBox(height: SpacingTokens.md),
+
+          // ── Track title & artist ────────────────────────────────────────
+          _TrackInfo(title: song.title, subtitle: '${song.artist} · ${song.album}', accent: accent),
+          const SizedBox(height: SpacingTokens.lg),
+
+          // ── Scrubber row (heart + scrubber + balance) ───────────────────
+          Row(
+            children: [
+              _FavoriteButton(songId: song.id, accent: accent),
+              Expanded(
+                child: WaveformScrubber(
+                  duration: song.duration,
+                  accent: accent,
+                  seed: song.artworkSeed,
+                ),
+              ),
+              const SizedBox(width: 48),
+            ],
+          ),
+          const SizedBox(height: SpacingTokens.md),
+
+          // ── Transport ───────────────────────────────────────────────────
+          _TransportRow(
+            state: state,
+            onPrevious: ctrl.skipToPrevious,
+            onNext: state.hasNext ? ctrl.skipToNext : null,
+            onSeekBack: () => onSeekBy(-seekStep, song.duration),
+            onSeekForward: () => onSeekBy(seekStep, song.duration),
+            onPlayPause: ctrl.togglePlayPause,
+          ),
+          const Spacer(flex: 1),
+
+          // ── Bottom row ──────────────────────────────────────────────────
+          _BottomRow(state: state, accent: accent),
+          const SizedBox(height: SpacingTokens.md),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Landscape layout ─────────────────────────────────────────────────────────
+
+class _LandscapeBody extends ConsumerWidget {
+  const _LandscapeBody({
+    required this.state,
+    required this.song,
+    required this.accent,
+    required this.seekStep,
+    required this.onSeekBy,
+  });
+
+  final PlaybackState state;
+  final dynamic song;
+  final Color accent;
+  final Duration seekStep;
+  final void Function(Duration, Duration) onSeekBy;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final ctrl = ref.read(audioControllerProvider);
+    final size = MediaQuery.sizeOf(context);
+    final artSize = size.height * 0.68;
+
+    return Row(
+      children: [
+        // ── Left: Artwork ─────────────────────────────────────────────────
+        SizedBox(
+          width: size.width * 0.42,
+          child: Center(
+            child: _ArtworkWithGlow(
+              song: song,
+              size: artSize,
+              accent: accent,
+              state: state,
+            ),
+          ),
+        ),
+
+        // ── Right: Controls ───────────────────────────────────────────────
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+                SpacingTokens.md, 0, SpacingTokens.xl, 0),
+            child: Column(
+              children: [
+                _TopBar(
+                  title: l10n.nowPlaying,
+                  onOpenLyrics: () => openLyrics(context),
+                ),
+                const Spacer(),
+                _LyricsCapsule(accent: accent),
+                const SizedBox(height: SpacingTokens.sm),
+                _TrackInfo(
+                  title: song.title,
+                  subtitle: '${song.artist} · ${song.album}',
+                  accent: accent,
+                ),
+                const SizedBox(height: SpacingTokens.md),
+                Row(
+                  children: [
+                    _FavoriteButton(songId: song.id, accent: accent),
+                    Expanded(
+                      child: WaveformScrubber(
+                        duration: song.duration,
+                        accent: accent,
+                        seed: song.artworkSeed,
+                      ),
+                    ),
+                    const SizedBox(width: 48),
+                  ],
+                ),
+                _TransportRow(
+                  state: state,
+                  onPrevious: ctrl.skipToPrevious,
+                  onNext: state.hasNext ? ctrl.skipToNext : null,
+                  onSeekBack: () => onSeekBy(-seekStep, song.duration),
+                  onSeekForward: () => onSeekBy(seekStep, song.duration),
+                  onPlayPause: ctrl.togglePlayPause,
+                ),
+                const Spacer(),
+                _BottomRow(state: state, accent: accent),
+                const SizedBox(height: SpacingTokens.sm),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Reusable sub-widgets ─────────────────────────────────────────────────────
+
+class _TopBar extends StatelessWidget {
+  const _TopBar({required this.title, required this.onOpenLyrics});
   final String title;
   final VoidCallback onOpenLyrics;
 
@@ -172,7 +341,10 @@ class _TopBar extends StatelessWidget {
           child: Text(
             title,
             textAlign: TextAlign.center,
-            style: AppTextTheme.caption.copyWith(color: colors.onSurfaceMuted),
+            style: AppTextTheme.caption.copyWith(
+                color: colors.onSurfaceMuted,
+                letterSpacing: 0.8,
+                fontWeight: FontWeight.w500),
           ),
         ),
         IconButton(
@@ -185,10 +357,171 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-class _TrackText extends StatelessWidget {
-  const _TrackText({required this.title, required this.subtitle});
+class _ArtworkWithGlow extends StatelessWidget {
+  const _ArtworkWithGlow({
+    required this.song,
+    required this.size,
+    required this.accent,
+    required this.state,
+  });
+
+  final dynamic song;
+  final double size;
+  final Color accent;
+  final PlaybackState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Semantics(
+      image: true,
+      label: l10n.a11yAlbumArt,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Glow shadow
+          Container(
+            width: size * 0.88,
+            height: size * 0.22,
+            margin: EdgeInsets.only(top: size * 0.82),
+            decoration: BoxDecoration(
+              shape: BoxShape.rectangle,
+              borderRadius: BorderRadius.circular(size * 0.44),
+              boxShadow: [
+                BoxShadow(
+                  color: accent.withOpacity(0.38),
+                  blurRadius: size * 0.20,
+                  spreadRadius: 0,
+                ),
+              ],
+            ),
+          ),
+          // Artwork
+          BreathingArtwork(
+            seed: song.artworkSeed,
+            size: size,
+            playing: state.playing,
+            hasArtwork: song.hasArtwork,
+            artworkId: int.tryParse(song.id),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Single-line liquid-glass lyrics capsule with reflection highlight.
+class _LyricsCapsule extends ConsumerWidget {
+  const _LyricsCapsule({required this.accent});
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final lyricsAsync = ref.watch(currentLyricsProvider);
+    final currentIndex = ref.watch(currentLyricLineProvider);
+    final colors = context.colors;
+
+    final lyrics = lyricsAsync.valueOrNull;
+    if (lyrics == null || lyrics.isEmpty || !lyrics.synced) {
+      return const SizedBox.shrink();
+    }
+
+    final currentLine = currentIndex >= 0 && currentIndex < lyrics.lines.length
+        ? lyrics.lines[currentIndex].text
+        : null;
+
+    if (currentLine == null) return const SizedBox.shrink();
+
+    return GestureDetector(
+      onTap: () => openLyrics(context),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 32, sigmaY: 32),
+          child: Stack(
+            children: [
+              // Glass body
+              Container(
+                height: 44,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.white.withOpacity(0.13),
+                      accent.withOpacity(0.06),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: accent.withOpacity(0.22), width: 0.8),
+                ),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 480),
+                  transitionBuilder: (child, animation) {
+                    final slide = Tween<Offset>(
+                      begin: const Offset(0.0, 0.65),
+                      end: Offset.zero,
+                    ).animate(CurvedAnimation(
+                      parent: animation,
+                      curve: Curves.easeOutCubic,
+                    ));
+                    return FadeTransition(
+                      opacity: animation,
+                      child: SlideTransition(position: slide, child: child),
+                    );
+                  },
+                  child: Center(
+                    key: ValueKey(currentLine),
+                    child: Text(
+                      currentLine,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: AppTextTheme.body.copyWith(
+                        color: accent,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14.0,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              // Reflection highlight — top edge shimmer
+              Positioned(
+                top: 0,
+                left: 24,
+                right: 24,
+                height: 1,
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.white.withOpacity(0.0),
+                        Colors.white.withOpacity(0.55),
+                        Colors.white.withOpacity(0.0),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TrackInfo extends StatelessWidget {
+  const _TrackInfo({
+    required this.title,
+    required this.subtitle,
+    required this.accent,
+  });
   final String title;
   final String subtitle;
+  final Color accent;
 
   @override
   Widget build(BuildContext context) {
@@ -197,18 +530,26 @@ class _TrackText extends StatelessWidget {
       children: [
         Text(
           title,
-          maxLines: 2,
+          maxLines: 1,
           textAlign: TextAlign.center,
           overflow: TextOverflow.ellipsis,
-          style: AppTextTheme.heroTitle.copyWith(color: colors.onSurface),
+          style: AppTextTheme.heroTitle.copyWith(
+            color: colors.onSurface,
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
+          ),
         ),
-        const SizedBox(height: SpacingTokens.xs),
+        const SizedBox(height: 4),
         Text(
           subtitle,
           maxLines: 1,
           textAlign: TextAlign.center,
           overflow: TextOverflow.ellipsis,
-          style: AppTextTheme.body.copyWith(color: colors.onSurfaceMuted),
+          style: AppTextTheme.body.copyWith(
+            color: colors.onSurfaceMuted,
+            fontSize: 13.5,
+          ),
         ),
       ],
     );
@@ -263,29 +604,30 @@ class _TransportRow extends StatelessWidget {
         IconButton(
           tooltip: l10n.previousTrack,
           onPressed: () => onPrevious(),
-          icon: Icon(Icons.skip_previous, color: colors.onSurface),
-          iconSize: 32,
+          icon: Icon(Icons.skip_previous_rounded, color: colors.onSurface),
+          iconSize: 34,
         ),
         IconButton(
           onPressed: onSeekBack,
-          icon: Icon(Icons.replay_10, color: colors.onSurfaceMuted),
+          icon: Icon(Icons.replay_10_rounded, color: colors.onSurfaceMuted),
           iconSize: 28,
         ),
         PlayPauseButton(
           playing: state.playing,
           onTap: onPlayPause,
           semanticLabel: state.playing ? l10n.pause : l10n.play,
+          size: 68,
         ),
         IconButton(
           onPressed: onSeekForward,
-          icon: Icon(Icons.forward_10, color: colors.onSurfaceMuted),
+          icon: Icon(Icons.forward_10_rounded, color: colors.onSurfaceMuted),
           iconSize: 28,
         ),
         IconButton(
           tooltip: l10n.nextTrack,
           onPressed: onNext == null ? null : () => onNext!(),
-          icon: Icon(Icons.skip_next, color: colors.onSurface),
-          iconSize: 32,
+          icon: Icon(Icons.skip_next_rounded, color: colors.onSurface),
+          iconSize: 34,
         ),
       ],
     );
@@ -309,7 +651,7 @@ class _BottomRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
     final l10n = AppLocalizations.of(context);
-    final controller = ref.read(audioControllerProvider);
+    final ctrl = ref.read(audioControllerProvider);
     final speed = ref.watch(speedProvider).valueOrNull ?? 1.0;
     final sleepRemaining = ref.watch(sleepTimerProvider);
 
@@ -323,27 +665,26 @@ class _BottomRow extends ConsumerWidget {
       children: [
         IconButton(
           tooltip: l10n.shuffle,
-          onPressed: () => controller.setShuffle(!state.shuffleEnabled),
+          onPressed: () => ctrl.setShuffle(!state.shuffleEnabled),
           icon: Icon(
-            Icons.shuffle,
+            Icons.shuffle_rounded,
             color: state.shuffleEnabled ? accent : colors.onSurfaceMuted,
           ),
         ),
         IconButton(
           tooltip:
               state.repeatMode == RepeatMode.one ? l10n.repeatOne : l10n.repeat,
-          onPressed: () => controller.setRepeat(_nextRepeat(state.repeatMode)),
+          onPressed: () => ctrl.setRepeat(_nextRepeat(state.repeatMode)),
           icon: Icon(
             repeatIcon,
             color: repeatActive ? accent : colors.onSurfaceMuted,
           ),
         ),
-        // Speed button — cycles through presets on tap.
         GestureDetector(
           onTap: () {
             final idx = _speedPresets.indexOf(speed);
             final next = _speedPresets[(idx + 1) % _speedPresets.length];
-            controller.setSpeed(next);
+            ctrl.setSpeed(next);
           },
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -363,7 +704,6 @@ class _BottomRow extends ConsumerWidget {
             ),
           ),
         ),
-        // Sleep timer button — shows countdown when active.
         GestureDetector(
           onTap: () => _showSleepTimerSheet(context, ref, sleepRemaining),
           child: sleepRemaining != null
@@ -374,12 +714,13 @@ class _BottomRow extends ConsumerWidget {
                     fontWeight: FontWeight.w600,
                   ),
                 )
-              : Icon(Icons.bedtime_outlined, color: colors.onSurfaceMuted, size: 24),
+              : Icon(Icons.bedtime_outlined,
+                  color: colors.onSurfaceMuted, size: 24),
         ),
         IconButton(
           tooltip: l10n.queueTitle,
           onPressed: () => showQueueSheet(context),
-          icon: Icon(Icons.queue_music, color: colors.onSurfaceMuted),
+          icon: Icon(Icons.queue_music_rounded, color: colors.onSurfaceMuted),
         ),
       ],
     );
@@ -455,7 +796,8 @@ class _BottomRow extends ConsumerWidget {
 }
 
 class _TimerChip extends StatelessWidget {
-  const _TimerChip({required this.label, required this.onTap, this.isCancel = false});
+  const _TimerChip(
+      {required this.label, required this.onTap, this.isCancel = false});
   final String label;
   final VoidCallback onTap;
   final bool isCancel;
@@ -468,7 +810,7 @@ class _TimerChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: isCancel ? colors.surfaceElevated : colors.surfaceElevated,
+          color: colors.surfaceElevated,
           borderRadius: RadiusTokens.brSm,
         ),
         child: Text(
@@ -482,82 +824,69 @@ class _TimerChip extends StatelessWidget {
   }
 }
 
-/// A liquid-glass single-line lyrics capsule. Shows only the active lyric line;
-/// when the line changes the new text slides up and fades in while the old text
-/// fades out — the strong backdrop blur makes the transition look like a light
-/// refraction effect through the glass.
-class _InlineLyrics extends ConsumerWidget {
-  const _InlineLyrics({required this.accent});
+// ── Ambient painter — three soft drifting orbs ──────────────────────────────
+
+class _AmbientPainter extends CustomPainter {
+  _AmbientPainter({required this.t, required this.accent});
+  final double t;
   final Color accent;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final lyricsAsync = ref.watch(currentLyricsProvider);
-    final currentIndex = ref.watch(currentLyricLineProvider);
-    final colors = context.colors;
-
-    final lyrics = lyricsAsync.valueOrNull;
-    if (lyrics == null || lyrics.isEmpty || !lyrics.synced) {
-      return const SizedBox.shrink();
-    }
-
-    final currentLine = currentIndex >= 0 && currentIndex < lyrics.lines.length
-        ? lyrics.lines[currentIndex].text
-        : null;
-
-    if (currentLine == null) return const SizedBox.shrink();
-
-    return GestureDetector(
-      onTap: () => openLyrics(context),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(26),
-        child: BackdropFilter(
-          // Strong blur creates visible refraction as content animates beneath.
-          filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
-          child: Container(
-            height: 52,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            decoration: BoxDecoration(
-              color: colors.onSurface.withOpacity(0.06),
-              borderRadius: BorderRadius.circular(26),
-              border: Border.all(
-                color: accent.withOpacity(0.22),
-                width: 1,
-              ),
-            ),
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 500),
-              transitionBuilder: (child, animation) {
-                final slide = Tween<Offset>(
-                  begin: const Offset(0.0, 0.6),
-                  end: Offset.zero,
-                ).animate(CurvedAnimation(
-                  parent: animation,
-                  curve: Curves.easeOutCubic,
-                ));
-                return FadeTransition(
-                  opacity: animation,
-                  child: SlideTransition(position: slide, child: child),
-                );
-              },
-              child: Center(
-                key: ValueKey(currentLine),
-                child: Text(
-                  currentLine,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: AppTextTheme.body.copyWith(
-                    color: accent,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14.5,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
+  void paint(Canvas canvas, Size size) {
+    // Orb 1 — large, slow, upper half
+    _drawOrb(
+      canvas,
+      Offset(
+        size.width * (0.12 + 0.76 * _n(math.sin(t * 2 * math.pi * 0.38))),
+        size.height * (0.08 + 0.42 * _n(math.cos(t * 2 * math.pi * 0.27))),
       ),
+      size.width * 0.62,
+      accent.withOpacity(0.09),
+    );
+
+    // Orb 2 — medium, offset phase, lower half
+    _drawOrb(
+      canvas,
+      Offset(
+        size.width * (0.65 + 0.32 * _n(math.sin(t * 2 * math.pi * 0.22 + 2.1))),
+        size.height * (0.50 + 0.32 * _n(math.cos(t * 2 * math.pi * 0.33 + 1.5))),
+      ),
+      size.width * 0.52,
+      accent.withOpacity(0.07),
+    );
+
+    // Orb 3 — smaller, faster, bottom-left
+    _drawOrb(
+      canvas,
+      Offset(
+        size.width * (0.18 + 0.40 * _n(math.cos(t * 2 * math.pi * 0.19 + 4.2))),
+        size.height * (0.68 + 0.20 * _n(math.sin(t * 2 * math.pi * 0.44 + 0.9))),
+      ),
+      size.width * 0.40,
+      accent.withOpacity(0.06),
     );
   }
+
+  void _drawOrb(Canvas canvas, Offset center, double radius, Color color) {
+    final rect = Rect.fromCenter(
+      center: center,
+      width: radius * 2,
+      height: radius * 2,
+    );
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [color, color.withOpacity(0.0)],
+        ).createShader(rect),
+    );
+  }
+
+  // Normalize sin/cos from -1..1 to 0..1
+  double _n(double x) => (x + 1.0) / 2.0;
+
+  @override
+  bool shouldRepaint(_AmbientPainter o) =>
+      o.t != t || o.accent != accent;
 }

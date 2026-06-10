@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/local/lyrics_cache/shared_prefs_lyrics_cache.dart';
 import '../../data/remote/lyrics_api/lrclib_lyrics_repository.dart';
 import '../../data/repositories/sample_lyrics_repository.dart';
 import '../../domain/lyrics/lrc_parser.dart';
@@ -10,6 +11,11 @@ import 'settings_providers.dart';
 
 /// Lyrics font-size preference.
 enum LyricsFontSize { small, medium, large }
+
+/// Shared lyrics cache (SharedPreferences-backed).
+final lyricsCacheProvider = Provider<SharedPrefsLyricsCache>((ref) {
+  return SharedPrefsLyricsCache();
+});
 
 /// The active lyrics source. Uses LRCLIB when auto-fetch is enabled in settings,
 /// falls back to sample data otherwise (also keeps tests fast).
@@ -36,15 +42,26 @@ final lyricsOverridesProvider =
   (ref) => LyricsOverrides(),
 );
 
-/// Lyrics for the current track (null when none exist). A user-saved override
-/// wins over the repository; otherwise the repository is queried. Reloads when
-/// the track changes.
+/// Lyrics for the current track. Priority: user override → cache → repository.
+/// Fetched lyrics are auto-saved to cache for offline use.
 final currentLyricsProvider = FutureProvider<Lyrics?>((ref) async {
   final song = ref.watch(currentSongProvider);
   if (song == null) return null;
+
+  // 1. User override (from sync editor) — always wins.
   final override = ref.watch(lyricsOverridesProvider)[song.id];
   if (override != null) return override;
-  return ref.watch(lyricsRepositoryProvider).lyricsFor(song);
+
+  final cache = ref.read(lyricsCacheProvider);
+
+  // 2. Persistent cache — works offline.
+  final cached = await cache.read(song.id);
+  if (cached != null) return cached;
+
+  // 3. Remote repository — fetch and cache the result.
+  final result = await ref.watch(lyricsRepositoryProvider).lyricsFor(song);
+  if (result != null) await cache.write(song.id, result);
+  return result;
 });
 
 final lyricsFontSizeProvider =

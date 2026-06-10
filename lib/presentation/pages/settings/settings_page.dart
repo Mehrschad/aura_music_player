@@ -104,6 +104,7 @@ class SettingsPage extends ConsumerWidget {
               LocalePref.en => l10n.langEn,
               LocalePref.fa => l10n.langFa,
               LocalePref.ar => l10n.langAr,
+              LocalePref.de => l10n.langDe,
             },
             onSelect: n.setLocale,
           ),
