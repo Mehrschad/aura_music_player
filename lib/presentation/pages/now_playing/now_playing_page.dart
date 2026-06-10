@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/constants/radius_tokens.dart';
 import '../../../core/constants/spacing_tokens.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/color_scheme.dart';
@@ -10,6 +11,7 @@ import '../../../domain/models/playback.dart';
 import '../../providers/favorites_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../providers/settings_providers.dart';
+import '../../providers/sleep_timer_provider.dart';
 import '../lyrics/lyrics_page.dart';
 import '../../widgets/player/breathing_artwork.dart';
 import '../../widgets/player/play_pause_button.dart';
@@ -290,6 +292,8 @@ class _BottomRow extends ConsumerWidget {
   final PlaybackState state;
   final Color accent;
 
+  static const _speedPresets = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
+
   RepeatMode _nextRepeat(RepeatMode m) => switch (m) {
         RepeatMode.off => RepeatMode.all,
         RepeatMode.all => RepeatMode.one,
@@ -301,10 +305,13 @@ class _BottomRow extends ConsumerWidget {
     final colors = context.colors;
     final l10n = AppLocalizations.of(context);
     final controller = ref.read(audioControllerProvider);
+    final speed = ref.watch(speedProvider).valueOrNull ?? 1.0;
+    final sleepRemaining = ref.watch(sleepTimerProvider);
 
     final repeatIcon =
         state.repeatMode == RepeatMode.one ? Icons.repeat_one : Icons.repeat;
     final repeatActive = state.repeatMode != RepeatMode.off;
+    final isNormalSpeed = speed == 1.0;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -326,12 +333,146 @@ class _BottomRow extends ConsumerWidget {
             color: repeatActive ? accent : colors.onSurfaceMuted,
           ),
         ),
+        // Speed button — cycles through presets on tap.
+        GestureDetector(
+          onTap: () {
+            final idx = _speedPresets.indexOf(speed);
+            final next = _speedPresets[(idx + 1) % _speedPresets.length];
+            controller.setSpeed(next);
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: isNormalSpeed ? colors.onSurfaceMuted : accent,
+                width: 1.5,
+              ),
+              borderRadius: RadiusTokens.brXs,
+            ),
+            child: Text(
+              '${speed % 1 == 0 ? speed.toInt() : speed}×',
+              style: AppTextTheme.caption.copyWith(
+                color: isNormalSpeed ? colors.onSurfaceMuted : accent,
+                fontWeight: isNormalSpeed ? FontWeight.w400 : FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+        // Sleep timer button — shows countdown when active.
+        GestureDetector(
+          onTap: () => _showSleepTimerSheet(context, ref, sleepRemaining),
+          child: sleepRemaining != null
+              ? Text(
+                  _formatRemaining(sleepRemaining),
+                  style: AppTextTheme.caption.copyWith(
+                    color: accent,
+                    fontWeight: FontWeight.w600,
+                  ),
+                )
+              : Icon(Icons.bedtime_outlined, color: colors.onSurfaceMuted, size: 24),
+        ),
         IconButton(
           tooltip: l10n.queueTitle,
           onPressed: () => showQueueSheet(context),
           icon: Icon(Icons.queue_music, color: colors.onSurfaceMuted),
         ),
       ],
+    );
+  }
+
+  String _formatRemaining(Duration d) {
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  void _showSleepTimerSheet(
+      BuildContext context, WidgetRef ref, Duration? active) {
+    final colors = context.colors;
+    final timerNotifier = ref.read(sleepTimerProvider.notifier);
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: colors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) {
+        const options = [
+          Duration(minutes: 15),
+          Duration(minutes: 30),
+          Duration(minutes: 45),
+          Duration(minutes: 60),
+          Duration(minutes: 90),
+        ];
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(SpacingTokens.xl),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Sleep Timer',
+                  style: AppTextTheme.title.copyWith(color: colors.onSurface),
+                ),
+                const SizedBox(height: SpacingTokens.md),
+                Wrap(
+                  spacing: SpacingTokens.sm,
+                  runSpacing: SpacingTokens.sm,
+                  children: [
+                    for (final opt in options)
+                      _TimerChip(
+                        label: '${opt.inMinutes} min',
+                        onTap: () {
+                          timerNotifier.start(opt);
+                          Navigator.pop(context);
+                        },
+                      ),
+                    if (active != null)
+                      _TimerChip(
+                        label: 'Cancel',
+                        isCancel: true,
+                        onTap: () {
+                          timerNotifier.cancel();
+                          Navigator.pop(context);
+                        },
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _TimerChip extends StatelessWidget {
+  const _TimerChip({required this.label, required this.onTap, this.isCancel = false});
+  final String label;
+  final VoidCallback onTap;
+  final bool isCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: isCancel ? colors.surfaceElevated : colors.surfaceElevated,
+          borderRadius: RadiusTokens.brSm,
+        ),
+        child: Text(
+          label,
+          style: AppTextTheme.body.copyWith(
+            color: isCancel ? Colors.redAccent : colors.onSurface,
+          ),
+        ),
+      ),
     );
   }
 }

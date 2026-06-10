@@ -1,19 +1,22 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/remote/lyrics_api/lrclib_lyrics_repository.dart';
 import '../../data/repositories/sample_lyrics_repository.dart';
 import '../../domain/lyrics/lrc_parser.dart';
 import '../../domain/models/lyrics.dart';
 import '../../domain/repositories/lyrics_repository.dart';
 import 'playback_providers.dart';
+import 'settings_providers.dart';
 
 /// Lyrics font-size preference.
 enum LyricsFontSize { small, medium, large }
 
-/// The active lyrics source. Override with a cache → tags → LRCLIB composite on
-/// device.
-final lyricsRepositoryProvider = Provider<LyricsRepository>(
-  (ref) => const SampleLyricsRepository(),
-);
+/// The active lyrics source. Uses LRCLIB when auto-fetch is enabled in settings,
+/// falls back to sample data otherwise (also keeps tests fast).
+final lyricsRepositoryProvider = Provider<LyricsRepository>((ref) {
+  final autoFetch = ref.watch(settingsProvider.select((s) => s.lyricsAutoFetch));
+  return autoFetch ? LrcLibLyricsRepository() : const SampleLyricsRepository();
+});
 
 /// User-saved lyrics overrides, keyed by song id (e.g. results of the tap-to-
 /// sync editor). Session-scoped; persists to Isar on device alongside the

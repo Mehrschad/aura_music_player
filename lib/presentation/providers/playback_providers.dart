@@ -42,3 +42,9 @@ final currentSongProvider = Provider<Song?>((ref) {
 final hasMediaProvider = Provider<bool>((ref) {
   return ref.watch(currentSongProvider) != null;
 });
+
+/// Current playback speed (1.0 = normal). Kept separate from [playbackStateProvider]
+/// so only the speed indicator rebuilds on rate change.
+final speedProvider = StreamProvider<double>((ref) {
+  return ref.watch(audioControllerProvider).speedStream;
+});

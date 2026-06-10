@@ -184,6 +184,15 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
   Future<void> skipToIndex(int index) => _player.seek(Duration.zero, index: index);
 
   @override
+  Stream<double> get speedStream => _player.speedStream;
+
+  @override
+  double get speed => _player.speed;
+
+  @override
+  Future<void> setSpeed(double speed) => _player.setSpeed(speed);
+
+  @override
   Future<void> setShuffle(bool enabled) async {
     if (enabled) await _player.shuffle();
     await _player.setShuffleModeEnabled(enabled);
