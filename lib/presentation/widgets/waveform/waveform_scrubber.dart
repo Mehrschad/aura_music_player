@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/radius_tokens.dart';
@@ -12,12 +13,6 @@ import '../../../core/theme/typography.dart';
 import '../../../domain/audio/waveform.dart';
 import '../../providers/playback_providers.dart';
 
-/// OneUI 9 / Android 16-inspired waveform seek control.
-///
-/// While idle: slim waveform bars with a subtle circle thumb at the playhead.
-/// While scrubbing: the bars "squeeze" away from the thumb (Apple/Samsung
-/// dynamic island effect), the thumb circle inflates with a spring, and a
-/// floating time tooltip appears above it.
 class WaveformScrubber extends ConsumerStatefulWidget {
   const WaveformScrubber({
     super.key,
@@ -44,15 +39,42 @@ class _WaveformScrubberState extends ConsumerState<WaveformScrubber>
   double? _dragFraction;
   late WaveformData _waveform = generateWaveform(widget.seed);
 
+  // Separate controller just for the thumb spring animation
   late final AnimationController _thumbController = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 200),
   );
-
   late final Animation<double> _thumbScale = CurvedAnimation(
     parent: _thumbController,
-    curve: const Cubic(0.34, 1.56, 0.64, 1.0), // spring
+    curve: const Cubic(0.34, 1.56, 0.64, 1.0),
   );
+
+  // Ticker for continuous bar animation
+  Ticker? _ticker;
+  double _animTime = 0;
+  bool _isPlaying = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = createTicker(_onTick);
+  }
+
+  void _onTick(Duration elapsed) {
+    if (_isPlaying) {
+      setState(() => _animTime += 1 / 60);
+    }
+  }
+
+  void _syncPlaying(bool playing) {
+    if (_isPlaying == playing) return;
+    _isPlaying = playing;
+    if (playing) {
+      if (!(_ticker?.isTicking ?? false)) _ticker?.start();
+    } else {
+      _ticker?.stop();
+    }
+  }
 
   @override
   void didUpdateWidget(WaveformScrubber oldWidget) {
@@ -64,6 +86,7 @@ class _WaveformScrubberState extends ConsumerState<WaveformScrubber>
 
   @override
   void dispose() {
+    _ticker?.dispose();
     _thumbController.dispose();
     super.dispose();
   }
@@ -85,9 +108,7 @@ class _WaveformScrubberState extends ConsumerState<WaveformScrubber>
   }
 
   void _onDragEnd() {
-    if (_dragFraction != null) {
-      _seekToFraction(_dragFraction!);
-    }
+    if (_dragFraction != null) _seekToFraction(_dragFraction!);
     _thumbController.reverse();
     setState(() => _dragFraction = null);
   }
@@ -97,6 +118,10 @@ class _WaveformScrubberState extends ConsumerState<WaveformScrubber>
     final colors = context.colors;
     final l10n = AppLocalizations.of(context);
     final hasDuration = _totalMs > 0;
+
+    final playbackState = ref.watch(playbackStateProvider);
+    final playing = playbackState.valueOrNull?.playing ?? false;
+    _syncPlaying(playing);
 
     final position = ref.watch(positionProvider).valueOrNull ?? Duration.zero;
     final playbackFraction =
@@ -127,8 +152,9 @@ class _WaveformScrubberState extends ConsumerState<WaveformScrubber>
               builder: (context, constraints) {
                 final width = constraints.maxWidth;
                 final period = WaveformScrubber._barWidth + WaveformScrubber._barGap;
-                final barCount =
-                    ((width + WaveformScrubber._barGap) / period).floor().clamp(1, 4000);
+                final barCount = ((width + WaveformScrubber._barGap) / period)
+                    .floor()
+                    .clamp(1, 4000);
                 final bars = resampleAmplitudes(_waveform.amplitudes, barCount);
                 final thumbX = fraction * width;
 
@@ -165,47 +191,53 @@ class _WaveformScrubberState extends ConsumerState<WaveformScrubber>
                               gap: WaveformScrubber._barGap,
                               thumbScale: _thumbScale.value,
                               thumbX: thumbX,
+                              animTime: _animTime,
+                              isPlaying: playing,
+                              totalWidth: width,
                             ),
                           ),
                         ),
                       ),
                     ),
-                    // Animated thumb circle (OneUI/Android 16 style)
+                    // Animated thumb circle
                     AnimatedBuilder(
                       animation: _thumbScale,
                       builder: (_, __) {
-                        final baseRadius = 6.0;
-                        final maxRadius = 10.0;
-                        final radius = baseRadius +
-                            (maxRadius - baseRadius) * _thumbScale.value;
-                        final thumbTop = (WaveformScrubber._barAreaHeight / 2) - radius;
+                        final baseRadius = 5.0;
+                        final maxRadius = 9.0;
+                        final radius =
+                            baseRadius + (maxRadius - baseRadius) * _thumbScale.value;
+                        final thumbTop =
+                            (WaveformScrubber._barAreaHeight / 2) - radius;
 
                         return Positioned(
                           bottom: thumbTop,
-                          left: (thumbX - radius).clamp(0.0, width - radius * 2),
+                          left: (thumbX - radius).clamp(0.0, math.max(0, width - radius * 2)),
                           child: Container(
                             width: radius * 2,
                             height: radius * 2,
                             decoration: BoxDecoration(
                               color: widget.accent,
                               shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: widget.accent.withOpacity(0.4 * _thumbScale.value),
-                                  blurRadius: 8,
-                                  spreadRadius: 2,
-                                ),
-                              ],
+                              boxShadow: _thumbScale.value > 0.01
+                                  ? [
+                                      BoxShadow(
+                                        color: widget.accent
+                                            .withOpacity(0.45 * _thumbScale.value),
+                                        blurRadius: 10,
+                                        spreadRadius: 2,
+                                      ),
+                                    ]
+                                  : null,
                             ),
                           ),
                         );
                       },
                     ),
-                    // Floating time tooltip while dragging
                     if (_dragFraction != null)
                       Positioned(
                         bottom: WaveformScrubber._barAreaHeight + 4,
-                        left: (thumbX - 24).clamp(0.0, width - 48),
+                        left: (thumbX - 26).clamp(0.0, math.max(0, width - 52)),
                         child: _TimeTooltip(time: tooltipTime, accent: widget.accent),
                       ),
                   ],
@@ -219,12 +251,17 @@ class _WaveformScrubberState extends ConsumerState<WaveformScrubber>
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  Duration(milliseconds: (playbackFraction * _totalMs).round()).clock,
-                  style: AppTextTheme.caption.copyWith(color: colors.onSurfaceFaint),
+                  Duration(
+                          milliseconds:
+                              (playbackFraction * _totalMs).round())
+                      .clock,
+                  style: AppTextTheme.caption
+                      .copyWith(color: colors.onSurfaceFaint),
                 ),
                 Text(
                   widget.duration.clock,
-                  style: AppTextTheme.caption.copyWith(color: colors.onSurfaceFaint),
+                  style: AppTextTheme.caption
+                      .copyWith(color: colors.onSurfaceFaint),
                 ),
               ],
             ),
@@ -250,7 +287,7 @@ class _TimeTooltip extends StatelessWidget {
       decoration: BoxDecoration(
         color: accent.withOpacity(0.15),
         borderRadius: RadiusTokens.brSm,
-        border: Border.all(color: accent.withOpacity(0.3), width: 1),
+        border: Border.all(color: accent.withOpacity(0.35), width: 1),
       ),
       child: Text(
         time.clock,
@@ -273,6 +310,9 @@ class _WaveformPainter extends CustomPainter {
     required this.gap,
     required this.thumbScale,
     required this.thumbX,
+    required this.animTime,
+    required this.isPlaying,
+    required this.totalWidth,
   });
 
   final List<double> bars;
@@ -281,11 +321,15 @@ class _WaveformPainter extends CustomPainter {
   final Color inactiveColor;
   final double barWidth;
   final double gap;
-  final double thumbScale; // 0..1 — 1 = fully dragging
+  final double thumbScale;
   final double thumbX;
+  final double animTime;
+  final bool isPlaying;
+  final double totalWidth;
 
-  /// Radius (in pixels) of the "squeeze zone" around the thumb.
-  static const double _squeezeRadius = 40.0;
+  static const double _squeezeRadius = 44.0;
+  static const double _waveFreq = 1.6; // Hz
+  static const double _waveAmp = 0.26; // fraction of bar height
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -294,6 +338,7 @@ class _WaveformPainter extends CustomPainter {
     final centerY = size.height / 2;
     final minHeight = barWidth;
     final radius = Radius.circular(barWidth / 2);
+    final playheadX = progress * size.width;
 
     final active = Paint()..color = activeColor;
     final inactive = Paint()..color = inactiveColor;
@@ -302,20 +347,28 @@ class _WaveformPainter extends CustomPainter {
       final x = i * period;
       final barCenterX = x + barWidth / 2;
 
-      // Squeeze effect: bars near the thumb shrink toward the center when dragging.
+      // Traveling sine wave when playing
+      double wave = 1.0;
+      if (isPlaying && totalWidth > 0) {
+        final phase = (x / totalWidth) * 4 * math.pi -
+            animTime * 2 * math.pi * _waveFreq;
+        wave = 1.0 + _waveAmp * math.sin(phase);
+      }
+
+      // Squeeze near thumb when dragging
       final dist = (barCenterX - thumbX).abs();
-      final squeezeFactor = thumbScale > 0
-          ? 1.0 - thumbScale * 0.45 * math.max(0, 1 - dist / _squeezeRadius)
+      final squeeze = thumbScale > 0
+          ? 1.0 - thumbScale * 0.42 * math.max(0, 1 - dist / _squeezeRadius)
           : 1.0;
 
       final rawHeight = (bars[i] * size.height).clamp(minHeight, size.height);
-      final barHeight = rawHeight * squeezeFactor;
+      final barHeight = (rawHeight * wave * squeeze).clamp(minHeight, size.height);
 
       final rect = RRect.fromRectAndRadius(
         Rect.fromLTWH(x, centerY - barHeight / 2, barWidth, barHeight),
         radius,
       );
-      final played = barCenterX <= thumbX;
+      final played = barCenterX <= playheadX;
       canvas.drawRRect(rect, played ? active : inactive);
     }
   }
@@ -323,6 +376,8 @@ class _WaveformPainter extends CustomPainter {
   @override
   bool shouldRepaint(_WaveformPainter old) =>
       old.progress != progress ||
+      old.animTime != animTime ||
+      old.isPlaying != isPlaying ||
       old.thumbScale != thumbScale ||
       old.thumbX != thumbX ||
       old.activeColor != activeColor ||

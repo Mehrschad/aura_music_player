@@ -44,8 +44,13 @@ List<Artist> groupArtists(List<Song> songs) {
         byId.putIfAbsent(s.artistId, () => _ArtistAcc(id: s.artistId, name: s.artist));
     acc.songCount++;
     acc.albumIds.add(s.albumId);
-    if (s.hasArtwork && acc.firstSongId == null) {
+    // Always track the first song id. on_audio_query doesn't set hasArtwork
+    // reliably — let QueryArtworkWidget attempt the load and fall back to the
+    // placeholder automatically via nullArtworkWidget.
+    if (acc.firstSongId == null) {
       acc.firstSongId = int.tryParse(s.id);
+      acc.hasArtwork = true;
+    } else if (s.hasArtwork) {
       acc.hasArtwork = true;
     }
   }

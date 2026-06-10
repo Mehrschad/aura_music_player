@@ -482,96 +482,111 @@ class _TimerChip extends StatelessWidget {
   }
 }
 
-class _InlineLyrics extends ConsumerWidget {
+/// A liquid-glass scrolling lyrics capsule — shows the full lyrics list in a
+/// fixed-height glass box that smoothly slides each line into view. Tap to
+/// open the full-screen immersive lyrics page.
+class _InlineLyrics extends ConsumerStatefulWidget {
   const _InlineLyrics({required this.accent});
   final Color accent;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_InlineLyrics> createState() => _InlineLyricsState();
+}
+
+class _InlineLyricsState extends ConsumerState<_InlineLyrics> {
+  final ScrollController _scroll = ScrollController();
+
+  static const double _lineH = 28.0; // height per lyric line slot
+  static const double _visibleLines = 3.0;
+  static const double _capsuleH = _lineH * _visibleLines + 20; // +padding
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _scrollToLine(int index) {
+    if (!_scroll.hasClients) return;
+    // Target: centre the active line in the capsule.
+    final target = (index * _lineH) - (_lineH * (_visibleLines / 2 - 0.5));
+    _scroll.animateTo(
+      target.clamp(0.0, _scroll.position.maxScrollExtent),
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeInOutCubic,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final lyricsAsync = ref.watch(currentLyricsProvider);
     final currentIndex = ref.watch(currentLyricLineProvider);
     final colors = context.colors;
 
     final lyrics = lyricsAsync.valueOrNull;
-    if (lyrics == null || lyrics.isEmpty || !lyrics.synced || currentIndex < 0) {
+    if (lyrics == null || lyrics.isEmpty || !lyrics.synced) {
       return const SizedBox.shrink();
     }
 
-    final lines = lyrics.lines;
-    final prevLine = currentIndex > 0 ? lines[currentIndex - 1].text : '';
-    final currentLine = lines[currentIndex].text;
-    final nextLine =
-        currentIndex + 1 < lines.length ? lines[currentIndex + 1].text : '';
+    // Auto-scroll whenever the active line changes.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (currentIndex >= 0) _scrollToLine(currentIndex);
+    });
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: colors.onSurface.withOpacity(0.06),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: colors.onSurface.withOpacity(0.10),
-              width: 1,
+    return GestureDetector(
+      onTap: () => openLyrics(context),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: Container(
+            height: _capsuleH,
+            decoration: BoxDecoration(
+              color: colors.onSurface.withOpacity(0.07),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: colors.onSurface.withOpacity(0.12),
+                width: 1,
+              ),
             ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Previous line
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                child: Text(
-                  prevLine,
-                  key: ValueKey('prev_$currentIndex'),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: colors.onSurfaceFaint,
-                    fontWeight: FontWeight.w400,
-                  ),
-                ),
+            child: ScrollConfiguration(
+              behavior: const ScrollBehavior().copyWith(scrollbars: false),
+              child: ListView.builder(
+                controller: _scroll,
+                physics: const NeverScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                itemCount: lyrics.lines.length,
+                itemExtent: _lineH,
+                itemBuilder: (context, i) {
+                  final isCurrent = i == currentIndex;
+                  final isPast = i < currentIndex;
+                  final color = isCurrent
+                      ? widget.accent
+                      : isPast
+                          ? colors.onSurfaceFaint
+                          : colors.onSurfaceMuted;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: AnimatedDefaultTextStyle(
+                      duration: const Duration(milliseconds: 250),
+                      style: TextStyle(
+                        fontSize: isCurrent ? 14.5 : 12.5,
+                        color: color,
+                        fontWeight:
+                            isCurrent ? FontWeight.w600 : FontWeight.w400,
+                        height: 1.0,
+                      ),
+                      child: Text(
+                        lyrics.lines[i].text,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  );
+                },
               ),
-              const SizedBox(height: 4),
-              // Current line
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                child: Text(
-                  currentLine,
-                  key: ValueKey('curr_$currentIndex'),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 15,
-                    color: accent,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 4),
-              // Next line
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                child: Text(
-                  nextLine,
-                  key: ValueKey('next_$currentIndex'),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: colors.onSurfaceMuted,
-                    fontWeight: FontWeight.w400,
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),

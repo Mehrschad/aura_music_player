@@ -76,6 +76,18 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
     final processing = _processingStateMap[ps.processingState] ??
         bg.AudioProcessingState.idle;
 
+    // Set media item FIRST so the notification always has a title.
+    final song = _state.currentSong;
+    if (song != null) {
+      mediaItem.add(bg.MediaItem(
+        id: song.id,
+        title: song.title,
+        artist: song.artist,
+        album: song.album,
+        duration: song.duration,
+      ));
+    }
+
     playbackState.add(bg.PlaybackState(
       controls: [
         bg.MediaControl.skipToPrevious,
@@ -91,18 +103,6 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
       speed: _player.speed,
       queueIndex: _player.currentIndex,
     ));
-
-    // Update the notification's track metadata whenever the track changes.
-    final song = _state.currentSong;
-    if (song != null) {
-      mediaItem.add(bg.MediaItem(
-        id: song.id,
-        title: song.title,
-        artist: song.artist,
-        album: song.album,
-        duration: song.duration,
-      ));
-    }
   }
 
   static const _processingStateMap = {
@@ -138,12 +138,27 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
   @override
   Future<void> playQueue(List<Song> songs, {int startIndex = 0}) async {
     _queue = List<Song>.of(songs);
+
+    // Set the media item eagerly so the OS notification can appear immediately
+    // when the foreground service starts — before any stream events fire.
+    final startIdx = songs.isEmpty ? null : startIndex.clamp(0, songs.length - 1);
+    if (startIdx != null) {
+      final firstSong = _queue[startIdx];
+      mediaItem.add(bg.MediaItem(
+        id: firstSong.id,
+        title: firstSong.title,
+        artist: firstSong.artist,
+        album: firstSong.album,
+        duration: firstSong.duration,
+      ));
+    }
+
     final source = ConcatenatingAudioSource(
       children: [for (final s in _queue) _toSource(s)],
     );
     await _player.setAudioSource(
       source,
-      initialIndex: songs.isEmpty ? null : startIndex.clamp(0, songs.length - 1),
+      initialIndex: startIdx,
       initialPosition: Duration.zero,
     );
     _recompute();

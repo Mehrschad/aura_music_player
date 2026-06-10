@@ -63,6 +63,9 @@ class DeviceLibraryRepository implements LibraryRepository {
       genre: clean(s.genre, '') == '' ? null : s.genre,
       composer: clean(s.composer, '') == '' ? null : s.composer,
       bitrate: null,
+      // Optimistically true so QueryArtworkWidget always attempts to load art.
+      // The widget falls back to the placeholder automatically when no art exists.
+      hasArtwork: true,
     );
   }
 }

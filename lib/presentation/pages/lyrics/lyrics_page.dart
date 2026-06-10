@@ -118,9 +118,9 @@ class _LyricsPageState extends ConsumerState<LyricsPage> {
           if (song != null)
             Positioned.fill(
               child: Opacity(
-                opacity: 0.15,
+                opacity: 0.35,
                 child: ImageFiltered(
-                  imageFilter: ui.ImageFilter.blur(sigmaX: 40, sigmaY: 40),
+                  imageFilter: ui.ImageFilter.blur(sigmaX: 60, sigmaY: 60),
                   child: AuraArtwork(
                     seed: song.artworkSeed,
                     size: MediaQuery.sizeOf(context).width,
@@ -129,7 +129,7 @@ class _LyricsPageState extends ConsumerState<LyricsPage> {
                 ),
               ),
             ),
-          Positioned.fill(child: ColoredBox(color: colors.background.withOpacity(0.55))),
+          Positioned.fill(child: ColoredBox(color: colors.background.withOpacity(0.48))),
           SafeArea(
             child: Column(
               children: [
@@ -359,28 +359,53 @@ class _LyricRow extends StatelessWidget {
         direction: direction,
       );
     } else {
-      primary = Text(line.text, textDirection: direction, style: style);
+      primary = Text(
+        line.text,
+        textDirection: direction,
+        textAlign: TextAlign.center,
+        style: style,
+      );
     }
 
-    return InkWell(
-      onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          primary,
-          if (dual && line.translation != null) ...[
-            const SizedBox(height: 2),
-            Text(
-              line.translation!,
-              textDirection: directionForText(line.translation!),
-              style: AppTextTheme.caption.copyWith(
-                fontSize: _LyricMetrics.translation[fontSize]!,
-                color: colors.onSurfaceFaint,
-              ),
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        primary,
+        if (dual && line.translation != null) ...[
+          const SizedBox(height: 2),
+          Text(
+            line.translation!,
+            textDirection: directionForText(line.translation!),
+            textAlign: TextAlign.center,
+            style: AppTextTheme.caption.copyWith(
+              fontSize: _LyricMetrics.translation[fontSize]!,
+              color: colors.onSurfaceFaint,
             ),
-          ],
+          ),
         ],
-      ),
+      ],
+    );
+
+    // Wrap the active line in a subtle glass capsule.
+    final Widget inner = isCurrent
+        ? AnimatedContainer(
+            duration: const Duration(milliseconds: 280),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            decoration: BoxDecoration(
+              color: accent.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: accent.withOpacity(0.20), width: 1),
+            ),
+            child: content,
+          )
+        : Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            child: content,
+          );
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Center(child: inner),
     );
   }
 

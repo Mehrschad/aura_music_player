@@ -12,6 +12,7 @@ import '../../../core/theme/glass_theme.dart';
 import '../../../core/theme/typography.dart';
 import '../../../domain/models/playback.dart';
 import '../../providers/playback_providers.dart';
+import '../../providers/settings_providers.dart';
 import '../artwork/aura_artwork.dart';
 import '../glass/glass_surface.dart';
 import '../player_bar_inset.dart';
@@ -84,7 +85,7 @@ class _Card extends ConsumerWidget {
       },
       child: GlassSurface(
         borderRadius: RadiusTokens.brMd,
-        intensity: GlassIntensity.medium,
+        intensity: ref.watch(settingsProvider.select((s) => s.glassIntensity)),
         child: SizedBox(
           height: MiniPlayerMetrics.height,
           child: Stack(
