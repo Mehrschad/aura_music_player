@@ -138,7 +138,7 @@ class _SortSheet extends StatelessWidget {
                       : null,
                   onTap: () {
                     onChanged(current.withField(f));
-                    Navigator.pop(ctx);
+                    Navigator.pop(context);
                   },
                 ),
               const SizedBox(height: SpacingTokens.sm),
