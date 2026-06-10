@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/spacing_tokens.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../domain/models/artist.dart';
+import 'artist_detail_page.dart';
 import '../../providers/async_value_x.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
@@ -48,7 +49,11 @@ class ArtistsPage extends ConsumerWidget {
                   return ArtistListTile(
                     artist: a,
                     subtitle: subtitle,
-                    onTap: () {}, // artist detail arrives in step 4
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ArtistDetailPage(artist: a),
+                      ),
+                    ),
                   );
                 },
               ),

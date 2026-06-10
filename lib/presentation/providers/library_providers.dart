@@ -114,3 +114,26 @@ final searchResultsProvider = Provider<AsyncValue<List<Song>>>((ref) {
   final query = ref.watch(searchQueryProvider);
   return ref.watch(effectiveSongsProvider).whenData((list) => searchSongs(list, query));
 });
+
+/// Songs by a given artist, in album/track order.
+final artistSongsProvider =
+    Provider.family<AsyncValue<List<Song>>, String>((ref, artistId) {
+  return ref.watch(effectiveSongsProvider).whenData((list) {
+    return list.where((s) => s.artistId == artistId || s.artist == artistId).toList()
+      ..sort((a, b) {
+        final albumCmp = (a.album).compareTo(b.album);
+        if (albumCmp != 0) return albumCmp;
+        return (a.trackNumber ?? 0).compareTo(b.trackNumber ?? 0);
+      });
+  });
+});
+
+/// Albums by a given artist.
+final artistAlbumsProvider =
+    Provider.family<AsyncValue<List<Album>>, String>((ref, artistId) {
+  return ref.watch(effectiveSongsProvider).whenData((list) {
+    final artistSongs =
+        list.where((s) => s.artistId == artistId || s.artist == artistId).toList();
+    return groupAlbums(artistSongs);
+  });
+});

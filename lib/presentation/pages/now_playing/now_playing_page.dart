@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -9,6 +11,7 @@ import '../../../core/theme/typography.dart';
 import '../../../core/utils/seed_color.dart';
 import '../../../domain/models/playback.dart';
 import '../../providers/favorites_providers.dart';
+import '../../providers/lyrics_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../providers/settings_providers.dart';
 import '../../providers/sleep_timer_provider.dart';
@@ -105,7 +108,9 @@ class NowPlayingPage extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(height: SpacingTokens.xxxl),
+                  const SizedBox(height: SpacingTokens.lg),
+                  _InlineLyrics(accent: accent),
+                  const SizedBox(height: SpacingTokens.lg),
                   _TrackText(title: song.title, subtitle: '${song.artist} \u00b7 ${song.album}'),
                   const SizedBox(height: SpacingTokens.lg),
                   Row(
@@ -470,6 +475,103 @@ class _TimerChip extends StatelessWidget {
           label,
           style: AppTextTheme.body.copyWith(
             color: isCancel ? Colors.redAccent : colors.onSurface,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InlineLyrics extends ConsumerWidget {
+  const _InlineLyrics({required this.accent});
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final lyricsAsync = ref.watch(currentLyricsProvider);
+    final currentIndex = ref.watch(currentLyricLineProvider);
+    final colors = context.colors;
+
+    final lyrics = lyricsAsync.valueOrNull;
+    if (lyrics == null || lyrics.isEmpty || !lyrics.synced || currentIndex < 0) {
+      return const SizedBox.shrink();
+    }
+
+    final lines = lyrics.lines;
+    final prevLine = currentIndex > 0 ? lines[currentIndex - 1].text : '';
+    final currentLine = lines[currentIndex].text;
+    final nextLine =
+        currentIndex + 1 < lines.length ? lines[currentIndex + 1].text : '';
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: colors.onSurface.withOpacity(0.06),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: colors.onSurface.withOpacity(0.10),
+              width: 1,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Previous line
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child: Text(
+                  prevLine,
+                  key: ValueKey('prev_$currentIndex'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: colors.onSurfaceFaint,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              // Current line
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child: Text(
+                  currentLine,
+                  key: ValueKey('curr_$currentIndex'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: accent,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              // Next line
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child: Text(
+                  nextLine,
+                  key: ValueKey('next_$currentIndex'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: colors.onSurfaceMuted,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

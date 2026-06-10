@@ -95,12 +95,23 @@ class _BreathingArtworkState extends State<BreathingArtwork>
               ),
             ],
           ),
-          child: AuraArtwork(
-            seed: widget.seed,
-            size: widget.size,
-            borderRadius: RadiusTokens.brLg,
-            hasArtwork: widget.hasArtwork,
-            artworkId: widget.artworkId,
+          // Crossfade between tracks so skipping feels smooth.
+          child: AnimatedSwitcher(
+            duration: MotionTokens.albumArt,
+            switchInCurve: MotionTokens.standard,
+            switchOutCurve: MotionTokens.fastOut,
+            transitionBuilder: (child, anim) => FadeTransition(
+              opacity: anim,
+              child: child,
+            ),
+            child: AuraArtwork(
+              key: ValueKey('${widget.seed}_${widget.artworkId}'),
+              seed: widget.seed,
+              size: widget.size,
+              borderRadius: RadiusTokens.brLg,
+              hasArtwork: widget.hasArtwork,
+              artworkId: widget.artworkId,
+            ),
           ),
         ),
       ),

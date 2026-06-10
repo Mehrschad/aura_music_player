@@ -2,6 +2,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
@@ -13,6 +14,11 @@ import 'presentation/providers/settings_providers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Request notification permission (Android 13+ requires this for media notifications).
+  if (await Permission.notification.isDenied) {
+    await Permission.notification.request();
+  }
 
   // Edge-to-edge: the Liquid Glass nav bar floats over content.
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);

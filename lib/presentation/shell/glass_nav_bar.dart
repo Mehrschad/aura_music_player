@@ -11,12 +11,6 @@ import '../widgets/glass/glass_surface.dart';
 import '../providers/settings_providers.dart';
 import 'nav_provider.dart';
 
-/// The floating Liquid Glass bottom navigation bar.
-///
-/// Floats 16px above the bottom safe area with horizontal margin. Five tabs,
-/// label + icon, with a subtle press-scale and a smoothly animated active
-/// state. The bar itself is the only chrome — the mini player sits *above* it
-/// (wired up in a later build step).
 class GlassNavBar extends ConsumerWidget {
   const GlassNavBar({super.key});
 
@@ -39,8 +33,11 @@ class GlassNavBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selected = ref.watch(selectedTabProvider);
+    final selectedIndex = AppTab.values.indexOf(selected);
     final l10n = AppLocalizations.of(context);
     final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
+    final intensity = ref.watch(settingsProvider.select((s) => s.glassIntensity));
+    final colors = context.colors;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -50,22 +47,60 @@ class GlassNavBar extends ConsumerWidget {
       ),
       child: GlassSurface(
         borderRadius: RadiusTokens.brXl,
-        intensity: ref.watch(
-            settingsProvider.select((s) => s.glassIntensity)),
+        intensity: intensity,
         child: SizedBox(
           height: 64,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              for (final spec in _tabs)
-                _NavItem(
-                  spec: spec,
-                  label: _labelFor(spec.tab, l10n),
-                  selected: spec.tab == selected,
-                  onTap: () =>
-                      ref.read(selectedTabProvider.notifier).state = spec.tab,
-                ),
-            ],
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final itemWidth = constraints.maxWidth / _tabs.length;
+              final pillWidth = itemWidth - 16;
+              final pillLeft =
+                  selectedIndex * itemWidth + (itemWidth - pillWidth) / 2;
+
+              return Stack(
+                children: [
+                  // Animated glass pill / capsule indicator
+                  TweenAnimationBuilder<double>(
+                    tween: Tween<double>(begin: pillLeft, end: pillLeft),
+                    duration: MotionTokens.screen,
+                    curve: MotionTokens.spring,
+                    builder: (context, left, _) => Positioned(
+                      left: left,
+                      top: (64 - 44) / 2,
+                      width: pillWidth,
+                      height: 44,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: colors.onSurface.withOpacity(0.09),
+                          borderRadius: BorderRadius.circular(22),
+                          border: Border.all(
+                            color: colors.onSurface.withOpacity(0.06),
+                            width: 1,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Tab items row — sits above the pill
+                  Row(
+                    children: [
+                      for (final spec in _tabs)
+                        SizedBox(
+                          width: itemWidth,
+                          child: _NavItem(
+                            spec: spec,
+                            label: _labelFor(spec.tab, l10n),
+                            selected: spec.tab == selected,
+                            onTap: () =>
+                                ref.read(selectedTabProvider.notifier).state =
+                                    spec.tab,
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ),
@@ -96,9 +131,7 @@ class _NavItemState extends State<_NavItem> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final activeColor = colors.onSurface;
-    final inactiveColor = colors.onSurfaceFaint;
-    final color = widget.selected ? activeColor : inactiveColor;
+    final color = widget.selected ? colors.onSurface : colors.onSurfaceFaint;
 
     return Semantics(
       button: true,
@@ -111,26 +144,37 @@ class _NavItemState extends State<_NavItem> {
         onTapUp: (_) => setState(() => _pressed = false),
         onTap: widget.onTap,
         child: AnimatedScale(
-          scale: _pressed ? 0.92 : 1.0,
+          scale: _pressed ? 0.88 : 1.0,
           duration: MotionTokens.press,
           curve: MotionTokens.standard,
-          child: ConstrainedBox(
-            // Honour the 44x44 minimum touch target.
-            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+          child: SizedBox(
+            height: 64,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 AnimatedSwitcher(
                   duration: MotionTokens.micro,
+                  transitionBuilder: (child, anim) => ScaleTransition(
+                    scale: anim,
+                    child: FadeTransition(opacity: anim, child: child),
+                  ),
                   child: Icon(
                     widget.selected ? widget.spec.activeIcon : widget.spec.icon,
                     key: ValueKey(widget.selected),
-                    size: 24,
+                    size: 22,
                     color: color,
                   ),
                 ),
-                const SizedBox(height: SpacingTokens.xs),
-                Text(widget.label, style: AppTextTheme.navLabel.copyWith(color: color)),
+                const SizedBox(height: 3),
+                AnimatedDefaultTextStyle(
+                  duration: MotionTokens.micro,
+                  style: AppTextTheme.navLabel.copyWith(
+                    color: color,
+                    fontWeight:
+                        widget.selected ? FontWeight.w600 : FontWeight.w400,
+                  ),
+                  child: Text(widget.label),
+                ),
               ],
             ),
           ),
