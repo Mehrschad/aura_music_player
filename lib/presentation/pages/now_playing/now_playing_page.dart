@@ -10,7 +10,6 @@ import '../../../domain/models/playback.dart';
 import '../../providers/favorites_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../providers/settings_providers.dart';
-import '../equalizer/equalizer_page.dart';
 import '../lyrics/lyrics_page.dart';
 import '../../widgets/player/breathing_artwork.dart';
 import '../../widgets/player/play_pause_button.dart';
@@ -50,7 +49,11 @@ class NowPlayingPage extends ConsumerWidget {
     final wash = dynamicColor ? SeedPalette.wash(song.artworkSeed) : colors.background;
     final artSize = MediaQuery.sizeOf(context).width * 0.72;
 
-    return Scaffold(
+    return GestureDetector(
+      onVerticalDragEnd: (d) {
+        if ((d.primaryVelocity ?? 0) > 600) Navigator.of(context).maybePop();
+      },
+      child: Scaffold(
       backgroundColor: colors.background,
       body: Stack(
         children: [
@@ -75,7 +78,6 @@ class NowPlayingPage extends ConsumerWidget {
                   _TopBar(
                     title: l10n.nowPlaying,
                     onOpenLyrics: () => openLyrics(context),
-                    onOpenEqualizer: () => openEqualizer(context),
                   ),
                   const Spacer(),
                   GestureDetector(
@@ -92,6 +94,7 @@ class NowPlayingPage extends ConsumerWidget {
                         size: artSize,
                         playing: state.playing,
                         hasArtwork: song.hasArtwork,
+                        artworkId: int.tryParse(song.id),
                       ),
                     ),
                   ),
@@ -129,6 +132,7 @@ class NowPlayingPage extends ConsumerWidget {
           ),
         ],
       ),
+      ),
     );
   }
 }
@@ -137,11 +141,9 @@ class _TopBar extends StatelessWidget {
   const _TopBar({
     required this.title,
     required this.onOpenLyrics,
-    required this.onOpenEqualizer,
   });
   final String title;
   final VoidCallback onOpenLyrics;
-  final VoidCallback onOpenEqualizer;
 
   @override
   Widget build(BuildContext context) {
@@ -160,11 +162,6 @@ class _TopBar extends StatelessWidget {
             textAlign: TextAlign.center,
             style: AppTextTheme.caption.copyWith(color: colors.onSurfaceMuted),
           ),
-        ),
-        IconButton(
-          tooltip: l10n.equalizer,
-          onPressed: onOpenEqualizer,
-          icon: Icon(Icons.graphic_eq, color: colors.onSurfaceMuted),
         ),
         IconButton(
           tooltip: l10n.lyrics,

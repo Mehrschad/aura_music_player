@@ -103,6 +103,7 @@ class _Card extends ConsumerWidget {
                         size: 42,
                         borderRadius: RadiusTokens.brXs,
                         hasArtwork: song.hasArtwork,
+                        artworkId: int.tryParse(song.id),
                       ),
                     ),
                     const SizedBox(width: SpacingTokens.md),

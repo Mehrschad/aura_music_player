@@ -16,7 +16,7 @@ enum LocalePref { system, en, fa, ar }
 class AppSettings {
   const AppSettings({
     this.themePref = ThemePref.amoled,
-    this.glassIntensity = GlassIntensity.medium,
+    this.glassIntensity = GlassIntensity.strong,
     this.dynamicColor = true,
     this.textScale = 1.0,
     this.density = DisplayDensity.standard,

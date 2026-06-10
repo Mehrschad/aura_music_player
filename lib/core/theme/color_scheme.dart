@@ -70,8 +70,8 @@ class AppColors extends ThemeExtension<AppColors> {
     onSurfaceFaint: Color(0xFF6A6A70),
     accent: Color(0xFFE6E6EA),
     divider: Color(0xFF1C1C1F),
-    glassTint: Color(0x14FFFFFF), // ~8% white
-    glassBorder: Color(0x1AFFFFFF), // ~10% white inner highlight
+    glassTint: Color(0x22FFFFFF), // ~13% white for richer glass
+    glassBorder: Color(0x2AFFFFFF), // ~16% white inner highlight
     scrim: Color(0xB3000000), // 70% black
   );
 
@@ -84,8 +84,8 @@ class AppColors extends ThemeExtension<AppColors> {
     onSurfaceFaint: Color(0xFF6A6A70),
     accent: Color(0xFFE6E6EA),
     divider: Color(0xFF222226),
-    glassTint: Color(0x14FFFFFF),
-    glassBorder: Color(0x1AFFFFFF),
+    glassTint: Color(0x22FFFFFF),
+    glassBorder: Color(0x2AFFFFFF),
     scrim: Color(0xB3000000),
   );
 

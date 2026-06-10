@@ -17,12 +17,14 @@ class BreathingArtwork extends StatefulWidget {
     required this.size,
     required this.playing,
     this.hasArtwork = false,
+    this.artworkId,
   });
 
   final String seed;
   final double size;
   final bool playing;
   final bool hasArtwork;
+  final int? artworkId;
 
   @override
   State<BreathingArtwork> createState() => _BreathingArtworkState();
@@ -98,6 +100,7 @@ class _BreathingArtworkState extends State<BreathingArtwork>
             size: widget.size,
             borderRadius: RadiusTokens.brLg,
             hasArtwork: widget.hasArtwork,
+            artworkId: widget.artworkId,
           ),
         ),
       ),

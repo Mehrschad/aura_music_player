@@ -84,6 +84,7 @@ class _WaveformScrubberState extends ConsumerState<WaveformScrubber> {
           : null,
       onIncrease: hasDuration ? () => _seekToFraction(fraction + 0.05) : null,
       onDecrease: hasDuration ? () => _seekToFraction(fraction - 0.05) : null,
+      excludeSemantics: true,
       child: Column(
         mainAxisSize: MainAxisSize.min,
       children: [

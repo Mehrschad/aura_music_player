@@ -14,14 +14,14 @@ import 'nav_provider.dart';
 /// The root scaffold: the five primary sections stacked behind a floating
 /// Liquid Glass nav bar.
 ///
-/// An [IndexedStack] keeps each section's scroll position and state alive
-/// when switching tabs (you don't lose your place in the library because you
-/// glanced at Search). The body extends behind the nav bar so the glass has
-/// real content to blur — `extendBody: true`.
+/// Each tab has its own nested [Navigator] so that detail pages (album, artist,
+/// playlist) can be pushed WITHOUT hiding the mini player and nav bar.
+/// [NowPlayingPage] is the exception — it uses `rootNavigator: true` to cover
+/// the whole screen.
 class AppShell extends ConsumerWidget {
   const AppShell({super.key});
 
-  static const List<Widget> _pages = [
+  static const List<Widget> _roots = [
     LibraryPage(),
     ArtistsPage(),
     AlbumsPage(),
@@ -34,7 +34,10 @@ class AppShell extends ConsumerWidget {
     final tab = ref.watch(selectedTabProvider);
     return Scaffold(
       extendBody: true,
-      body: IndexedStack(index: tab.index, children: _pages),
+      body: IndexedStack(
+        index: tab.index,
+        children: [for (final page in _roots) _TabNavigator(root: page)],
+      ),
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: const [
@@ -43,6 +46,21 @@ class AppShell extends ConsumerWidget {
           GlassNavBar(),
         ],
       ),
+    );
+  }
+}
+
+/// A nested [Navigator] for a single bottom-nav tab.
+/// Pushes within this tab stay INSIDE, so the host Scaffold's bottom bar
+/// (mini player + nav bar) remains visible.
+class _TabNavigator extends StatelessWidget {
+  const _TabNavigator({required this.root});
+  final Widget root;
+
+  @override
+  Widget build(BuildContext context) {
+    return Navigator(
+      onGenerateRoute: (_) => MaterialPageRoute<void>(builder: (_) => root),
     );
   }
 }

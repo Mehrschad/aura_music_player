@@ -12,25 +12,25 @@ const String kNowPlayingHeroTag = 'now_playing_artwork';
 /// Pushes the Now Playing screen with a slide-up + fade. The shared-element
 /// artwork morph is handled automatically by the [Hero] widgets on both ends.
 Future<void> openNowPlaying(BuildContext context) {
-  return Navigator.of(context).push(
+  return Navigator.of(context, rootNavigator: true).push(
     PageRouteBuilder<void>(
       transitionDuration: context.motion(MotionTokens.screen),
-      reverseTransitionDuration: context.motion(MotionTokens.screen),
-      opaque: false,
+      reverseTransitionDuration: context.motion(const Duration(milliseconds: 280)),
+      opaque: true,
       pageBuilder: (_, __, ___) => const NowPlayingPage(),
       transitionsBuilder: (context, animation, _, child) {
-        final curved = CurvedAnimation(
+        final enter = CurvedAnimation(
           parent: animation,
-          curve: MotionTokens.standard,
-          reverseCurve: MotionTokens.standard,
+          curve: MotionTokens.emphasized,
+          reverseCurve: MotionTokens.fastOut,
         );
         return FadeTransition(
-          opacity: curved,
+          opacity: Tween<double>(begin: 0.0, end: 1.0).animate(enter),
           child: SlideTransition(
             position: Tween<Offset>(
-              begin: const Offset(0, 0.06),
+              begin: const Offset(0, 0.08),
               end: Offset.zero,
-            ).animate(curved),
+            ).animate(enter),
             child: child,
           ),
         );

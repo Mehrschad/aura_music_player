@@ -1,6 +1,8 @@
 import 'package:aura_music_player/app.dart';
 import 'package:aura_music_player/data/audio/fake_audio_controller.dart';
+import 'package:aura_music_player/data/repositories/sample_library_repository.dart';
 import 'package:aura_music_player/presentation/pages/playlists/playlist_detail_page.dart';
+import 'package:aura_music_player/presentation/providers/library_providers.dart';
 import 'package:aura_music_player/presentation/providers/playback_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,7 +13,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          // Real sample library so the seeded playlist's song ids resolve.
+          libraryRepositoryProvider
+              .overrideWithValue(const SampleLibraryRepository()),
           audioControllerProvider
               .overrideWith((ref) => FakeAudioController(autoTick: false)),
         ],

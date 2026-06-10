@@ -7,24 +7,30 @@ abstract final class MotionTokens {
 
   // ── Durations ──────────────────────────────────────────────────────────
   /// Micro-interactions: button press feedback, toggles.
-  static const Duration micro = Duration(milliseconds: 220);
+  static const Duration micro = Duration(milliseconds: 200);
 
   /// Press-and-spring-back for tappable controls.
-  static const Duration press = Duration(milliseconds: 160);
+  static const Duration press = Duration(milliseconds: 140);
 
   /// Screen / route transitions.
-  static const Duration screen = Duration(milliseconds: 380);
+  static const Duration screen = Duration(milliseconds: 360);
 
   /// Album art morph / hero crossfade between tracks.
-  static const Duration albumArt = Duration(milliseconds: 500);
+  static const Duration albumArt = Duration(milliseconds: 480);
 
   /// The barely-perceptible "breathing" loop on playing album art.
   static const Duration breathing = Duration(seconds: 4);
 
   // ── Curves ─────────────────────────────────────────────────────────────
-  /// Default for things entering or settling.
+  /// Smooth deceleration — for elements entering the screen.
   static const Curve standard = Curves.easeOutCubic;
 
-  /// Default for things that move and come to rest in place.
+  /// Smooth in-out — for elements that move within the screen.
   static const Curve emphasized = Curves.easeInOutCubic;
+
+  /// Fast start, gentle landing — for dismiss / exit transitions.
+  static const Curve fastOut = Curves.easeIn;
+
+  /// Gentle spring-like overshoot for satisfying pop-in effects.
+  static const Curve spring = Cubic(0.34, 1.56, 0.64, 1.0);
 }

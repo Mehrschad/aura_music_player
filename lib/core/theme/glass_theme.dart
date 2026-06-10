@@ -6,9 +6,9 @@
 /// Medium / Strong) resolves to a real value here.
 enum GlassIntensity {
   off(0),
-  subtle(14),
-  medium(18),
-  strong(24);
+  subtle(16),
+  medium(22),
+  strong(32);
 
   const GlassIntensity(this.sigma);
 
@@ -19,8 +19,7 @@ enum GlassIntensity {
 abstract final class GlassTokens {
   const GlassTokens._();
 
-  /// Spec range is sigma 18–24; medium is the default resting value.
-  static const GlassIntensity defaultIntensity = GlassIntensity.medium;
+  static const GlassIntensity defaultIntensity = GlassIntensity.strong;
 
   /// Inner-highlight border width on glass edges.
   static const double borderWidth = 1;
