@@ -47,7 +47,7 @@ abstract interface class AudioController {
   Future<void> moveInQueue(int oldIndex, int newIndex);
 
   Future<void> setShuffle(bool enabled);
-  Future<void> setRepeatMode(RepeatMode mode);
+  Future<void> setRepeat(RepeatMode mode);
 
   /// Playback rate. 1.0 = normal speed. Exposed as a stream so the UI
   /// can react without a full provider rebuild.

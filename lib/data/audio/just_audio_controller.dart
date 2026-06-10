@@ -198,9 +198,21 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
     await _player.setShuffleModeEnabled(enabled);
   }
 
+  /// Called by the media notification's repeat button (audio_service API).
   @override
-  Future<void> setRepeatMode(RepeatMode mode) =>
-      _player.setLoopMode(_loopFrom(mode));
+  Future<void> setRepeatMode(bg.AudioServiceRepeatMode repeatMode) =>
+      _player.setLoopMode(_loopFromService(repeatMode));
+
+  /// Called by the in-app UI (AudioController API).
+  @override
+  Future<void> setRepeat(RepeatMode mode) => _player.setLoopMode(_loopFrom(mode));
+
+  LoopMode _loopFromService(bg.AudioServiceRepeatMode m) => switch (m) {
+        bg.AudioServiceRepeatMode.none => LoopMode.off,
+        bg.AudioServiceRepeatMode.all => LoopMode.all,
+        bg.AudioServiceRepeatMode.one => LoopMode.one,
+        _ => LoopMode.off,
+      };
 
   ConcatenatingAudioSource? get _concatenating =>
       _player.audioSource is ConcatenatingAudioSource

@@ -131,7 +131,7 @@ class FakeAudioController implements AudioController {
   }
 
   @override
-  Future<void> setRepeatMode(RepeatMode mode) async {
+  Future<void> setRepeat(RepeatMode mode) async {
     _emit(_state.copyWithVia(repeatMode: mode));
   }
 

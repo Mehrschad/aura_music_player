@@ -42,7 +42,7 @@ Future<void> main() async {
         androidNotificationChannelName: 'Aura',
         androidNotificationIcon: 'mipmap/ic_launcher',
         androidNotificationOngoing: true,
-        androidStopForegroundOnPause: false,
+        androidStopForegroundOnPause: true,
       ),
     );
   } catch (_) {

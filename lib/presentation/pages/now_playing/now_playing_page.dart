@@ -327,7 +327,7 @@ class _BottomRow extends ConsumerWidget {
         IconButton(
           tooltip:
               state.repeatMode == RepeatMode.one ? l10n.repeatOne : l10n.repeat,
-          onPressed: () => controller.setRepeatMode(_nextRepeat(state.repeatMode)),
+          onPressed: () => controller.setRepeat(_nextRepeat(state.repeatMode)),
           icon: Icon(
             repeatIcon,
             color: repeatActive ? accent : colors.onSurfaceMuted,
