@@ -23,6 +23,10 @@ enum EqPreset {
   hipHop,
   classical,
   rock,
+  /// Subtle high-fidelity enhancement: gentle air shelf, presence boost, and
+  /// bass warmth. Designed to improve perceived quality without colouring the
+  /// sound — safe on all headphones and speakers.
+  hifi,
 }
 
 /// Immutable equalizer state: per-band gains (dB), bass boost (mB), stereo

@@ -1,9 +1,14 @@
 import 'dart:async';
+import 'dart:math' show log;
 
 import 'package:audio_service/audio_service.dart' as bg;
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:just_audio/just_audio.dart';
 
 import '../../domain/audio/audio_controller.dart';
+import '../../domain/audio/equalizer_controller.dart';
+import '../../domain/audio/equalizer_presets.dart' show eqGainAt;
+import '../../domain/models/equalizer.dart';
 import '../../domain/models/playback.dart';
 import '../../domain/models/song.dart';
 
@@ -14,12 +19,35 @@ import '../../domain/models/song.dart';
 /// Extends [bg.BaseAudioHandler] so the background service can invoke play/pause/
 /// seek from the notification and lock-screen controls. The same instance is also
 /// exposed via [AudioController] for UI-layer consumption.
+///
+/// Audio quality pipeline (Android):
+/// - [AndroidEqualizer]: 10-band parametric EQ via Android AudioEffect.
+///   Device bands are mapped from our fixed 10-band spec using log-frequency
+///   interpolation, so any 5- or 10-band hardware EQ receives accurate gains.
+/// - [AndroidLoudnessEnhancer]: boosts perceived loudness by the amount set
+///   via the bass-boost control (0–1000 mB → 0–3 dB target gain). This
+///   compensates for the Fletcher-Munson loudness curves at low volumes
+///   without amplifying peaks.
 class JustAudioController extends bg.BaseAudioHandler implements AudioController {
-  JustAudioController() {
+  JustAudioController({EqualizerController? eqController}) {
+    _player = AudioPlayer(
+      audioPipeline: AudioPipeline(
+        androidAudioEffects: [_androidEq, _loudnessEnhancer],
+      ),
+    );
     _wireStreams();
+    if (eqController != null) _wireEqualizer(eqController);
   }
 
-  final AudioPlayer _player = AudioPlayer();
+  // ── Audio effects (Android) ──────────────────────────────────────────────
+
+  final AndroidEqualizer _androidEq = AndroidEqualizer();
+  final AndroidLoudnessEnhancer _loudnessEnhancer = AndroidLoudnessEnhancer();
+  AndroidEqualizerParameters? _eqParams;
+
+  // ── Player ───────────────────────────────────────────────────────────────
+
+  late final AudioPlayer _player;
 
   final _stateController = StreamController<PlaybackState>.broadcast();
   PlaybackState _state = PlaybackState.empty;
@@ -176,6 +204,75 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
     queue.add([for (final s in _queue) _toMediaItem(s)]);
   }
 
+  // ── Equalizer wiring ─────────────────────────────────────────────────────
+
+  /// Subscribes to [eqController] and bridges every [EqualizerSettings] change
+  /// to the Android [AndroidEqualizer] and [AndroidLoudnessEnhancer] effects
+  /// that live in the [AudioPipeline]. Also re-applies settings each time a
+  /// new track reaches [ProcessingState.ready] so a fresh audio session always
+  /// gets the correct EQ state.
+  void _wireEqualizer(EqualizerController eqController) {
+    _subs.add(eqController.settingsStream
+        .listen((s) => _applyEqualizerSettings(s)));
+    // Re-apply on each new track (new audio session may reset the effect).
+    _subs.add(_player.processingStateStream
+        .where((s) => s == ProcessingState.ready)
+        .listen((_) {
+      _eqParams = null; // force re-fetch for the new session
+      _applyEqualizerSettings(eqController.settings);
+    }));
+    // Apply current settings immediately (may be a no-op if idle).
+    _applyEqualizerSettings(eqController.settings);
+  }
+
+  /// Applies [settings] to the hardware Android EQ and loudness enhancer.
+  ///
+  /// Device bands are mapped via log-frequency interpolation: given a device
+  /// band centred at F Hz, we compute its normalised position on our 10-band
+  /// log scale (32 Hz … 16 kHz) and call [eqGainAt] to interpolate the gain.
+  /// This works correctly for both 5-band and 10-band hardware EQs.
+  Future<void> _applyEqualizerSettings(EqualizerSettings settings) async {
+    try {
+      await _androidEq.setEnabled(settings.enabled);
+
+      final boostActive = settings.enabled && settings.bassBoost > 0;
+      await _loudnessEnhancer.setEnabled(boostActive);
+
+      if (!settings.enabled) return;
+
+      // Map our gains to the device's bands.
+      _eqParams ??= await _androidEq.parameters;
+      final params = _eqParams!;
+      for (final band in params.bands) {
+        final t = _freqToNormalized(band.centerFrequency);
+        final gainDb = eqGainAt(settings.gains, t)
+            .clamp(params.minDecibels, params.maxDecibels);
+        await band.setGain(gainDb);
+      }
+
+      // LoudnessEnhancer: map 0–1000 mB bass-boost to 0–3 dB perceptual gain.
+      if (boostActive) {
+        await _loudnessEnhancer
+            .setTargetGain(settings.bassBoost / 1000.0 * 3.0);
+      }
+    } catch (e) {
+      // EQ may not be available on emulators or early in startup; safe to skip.
+      debugPrint('[Aura] EQ apply skipped: $e');
+    }
+  }
+
+  /// Maps a frequency (Hz) to normalised position [0, 1] across our 10
+  /// log-spaced EQ bands (32 Hz … 16 kHz). Our bands are spaced uniformly on a
+  /// log scale so the normalised position maps directly to the band index used
+  /// by [eqGainAt].
+  double _freqToNormalized(double freqHz) {
+    const minFreq = 32.0;
+    const maxFreq = 16000.0;
+    if (freqHz <= minFreq) return 0.0;
+    if (freqHz >= maxFreq) return 1.0;
+    return log(freqHz / minFreq) / log(maxFreq / minFreq);
+  }
+
   // ── Transport (AudioController interface) ────────────────────────────────
 
   @override
@@ -204,6 +301,10 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
 
   /// Wraps a [Song] as a [just_audio] source, tagging it with its [bg.MediaItem]
   /// so audio_service can surface metadata immediately on source transitions.
+  ///
+  /// ExoPlayer derives the codec from the file's magic bytes, so all formats
+  /// natively supported by ExoPlayer — MP3, AAC/M4A, FLAC, WAV/PCM, OGG
+  /// Vorbis, Opus, ALAC (M4A container), AIFF — play without extra hints.
   AudioSource _toSource(Song song) => AudioSource.uri(
         Uri.file(song.filePath),
         tag: _toMediaItem(song),

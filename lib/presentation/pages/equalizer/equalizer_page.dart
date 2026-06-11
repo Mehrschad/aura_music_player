@@ -35,6 +35,7 @@ String presetLabel(EqPreset p, AppLocalizations l) => switch (p) {
       EqPreset.hipHop => l.presetHipHop,
       EqPreset.classical => l.presetClassical,
       EqPreset.rock => l.presetRock,
+      EqPreset.hifi => l.presetHiFi,
     };
 
 class EqualizerPage extends ConsumerWidget {

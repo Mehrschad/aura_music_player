@@ -13,9 +13,14 @@ final equalizerControllerProvider = Provider<EqualizerController>((ref) {
   return controller;
 });
 
-/// Live equalizer settings.
+/// Live equalizer settings. Seeded with the controller's current value so the
+/// provider is never in [AsyncLoading] — the EQ page always has initial state.
 final equalizerSettingsProvider = StreamProvider<EqualizerSettings>((ref) {
-  return ref.watch(equalizerControllerProvider).settingsStream;
+  final controller = ref.watch(equalizerControllerProvider);
+  return (() async* {
+    yield controller.settings;
+    yield* controller.settingsStream;
+  })();
 });
 
 /// The three user preset slots (null = empty). Session-scoped; persists to
