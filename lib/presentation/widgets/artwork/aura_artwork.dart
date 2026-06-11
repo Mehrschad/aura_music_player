@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:on_audio_query/on_audio_query.dart';
 
 import '../../../core/constants/radius_tokens.dart';
 import '../../../core/theme/color_scheme.dart';
+import 'artwork_image_provider.dart';
 
 /// Renders album/track artwork.
 ///
-/// When [artworkId] is provided (the integer media-store ID), the widget loads
-/// the real embedded art via [QueryArtworkWidget] and falls back to the
-/// deterministic placeholder gradient when no art is found.
+/// When [artworkId] is provided (the integer song media-store ID), the widget
+/// loads the embedded cover art via [ArtworkImageProvider] (reads directly from
+/// the audio file at up to 2048 px, cached once per song across all sizes) and
+/// falls back to the deterministic placeholder gradient when no art is found.
 class AuraArtwork extends StatelessWidget {
   const AuraArtwork({
     super.key,
@@ -17,7 +18,6 @@ class AuraArtwork extends StatelessWidget {
     this.borderRadius = RadiusTokens.brXs,
     this.hasArtwork = false,
     this.artworkId,
-    this.isAlbum = false,
   });
 
   final String seed;
@@ -25,13 +25,9 @@ class AuraArtwork extends StatelessWidget {
   final BorderRadius borderRadius;
   final bool hasArtwork;
 
-  /// Integer media-store ID from [on_audio_query]. When non-null, real artwork
-  /// is requested; null falls back to the placeholder.
+  /// Integer media-store song ID from [on_audio_query]. When non-null, real
+  /// artwork is requested; null falls back to the placeholder.
   final int? artworkId;
-
-  /// True when this represents album art (uses [ArtworkType.ALBUM]); false
-  /// (default) for individual track art ([ArtworkType.AUDIO]).
-  final bool isAlbum;
 
   @override
   Widget build(BuildContext context) {
@@ -41,25 +37,17 @@ class AuraArtwork extends StatelessWidget {
       hasArtwork: hasArtwork,
     );
 
-    // Load artwork at the physical pixel resolution so it looks sharp on
-    // high-DPI screens — requesting only the logical-pixel size would cause
-    // the bitmap to be upscaled (e.g. 3× on a dense display) and look blurry.
-    final dpr = MediaQuery.devicePixelRatioOf(context);
-    final physSize = (size * dpr).ceilToDouble();
-
     final child = artworkId != null
-        ? QueryArtworkWidget(
-            id: artworkId!,
-            type: isAlbum ? ArtworkType.ALBUM : ArtworkType.AUDIO,
-            artworkWidth: physSize,
-            artworkHeight: physSize,
-            artworkBorder: BorderRadius.zero,
-            artworkFit: BoxFit.cover,
-            artworkQuality: FilterQuality.high,
-            quality: 100,
-            format: ArtworkFormat.JPEG,
-            keepOldArtwork: true,
-            nullArtworkWidget: placeholder,
+        ? Image(
+            image: ArtworkImageProvider(id: artworkId!),
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+            filterQuality: FilterQuality.high,
+            // Show placeholder until the first decoded frame arrives.
+            frameBuilder: (context, child, frame, _) =>
+                frame == null ? placeholder : child,
+            errorBuilder: (_, __, ___) => placeholder,
           )
         : placeholder;
 

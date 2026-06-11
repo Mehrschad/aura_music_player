@@ -16,7 +16,14 @@ List<Album> groupAlbums(List<Song> songs) {
       () => _AlbumAcc(id: s.albumId, name: s.album, artist: s.albumArtist ?? s.artist),
     );
     acc.count++;
-    if (s.hasArtwork) acc.hasArtwork = true;
+    // Prefer a song that has artwork for the representative ID so the
+    // ArtworkImageProvider (ArtworkType.AUDIO) has the best chance of
+    // finding embedded cover art.
+    acc.firstSongId ??= int.tryParse(s.id);
+    if (s.hasArtwork) {
+      acc.hasArtwork = true;
+      acc.firstSongId = int.tryParse(s.id);
+    }
     if (s.year != null && (acc.year == null || s.year! > acc.year!)) {
       acc.year = s.year;
     }
@@ -29,6 +36,7 @@ List<Album> groupAlbums(List<Song> songs) {
             songCount: a.count,
             year: a.year,
             hasArtwork: a.hasArtwork,
+            firstSongId: a.firstSongId,
           ))
       .toList()
     ..sort((x, y) => x.name.toLowerCase().compareTo(y.name.toLowerCase()));
@@ -76,6 +84,7 @@ class _AlbumAcc {
   int count = 0;
   int? year;
   bool hasArtwork = false;
+  int? firstSongId;
 }
 
 class _ArtistAcc {

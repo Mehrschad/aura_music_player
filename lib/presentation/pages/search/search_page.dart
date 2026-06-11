@@ -421,8 +421,7 @@ class _AlbumRow extends StatelessWidget {
                 seed: album.artworkSeed,
                 size: 48,
                 hasArtwork: album.hasArtwork,
-                artworkId: int.tryParse(album.id),
-                isAlbum: true,
+                artworkId: album.firstSongId,
               ),
               const SizedBox(width: SpacingTokens.md),
               Expanded(

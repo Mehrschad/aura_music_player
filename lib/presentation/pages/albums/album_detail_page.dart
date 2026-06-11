@@ -49,8 +49,7 @@ class AlbumDetailPage extends ConsumerWidget {
                     size: double.maxFinite,
                     borderRadius: BorderRadius.zero,
                     hasArtwork: album.hasArtwork,
-                    artworkId: int.tryParse(album.id),
-                    isAlbum: true,
+                    artworkId: album.firstSongId,
                   ),
                   const DecoratedBox(
                     decoration: BoxDecoration(

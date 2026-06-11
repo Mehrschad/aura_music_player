@@ -10,6 +10,7 @@ class Album {
     required this.songCount,
     this.year,
     this.hasArtwork = false,
+    this.firstSongId,
   });
 
   final String id;
@@ -18,6 +19,12 @@ class Album {
   final int songCount;
   final int? year;
   final bool hasArtwork;
+
+  /// Media-store ID of a representative song in this album.
+  /// Used by [ArtworkImageProvider] with [ArtworkType.AUDIO] so artwork is read
+  /// directly from the audio file rather than through MediaStore's album art
+  /// pipeline (which applies a fixed downscale).
+  final int? firstSongId;
 
   /// Seed for the placeholder artwork gradient.
   String get artworkSeed => id;
