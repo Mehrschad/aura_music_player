@@ -163,7 +163,6 @@ class _WaveformScrubberState extends ConsumerState<WaveformScrubber>
                             animTime: _animTime,
                             isPlaying: playing,
                             totalWidth: w,
-                            trackH: 4.0 + 3.5 * _thumbScale.value,
                           ),
                         ),
                       ),
@@ -270,7 +269,6 @@ class _TrackPainter extends CustomPainter {
     required this.animTime,
     required this.isPlaying,
     required this.totalWidth,
-    this.trackH = 4.0,
   });
 
   final double progress;
@@ -279,8 +277,8 @@ class _TrackPainter extends CustomPainter {
   final double animTime;
   final bool isPlaying;
   final double totalWidth;
-  final double trackH;
 
+  static const double _trackH = 4.0;
   static const double _waveAmp = 0.06; // 6% of trackH — barely perceptible
   static const double _waveFreq = 0.9; // Hz
   static const int _segments = 160; // smoothness of the wave
@@ -289,19 +287,18 @@ class _TrackPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final centerY = size.height / 2;
     final playheadX = progress * size.width;
-    final r = trackH / 2;
+    final r = _trackH / 2;
 
-    // ── played portion: solid flat pill with soft glow gradient ──────────
+    // ── played portion: solid flat pill ──────────────────────────────────
     if (playheadX > r) {
-      final rect = Rect.fromLTWH(0, centerY - r, playheadX, trackH);
       final paint = Paint()
-        ..shader = LinearGradient(
-          colors: [activeColor.withOpacity(0.75), activeColor],
-          stops: const [0.0, 1.0],
-        ).createShader(rect)
+        ..color = activeColor
         ..style = PaintingStyle.fill;
       canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, Radius.circular(r)),
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(0, centerY - r, playheadX, _trackH),
+          Radius.circular(r),
+        ),
         paint,
       );
     }
@@ -314,7 +311,7 @@ class _TrackPainter extends CustomPainter {
       canvas.drawRRect(
         RRect.fromRectAndRadius(
           Rect.fromLTWH(
-              playheadX, centerY - r, size.width - playheadX, trackH),
+              playheadX, centerY - r, size.width - playheadX, _trackH),
           Radius.circular(r),
         ),
         basePaint,
@@ -328,7 +325,7 @@ class _TrackPainter extends CustomPainter {
 
         final segW = (size.width - playheadX) / _segments;
         final path = Path();
-        final halfAmp = trackH * _waveAmp;
+        final halfAmp = _trackH * _waveAmp;
 
         for (var i = 0; i <= _segments; i++) {
           final x = playheadX + i * segW;
@@ -347,7 +344,7 @@ class _TrackPainter extends CustomPainter {
         path.lineTo(playheadX, centerY + r);
         path.close();
         canvas.clipRect(
-          Rect.fromLTWH(playheadX, centerY - r, size.width - playheadX, trackH),
+          Rect.fromLTWH(playheadX, centerY - r, size.width - playheadX, _trackH),
         );
         canvas.drawPath(path, wavePaint);
       }
@@ -360,6 +357,5 @@ class _TrackPainter extends CustomPainter {
       o.animTime != animTime ||
       o.isPlaying != isPlaying ||
       o.activeColor != activeColor ||
-      o.trackColor != trackColor ||
-      o.trackH != trackH;
+      o.trackColor != trackColor;
 }

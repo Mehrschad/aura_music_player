@@ -165,16 +165,14 @@ class _PortraitBody extends ConsumerWidget {
           ),
           const SizedBox(height: SpacingTokens.md),
 
-          // ── Track info ──────────────────────────────────────────────────
-          _TrackInfo(
+          // ── Track info with like button ─────────────────────────────────
+          _TrackInfoWithLike(
+            songId: song.id,
             title: song.title,
             subtitle: '${song.artist} · ${song.album}',
+            accent: accent,
           ),
-          const SizedBox(height: SpacingTokens.sm),
-
-          // ── Like button (centered, with spring + ripple) ─────────────────
-          Center(child: _LikeButton(songId: song.id, accent: accent)),
-          const SizedBox(height: SpacingTokens.lg),
+          const SizedBox(height: SpacingTokens.md),
 
           // ── Scrubber (full-width) ───────────────────────────────────────
           WaveformScrubber(
@@ -254,12 +252,12 @@ class _LandscapeBody extends ConsumerWidget {
                   onTap: () => openLyrics(context),
                 ),
                 const SizedBox(height: SpacingTokens.sm),
-                _TrackInfo(
+                _TrackInfoWithLike(
+                  songId: song.id,
                   title: song.title,
                   subtitle: '${song.artist} · ${song.album}',
+                  accent: accent,
                 ),
-                const SizedBox(height: SpacingTokens.sm),
-                Center(child: _LikeButton(songId: song.id, accent: accent)),
                 const SizedBox(height: SpacingTokens.md),
                 WaveformScrubber(
                   duration: song.duration,
@@ -630,88 +628,40 @@ class _LiquidGlassCapsule extends StatelessWidget {
   }
 }
 
-// ── Track info (title + artist, always centered) ─────────────────────────────
+// ── Track info with animated like button ──────────────────────────────────────
 
-class _TrackInfo extends StatelessWidget {
-  const _TrackInfo({required this.title, required this.subtitle});
+class _TrackInfoWithLike extends ConsumerStatefulWidget {
+  const _TrackInfoWithLike({
+    required this.songId,
+    required this.title,
+    required this.subtitle,
+    required this.accent,
+  });
+  final String songId;
   final String title;
   final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    return Column(
-      children: [
-        Text(
-          title,
-          maxLines: 1,
-          textAlign: TextAlign.center,
-          overflow: TextOverflow.ellipsis,
-          style: AppTextTheme.heroTitle.copyWith(
-            color: colors.onSurface,
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-            letterSpacing: -0.3,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          subtitle,
-          maxLines: 1,
-          textAlign: TextAlign.center,
-          overflow: TextOverflow.ellipsis,
-          style: AppTextTheme.body.copyWith(
-            color: colors.onSurfaceMuted,
-            fontSize: 13.5,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ── Like button — spring bounce + expanding ripple ────────────────────────────
-
-class _LikeButton extends ConsumerStatefulWidget {
-  const _LikeButton({required this.songId, required this.accent});
-  final String songId;
   final Color accent;
 
   @override
-  ConsumerState<_LikeButton> createState() => _LikeButtonState();
+  ConsumerState<_TrackInfoWithLike> createState() => _TrackInfoWithLikeState();
 }
 
-class _LikeButtonState extends ConsumerState<_LikeButton>
+class _TrackInfoWithLikeState extends ConsumerState<_TrackInfoWithLike>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl = AnimationController(
+  late final AnimationController _heartCtrl = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 580),
+    duration: const Duration(milliseconds: 400),
   );
 
-  // Icon spring: grows → overshoots → settles
-  late final Animation<double> _scale = TweenSequence<double>([
-    TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.45), weight: 28),
-    TweenSequenceItem(tween: Tween(begin: 1.45, end: 0.82), weight: 30),
-    TweenSequenceItem(tween: Tween(begin: 0.82, end: 1.0), weight: 42),
-  ]).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
-
-  // Ripple: expands outward during first 62% of animation
-  late final Animation<double> _rippleScale =
-      Tween<double>(begin: 0.0, end: 2.0).animate(CurvedAnimation(
-    parent: _ctrl,
-    curve: const Interval(0.0, 0.62, curve: Curves.easeOut),
-  ));
-
-  // Ripple fades out as it expands
-  late final Animation<double> _rippleOpacity =
-      Tween<double>(begin: 0.50, end: 0.0).animate(CurvedAnimation(
-    parent: _ctrl,
-    curve: const Interval(0.0, 0.58),
-  ));
+  late final Animation<double> _heartScale = TweenSequence<double>([
+    TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.35), weight: 40),
+    TweenSequenceItem(tween: Tween(begin: 1.35, end: 0.88), weight: 30),
+    TweenSequenceItem(tween: Tween(begin: 0.88, end: 1.0), weight: 30),
+  ]).animate(CurvedAnimation(parent: _heartCtrl, curve: Curves.easeInOut));
 
   @override
   void dispose() {
-    _ctrl.dispose();
+    _heartCtrl.dispose();
     super.dispose();
   }
 
@@ -721,52 +671,65 @@ class _LikeButtonState extends ConsumerState<_LikeButton>
     final l10n = AppLocalizations.of(context);
     final isFav = ref.watch(isFavoriteProvider(widget.songId));
 
-    return Semantics(
-      label: isFav ? l10n.removeFromFavorites : l10n.addToFavorites,
-      button: true,
-      child: GestureDetector(
-        onTap: () {
-          HapticFeedback.mediumImpact();
-          ref.read(favoritesProvider.notifier).toggle(widget.songId);
-          _ctrl.forward(from: 0);
-        },
-        child: SizedBox(
-          width: 64,
-          height: 64,
-          child: AnimatedBuilder(
-            animation: _ctrl,
-            builder: (_, __) => Stack(
-              alignment: Alignment.center,
-              children: [
-                // Ripple circle expands and fades from center
-                Transform.scale(
-                  scale: _rippleScale.value,
-                  child: Opacity(
-                    opacity: _rippleOpacity.value,
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: isFav ? widget.accent : colors.onSurfaceMuted,
-                      ),
-                    ),
-                  ),
+    return Row(
+      children: [
+        // Spacer mirrors the like button so the text block is truly centered.
+        const SizedBox(width: 44),
+        Expanded(
+          child: Column(
+            children: [
+              Text(
+                widget.title,
+                maxLines: 1,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextTheme.heroTitle.copyWith(
+                  color: colors.onSurface,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.3,
                 ),
-                // Heart icon with spring
-                Transform.scale(
-                  scale: _scale.value,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                widget.subtitle,
+                maxLines: 1,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextTheme.body.copyWith(
+                  color: colors.onSurfaceMuted,
+                  fontSize: 13.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+        ScaleTransition(
+          scale: _heartScale,
+          child: Semantics(
+            label: isFav ? l10n.removeFromFavorites : l10n.addToFavorites,
+            button: true,
+            child: GestureDetector(
+              onTap: () {
+                HapticFeedback.mediumImpact();
+                ref.read(favoritesProvider.notifier).toggle(widget.songId);
+                _heartCtrl.forward(from: 0);
+              },
+              child: SizedBox(
+                width: 44,
+                height: 44,
+                child: Center(
                   child: Icon(
                     isFav ? Icons.favorite : Icons.favorite_border,
                     color: isFav ? widget.accent : colors.onSurfaceMuted,
-                    size: 30,
+                    size: 24,
                   ),
                 ),
-              ],
+              ),
             ),
           ),
         ),
-      ),
+      ],
     );
   }
 }

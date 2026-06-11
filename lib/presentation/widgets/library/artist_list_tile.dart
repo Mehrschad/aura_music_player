@@ -6,7 +6,6 @@ import '../../../core/theme/color_scheme.dart';
 import '../../../core/theme/typography.dart';
 import '../../../domain/models/artist.dart';
 import '../artwork/aura_artwork.dart';
-import '../press_scale.dart';
 
 class ArtistListTile extends StatelessWidget {
   const ArtistListTile({
@@ -25,48 +24,51 @@ class ArtistListTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return PressScale(
-      onTap: onTap,
-      pressedScale: 0.97,
-      semanticLabel: artist.name,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: SpacingTokens.xs,
-          vertical: SpacingTokens.sm,
-        ),
-        child: Row(
-          children: [
-            ClipOval(
-              child: AuraArtwork(
-                seed: artist.artworkSeed,
-                size: 48,
-                borderRadius: RadiusTokens.brXs,
-                hasArtwork: artist.hasArtwork,
-                artworkId: artist.firstSongId,
+    return Semantics(
+      button: true,
+      label: artist.name,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: RadiusTokens.brSm,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: SpacingTokens.xs,
+            vertical: SpacingTokens.sm,
+          ),
+          child: Row(
+            children: [
+              ClipOval(
+                child: AuraArtwork(
+                  seed: artist.artworkSeed,
+                  size: 48,
+                  borderRadius: RadiusTokens.brXs,
+                  hasArtwork: artist.hasArtwork,
+                  artworkId: artist.firstSongId,
+                ),
               ),
-            ),
-            const SizedBox(width: SpacingTokens.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    artist.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTextTheme.title.copyWith(color: colors.onSurface),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: AppTextTheme.caption.copyWith(color: colors.onSurfaceMuted),
-                  ),
-                ],
+              const SizedBox(width: SpacingTokens.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      artist.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextTheme.title.copyWith(color: colors.onSurface),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: AppTextTheme.caption.copyWith(color: colors.onSurfaceMuted),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            Icon(Icons.chevron_right, size: 20, color: colors.onSurfaceFaint),
-          ],
+              Icon(Icons.chevron_right, size: 20, color: colors.onSurfaceFaint),
+            ],
+          ),
         ),
       ),
     );
