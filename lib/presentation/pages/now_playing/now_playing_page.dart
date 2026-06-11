@@ -422,7 +422,7 @@ class _Lyrics3LineCarouselState extends ConsumerState<_Lyrics3LineCarousel>
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final lyricsAsync = ref.watch(currentLyricsProvider);
 
     ref.listen<int>(currentLyricLineProvider, (_, next) {
@@ -666,7 +666,7 @@ class _TrackInfoWithLikeState extends ConsumerState<_TrackInfoWithLike>
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final colors = context.colors;
     final l10n = AppLocalizations.of(context);
     final isFav = ref.watch(isFavoriteProvider(widget.songId));
