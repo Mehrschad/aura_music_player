@@ -41,12 +41,18 @@ class AuraArtwork extends StatelessWidget {
       hasArtwork: hasArtwork,
     );
 
+    // Load artwork at the physical pixel resolution so it looks sharp on
+    // high-DPI screens — requesting only the logical-pixel size would cause
+    // the bitmap to be upscaled (e.g. 3× on a dense display) and look blurry.
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final physSize = (size * dpr).ceilToDouble();
+
     final child = artworkId != null
         ? QueryArtworkWidget(
             id: artworkId!,
             type: isAlbum ? ArtworkType.ALBUM : ArtworkType.AUDIO,
-            artworkWidth: size.toInt().clamp(1, 4096),
-            artworkHeight: size.toInt().clamp(1, 4096),
+            artworkWidth: physSize,
+            artworkHeight: physSize,
             artworkBorder: BorderRadius.zero,
             artworkFit: BoxFit.cover,
             keepOldArtwork: true,
