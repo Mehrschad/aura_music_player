@@ -290,5 +290,18 @@
   "a11ySeekBar": "Seek bar",
   "a11yPlay": "Play",
   "a11yPause": "Pause",
-  "a11yAlbumArt": "Album art"
+  "a11yAlbumArt": "Album art",
+  "moreActions": "More",
+  "songInfo": "Song info",
+  "goToAlbum": "Go to album",
+  "goToArtist": "Go to artist",
+  "sleepTimer": "Sleep timer",
+  "playbackSpeed": "Playback speed",
+  "deleteSongTitle": "Delete song?",
+  "deleteSongBody": "This permanently removes the file from your device.",
+  "songDeleted": "Song deleted",
+  "deleteFailed": "Couldn't delete the song",
+  "infoDuration": "Duration",
+  "infoFilePath": "File path",
+  "infoBitrate": "Bitrate"
 }

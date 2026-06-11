@@ -254,5 +254,18 @@
   "a11ySeekBar": "Suchleiste",
   "a11yPlay": "Abspielen",
   "a11yPause": "Pausieren",
-  "a11yAlbumArt": "Albumcover"
+  "a11yAlbumArt": "Albumcover",
+  "moreActions": "Mehr",
+  "songInfo": "Songinfo",
+  "goToAlbum": "Zum Album",
+  "goToArtist": "Zum Künstler",
+  "sleepTimer": "Sleep-Timer",
+  "playbackSpeed": "Wiedergabegeschwindigkeit",
+  "deleteSongTitle": "Song löschen?",
+  "deleteSongBody": "Dadurch wird die Datei dauerhaft von deinem Gerät entfernt.",
+  "songDeleted": "Song gelöscht",
+  "deleteFailed": "Song konnte nicht gelöscht werden",
+  "infoDuration": "Dauer",
+  "infoFilePath": "Dateipfad",
+  "infoBitrate": "Bitrate"
 }

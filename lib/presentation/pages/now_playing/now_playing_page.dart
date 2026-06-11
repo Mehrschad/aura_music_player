@@ -7,18 +7,30 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/radius_tokens.dart';
 import '../../../core/constants/spacing_tokens.dart';
+import '../../../core/extensions/duration_format.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/color_scheme.dart';
+import '../../../core/theme/glass_theme.dart';
 import '../../../core/theme/typography.dart';
 import '../../../core/utils/seed_color.dart';
+import '../../../domain/models/album.dart';
+import '../../../domain/models/artist.dart';
 import '../../../domain/models/lyrics.dart';
 import '../../../domain/models/playback.dart';
+import '../../../domain/models/song.dart';
 import '../../providers/favorites_providers.dart';
+import '../../providers/library_providers.dart';
 import '../../providers/lyrics_providers.dart';
+import '../../providers/media_actions_provider.dart';
 import '../../providers/playback_providers.dart';
 import '../../providers/settings_providers.dart';
 import '../../providers/sleep_timer_provider.dart';
+import '../albums/album_detail_page.dart';
+import '../artists/artist_detail_page.dart';
+import '../equalizer/equalizer_page.dart';
 import '../lyrics/lyrics_page.dart';
+import '../settings/settings_page.dart';
+import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/player/breathing_artwork.dart';
 import '../../widgets/player/play_pause_button.dart';
 import '../../widgets/player/queue_sheet.dart';
@@ -121,22 +133,18 @@ class _PortraitBody extends ConsumerWidget {
   });
 
   final PlaybackState state;
-  final dynamic song;
+  final Song song;
   final Color accent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
     final ctrl = ref.read(audioControllerProvider);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.xl),
       child: Column(
         children: [
-          _TopBar(
-            title: l10n.nowPlaying,
-            onOpenLyrics: () => openLyrics(context),
-          ),
+          _TopBar(song: song, accent: accent),
 
           // ── Artwork: flexible — takes whatever height is left so the page
           // never overflows on short screens. Capped at 76% of width.
@@ -205,12 +213,11 @@ class _LandscapeBody extends ConsumerWidget {
   });
 
   final PlaybackState state;
-  final dynamic song;
+  final Song song;
   final Color accent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
     final ctrl = ref.read(audioControllerProvider);
     final size = MediaQuery.sizeOf(context);
 
@@ -246,10 +253,7 @@ class _LandscapeBody extends ConsumerWidget {
               final showCarousel = c.maxHeight >= 440;
               return Column(
                 children: [
-                  _TopBar(
-                    title: l10n.nowPlaying,
-                    onOpenLyrics: () => openLyrics(context),
-                  ),
+                  _TopBar(song: song, accent: accent),
                   const Spacer(),
                   if (showCarousel) ...[
                     _Lyrics3LineCarousel(
@@ -287,37 +291,107 @@ class _LandscapeBody extends ConsumerWidget {
 // ── Reusable sub-widgets ─────────────────────────────────────────────────────
 
 class _TopBar extends StatelessWidget {
-  const _TopBar({required this.title, required this.onOpenLyrics});
-  final String title;
-  final VoidCallback onOpenLyrics;
+  const _TopBar({required this.song, required this.accent});
+  final Song song;
+  final Color accent;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final l10n = AppLocalizations.of(context);
-    return Row(
-      children: [
-        IconButton(
-          onPressed: () => Navigator.of(context).maybePop(),
-          icon: Icon(Icons.keyboard_arrow_down, color: colors.onSurface),
-          iconSize: 28,
-        ),
-        Expanded(
-          child: Text(
-            title,
+    // Stack keeps the title perfectly centered regardless of trailing icons.
+    return SizedBox(
+      height: 48,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Text(
+            l10n.nowPlaying,
             textAlign: TextAlign.center,
             style: AppTextTheme.caption.copyWith(
                 color: colors.onSurfaceMuted,
                 letterSpacing: 0.8,
                 fontWeight: FontWeight.w500),
           ),
-        ),
-        IconButton(
-          tooltip: l10n.lyrics,
-          onPressed: onOpenLyrics,
-          icon: Icon(Icons.lyrics_outlined, color: colors.onSurfaceMuted),
-        ),
-      ],
+          Row(
+            children: [
+              _PressIcon(
+                icon: Icons.keyboard_arrow_down,
+                size: 28,
+                color: colors.onSurface,
+                onTap: () => Navigator.of(context).maybePop(),
+              ),
+              const Spacer(),
+              _PressIcon(
+                icon: Icons.graphic_eq_rounded,
+                tooltip: l10n.equalizer,
+                color: colors.onSurfaceMuted,
+                onTap: () => openEqualizer(context),
+              ),
+              _PressIcon(
+                icon: Icons.more_vert_rounded,
+                tooltip: l10n.moreActions,
+                color: colors.onSurfaceMuted,
+                onTap: () => showNowPlayingMenu(context, song, accent),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A circular icon button that springs down on press — Aura's standard tactile
+/// feedback applied to the small Now Playing controls.
+class _PressIcon extends StatefulWidget {
+  const _PressIcon({
+    required this.icon,
+    required this.onTap,
+    required this.color,
+    this.size = 24,
+    this.tooltip,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+  final Color color;
+  final double size;
+  final String? tooltip;
+
+  @override
+  State<_PressIcon> createState() => _PressIconState();
+}
+
+class _PressIconState extends State<_PressIcon> {
+  bool _down = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final reduce = MediaQuery.disableAnimationsOf(context);
+    final icon = AnimatedScale(
+      scale: (_down && !reduce) ? 0.82 : 1.0,
+      duration: const Duration(milliseconds: 140),
+      curve: Curves.easeOut,
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Icon(widget.icon, color: widget.color, size: widget.size),
+      ),
+    );
+    return Semantics(
+      button: true,
+      label: widget.tooltip,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (_) => setState(() => _down = true),
+        onTapCancel: () => setState(() => _down = false),
+        onTapUp: (_) => setState(() => _down = false),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          widget.onTap();
+        },
+        child: icon,
+      ),
     );
   }
 }
@@ -375,7 +449,7 @@ class _ArtworkWithGlow extends StatelessWidget {
   }
 }
 
-// ── 3-line lyrics carousel with liquid glass capsule ─────────────────────────
+// ── 3-line lyrics carousel — current line swells, neighbours fade ────────────
 
 class _Lyrics3LineCarousel extends ConsumerStatefulWidget {
   const _Lyrics3LineCarousel({
@@ -392,12 +466,15 @@ class _Lyrics3LineCarousel extends ConsumerStatefulWidget {
 
 class _Lyrics3LineCarouselState extends ConsumerState<_Lyrics3LineCarousel>
     with SingleTickerProviderStateMixin {
-  static const double _lineH = 36.0;
+  static const double _lineH = 42.0;
 
   late final AnimationController _ctrl = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 380),
+    duration: const Duration(milliseconds: 520),
   );
+  // Eased progress so lines glide rather than slide linearly.
+  late final Animation<double> _t =
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOutCubic);
 
   int _anchor = 0;
 
@@ -439,55 +516,51 @@ class _Lyrics3LineCarouselState extends ConsumerState<_Lyrics3LineCarousel>
     final lyrics = lyricsAsync.valueOrNull;
     final hasLines = lyrics != null && !lyrics.isEmpty && lyrics.synced;
 
+    if (!hasLines) {
+      // No synced lyrics yet — a calm placeholder keeps the slot reserved so the
+      // layout doesn't jump the moment lyrics arrive.
+      return GestureDetector(
+        onTap: widget.onTap,
+        behavior: HitTestBehavior.opaque,
+        child: SizedBox(
+          height: _lineH * 3,
+          child: Center(child: _DotsPlaceholder(accent: widget.accent)),
+        ),
+      );
+    }
+
     return GestureDetector(
       onTap: widget.onTap,
+      behavior: HitTestBehavior.opaque,
       child: SizedBox(
         height: _lineH * 3,
-        child: Stack(
-          children: [
-            // ── Scrolling lines behind the capsule ────────────────────────
-            ClipRect(
-              child: AnimatedBuilder(
-                animation: _ctrl,
-                builder: (_, __) {
-                  final dy = -_ctrl.value * _lineH;
-                  return Transform.translate(
-                    offset: Offset(0, dy),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        for (var i = _anchor - 1; i <= _anchor + 2; i++)
-                          SizedBox(
-                            height: _lineH,
-                            child: Center(
-                              child: hasLines
-                                  ? _LyricLineText(
-                                      text: _lineText(lyrics!.lines, i),
-                                      isCurrent: i == _anchor,
-                                      accent: widget.accent,
-                                    )
-                                  : i == _anchor
-                                      ? _DotsPlaceholder(accent: widget.accent)
-                                      : const SizedBox.shrink(),
-                            ),
+        child: ClipRect(
+          child: AnimatedBuilder(
+            animation: _t,
+            builder: (_, __) {
+              final v = _t.value;
+              return Transform.translate(
+                offset: Offset(0, -v * _lineH),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var i = _anchor - 1; i <= _anchor + 2; i++)
+                      SizedBox(
+                        height: _lineH,
+                        child: Center(
+                          child: _CarouselLine(
+                            text: _lineText(lyrics!.lines, i),
+                            // Signed distance from the centre slot: 0 = focused.
+                            distance: (i - _anchor - v).toDouble(),
+                            accent: widget.accent,
                           ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-            // ── Fixed liquid glass capsule (middle slot) ──────────────────
-            Positioned(
-              top: _lineH,
-              left: 0,
-              right: 0,
-              height: _lineH,
-              child: IgnorePointer(
-                child: _LiquidGlassCapsule(accent: widget.accent),
-              ),
-            ),
-          ],
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
         ),
       ),
     );
@@ -499,31 +572,45 @@ class _Lyrics3LineCarouselState extends ConsumerState<_Lyrics3LineCarousel>
   }
 }
 
-class _LyricLineText extends StatelessWidget {
-  const _LyricLineText({
+/// A single carousel line. [distance] is the signed offset from the focused
+/// centre slot (0 = focused, ±1 = a neighbour). The focused line is larger,
+/// bolder and accent-coloured; neighbours shrink and fade with distance.
+class _CarouselLine extends StatelessWidget {
+  const _CarouselLine({
     required this.text,
-    required this.isCurrent,
+    required this.distance,
     required this.accent,
   });
   final String? text;
-  final bool isCurrent;
+  final double distance;
   final Color accent;
 
   @override
   Widget build(BuildContext context) {
     if (text == null) return const SizedBox.shrink();
     final colors = context.colors;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.lg),
-      child: Text(
-        text!,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        textAlign: TextAlign.center,
-        style: AppTextTheme.body.copyWith(
-          color: isCurrent ? accent : colors.onSurfaceMuted,
-          fontSize: isCurrent ? 14.0 : 12.0,
-          fontWeight: isCurrent ? FontWeight.w600 : FontWeight.w400,
+    final t = distance.abs().clamp(0.0, 1.0);
+
+    final fontSize = lerpDouble(19.0, 13.0, t)!;
+    final opacity = lerpDouble(1.0, 0.38, t)!;
+    final color = Color.lerp(accent, colors.onSurfaceMuted, t)!;
+    final weight = t < 0.4 ? FontWeight.w700 : FontWeight.w400;
+
+    return Opacity(
+      opacity: opacity,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.lg),
+        child: Text(
+          text!,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: AppTextTheme.body.copyWith(
+            color: color,
+            fontSize: fontSize,
+            fontWeight: weight,
+            letterSpacing: -0.2,
+          ),
         ),
       ),
     );
@@ -548,97 +635,15 @@ class _DotsPlaceholder extends StatelessWidget {
   }
 }
 
-// ── Liquid glass capsule — frosted lens with reflection highlights ─────────────
-
-class _LiquidGlassCapsule extends StatelessWidget {
-  const _LiquidGlassCapsule({required this.accent});
-  final Color accent;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-          horizontal: SpacingTokens.lg, vertical: 3),
-      child: ClipRRect(
-        borderRadius: RadiusTokens.brPill,
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-          child: Stack(
-            children: [
-              // Glass gradient body
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.white.withOpacity(0.16),
-                      accent.withOpacity(0.08),
-                      Colors.white.withOpacity(0.06),
-                    ],
-                    stops: const [0.0, 0.5, 1.0],
-                  ),
-                  borderRadius: RadiusTokens.brPill,
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.22),
-                    width: 0.8,
-                  ),
-                ),
-              ),
-              // Top lens highlight (refraction shimmer)
-              Positioned(
-                top: 2,
-                left: 32,
-                right: 32,
-                height: 1.5,
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.white.withOpacity(0.0),
-                        Colors.white.withOpacity(0.70),
-                        Colors.white.withOpacity(0.0),
-                      ],
-                    ),
-                    borderRadius: RadiusTokens.brPill,
-                  ),
-                ),
-              ),
-              // Bottom subtle gleam
-              Positioned(
-                bottom: 1,
-                left: 48,
-                right: 48,
-                height: 1,
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.white.withOpacity(0.0),
-                        Colors.white.withOpacity(0.28),
-                        Colors.white.withOpacity(0.0),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 // ── Track info row: title/artist left, like button right (modern standard) ───
 
-class _TrackInfoRow extends StatelessWidget {
+class _TrackInfoRow extends ConsumerWidget {
   const _TrackInfoRow({required this.song, required this.accent});
-  final dynamic song;
+  final Song song;
   final Color accent;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
     return Row(
       children: [
@@ -647,7 +652,7 @@ class _TrackInfoRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                song.title as String,
+                song.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: AppTextTheme.heroTitle.copyWith(
@@ -657,22 +662,73 @@ class _TrackInfoRow extends StatelessWidget {
                   letterSpacing: -0.3,
                 ),
               ),
-              const SizedBox(height: 2),
-              Text(
-                '${song.artist} · ${song.album}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTextTheme.body.copyWith(
-                  color: colors.onSurfaceMuted,
-                  fontSize: 13,
-                ),
+              const SizedBox(height: 3),
+              // Artist · album, each independently tappable.
+              Row(
+                children: [
+                  Flexible(
+                    child: _LinkText(
+                      label: song.artist,
+                      onTap: () => openArtistForSong(context, ref, song),
+                    ),
+                  ),
+                  Text(
+                    '  ·  ',
+                    style: AppTextTheme.body.copyWith(
+                        color: colors.onSurfaceFaint, fontSize: 13),
+                  ),
+                  Flexible(
+                    child: _LinkText(
+                      label: song.album,
+                      onTap: () => openAlbumForSong(context, ref, song),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
         ),
         const SizedBox(width: SpacingTokens.sm),
-        _LikeButton(songId: song.id as String, accent: accent),
+        _LikeButton(songId: song.id, accent: accent),
       ],
+    );
+  }
+}
+
+/// A muted, tappable inline label (artist / album) with a brief press fade.
+class _LinkText extends StatefulWidget {
+  const _LinkText({required this.label, required this.onTap});
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  State<_LinkText> createState() => _LinkTextState();
+}
+
+class _LinkTextState extends State<_LinkText> {
+  bool _down = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (_) => setState(() => _down = true),
+      onTapCancel: () => setState(() => _down = false),
+      onTapUp: (_) => setState(() => _down = false),
+      onTap: widget.onTap,
+      child: AnimatedDefaultTextStyle(
+        duration: const Duration(milliseconds: 140),
+        style: AppTextTheme.body.copyWith(
+          color: _down ? colors.onSurface : colors.onSurfaceMuted,
+          fontSize: 13,
+        ),
+        child: Text(
+          widget.label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
     );
   }
 }
@@ -831,8 +887,6 @@ class _BottomRow extends ConsumerWidget {
   final PlaybackState state;
   final Color accent;
 
-  static const _speedPresets = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
-
   RepeatMode _nextRepeat(RepeatMode m) => switch (m) {
         RepeatMode.off => RepeatMode.all,
         RepeatMode.all => RepeatMode.one,
@@ -844,116 +898,417 @@ class _BottomRow extends ConsumerWidget {
     final colors = context.colors;
     final l10n = AppLocalizations.of(context);
     final ctrl = ref.read(audioControllerProvider);
-    final speed = ref.watch(speedProvider).valueOrNull ?? 1.0;
-    final sleepRemaining = ref.watch(sleepTimerProvider);
-
-    final repeatIcon =
-        state.repeatMode == RepeatMode.one ? Icons.repeat_one : Icons.repeat;
-    final repeatActive = state.repeatMode != RepeatMode.off;
-    final isNormalSpeed = speed == 1.0;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        IconButton(
+        _ToggleIconButton(
+          icon: Icons.shuffle_rounded,
           tooltip: l10n.shuffle,
-          onPressed: () => ctrl.setShuffle(!state.shuffleEnabled),
-          icon: Icon(
-            Icons.shuffle_rounded,
-            color: state.shuffleEnabled ? accent : colors.onSurfaceMuted,
-          ),
+          active: state.shuffleEnabled,
+          accent: accent,
+          onTap: () => ctrl.setShuffle(!state.shuffleEnabled),
         ),
-        IconButton(
+        _ToggleIconButton(
+          icon: state.repeatMode == RepeatMode.one
+              ? Icons.repeat_one_rounded
+              : Icons.repeat_rounded,
           tooltip:
               state.repeatMode == RepeatMode.one ? l10n.repeatOne : l10n.repeat,
-          onPressed: () => ctrl.setRepeat(_nextRepeat(state.repeatMode)),
-          icon: Icon(
-            repeatIcon,
-            color: repeatActive ? accent : colors.onSurfaceMuted,
-          ),
+          active: state.repeatMode != RepeatMode.off,
+          accent: accent,
+          onTap: () => ctrl.setRepeat(_nextRepeat(state.repeatMode)),
         ),
-        GestureDetector(
-          onTap: () {
-            final idx = _speedPresets.indexOf(speed);
-            final next = _speedPresets[(idx + 1) % _speedPresets.length];
-            ctrl.setSpeed(next);
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              border: Border.all(
-                color: isNormalSpeed ? colors.onSurfaceMuted : accent,
-                width: 1.5,
-              ),
-              borderRadius: RadiusTokens.brXs,
-            ),
-            child: Text(
-              '${speed % 1 == 0 ? speed.toInt() : speed}×',
-              style: AppTextTheme.caption.copyWith(
-                color: isNormalSpeed ? colors.onSurfaceMuted : accent,
-                fontWeight: isNormalSpeed ? FontWeight.w400 : FontWeight.w600,
-              ),
-            ),
-          ),
-        ),
-        GestureDetector(
-          onTap: () => _showSleepTimerSheet(context, ref, sleepRemaining),
-          child: sleepRemaining != null
-              ? Text(
-                  _formatRemaining(sleepRemaining),
-                  style: AppTextTheme.caption.copyWith(
-                    color: accent,
-                    fontWeight: FontWeight.w600,
-                  ),
-                )
-              : Icon(Icons.bedtime_outlined,
-                  color: colors.onSurfaceMuted, size: 24),
-        ),
-        IconButton(
+        _ToggleIconButton(
+          icon: Icons.queue_music_rounded,
           tooltip: l10n.queueTitle,
-          onPressed: () => showQueueSheet(context),
-          icon: Icon(Icons.queue_music_rounded, color: colors.onSurfaceMuted),
+          active: false,
+          accent: accent,
+          onTap: () => showQueueSheet(context),
         ),
       ],
     );
   }
+}
 
-  String _formatRemaining(Duration d) {
-    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return '$m:$s';
+/// A control that animates a soft accent "pill" behind its icon when active,
+/// and bumps the icon with a quick spring on every tap.
+class _ToggleIconButton extends StatefulWidget {
+  const _ToggleIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.active,
+    required this.accent,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final bool active;
+  final Color accent;
+  final VoidCallback onTap;
+
+  @override
+  State<_ToggleIconButton> createState() => _ToggleIconButtonState();
+}
+
+class _ToggleIconButtonState extends State<_ToggleIconButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _bump = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 320),
+  );
+  late final Animation<double> _bumpScale = TweenSequence<double>([
+    TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.28), weight: 40),
+    TweenSequenceItem(tween: Tween(begin: 1.28, end: 1.0), weight: 60),
+  ]).animate(CurvedAnimation(parent: _bump, curve: Curves.easeOut));
+
+  @override
+  void dispose() {
+    _bump.dispose();
+    super.dispose();
   }
 
-  void _showSleepTimerSheet(
-      BuildContext context, WidgetRef ref, Duration? active) {
+  @override
+  Widget build(BuildContext context) {
     final colors = context.colors;
-    final timerNotifier = ref.read(sleepTimerProvider.notifier);
-
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: colors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    final color = widget.active ? widget.accent : colors.onSurfaceMuted;
+    return Semantics(
+      button: true,
+      label: widget.tooltip,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          HapticFeedback.selectionClick();
+          _bump.forward(from: 0);
+          widget.onTap();
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: widget.active
+                ? widget.accent.withOpacity(0.14)
+                : Colors.transparent,
+            borderRadius: RadiusTokens.brPill,
+          ),
+          child: ScaleTransition(
+            scale: _bumpScale,
+            child: Icon(widget.icon, color: color, size: 24),
+          ),
+        ),
       ),
-      builder: (_) {
-        const options = [
-          Duration(minutes: 15),
-          Duration(minutes: 30),
-          Duration(minutes: 45),
-          Duration(minutes: 60),
-          Duration(minutes: 90),
-        ];
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(SpacingTokens.xl),
+    );
+  }
+}
+
+// ── Now Playing overflow menu + navigation + sheets ──────────────────────────
+
+/// Resolves the [Album] for [song] and pushes its detail page.
+void openAlbumForSong(BuildContext context, WidgetRef ref, Song song) {
+  final albums = ref.read(albumsProvider).valueOrNull ?? const <Album>[];
+  Album? match;
+  for (final a in albums) {
+    if (a.id == song.albumId) {
+      match = a;
+      break;
+    }
+  }
+  if (match == null) return;
+  Navigator.of(context).push(
+    MaterialPageRoute<void>(builder: (_) => AlbumDetailPage(album: match!)),
+  );
+}
+
+/// Resolves the [Artist] for [song] and pushes its detail page.
+void openArtistForSong(BuildContext context, WidgetRef ref, Song song) {
+  final artists = ref.read(artistsProvider).valueOrNull ?? const <Artist>[];
+  Artist? match;
+  for (final a in artists) {
+    if (a.id == song.artistId || a.name == song.artist) {
+      match = a;
+      break;
+    }
+  }
+  if (match == null) return;
+  Navigator.of(context).push(
+    MaterialPageRoute<void>(builder: (_) => ArtistDetailPage(artist: match!)),
+  );
+}
+
+/// The three-dot overflow sheet for the playing track.
+Future<void> showNowPlayingMenu(
+    BuildContext context, Song song, Color accent) {
+  return showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _NowPlayingMenu(song: song, accent: accent),
+  );
+}
+
+class _NowPlayingMenu extends ConsumerWidget {
+  const _NowPlayingMenu({required this.song, required this.accent});
+  final Song song;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final l10n = AppLocalizations.of(context);
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.all(SpacingTokens.md),
+        child: GlassSurface(
+          borderRadius: RadiusTokens.brLg,
+          intensity: GlassIntensity.strong,
+          padding: const EdgeInsets.symmetric(vertical: SpacingTokens.sm),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _MenuItem(
+                icon: Icons.info_outline_rounded,
+                label: l10n.songInfo,
+                onTap: () {
+                  Navigator.of(context).pop();
+                  showSongInfo(context, song);
+                },
+              ),
+              _MenuItem(
+                icon: Icons.album_outlined,
+                label: l10n.goToAlbum,
+                onTap: () {
+                  Navigator.of(context).pop();
+                  openAlbumForSong(context, ref, song);
+                },
+              ),
+              _MenuItem(
+                icon: Icons.person_outline_rounded,
+                label: l10n.goToArtist,
+                onTap: () {
+                  Navigator.of(context).pop();
+                  openArtistForSong(context, ref, song);
+                },
+              ),
+              _MenuItem(
+                icon: Icons.bedtime_outlined,
+                label: l10n.sleepTimer,
+                onTap: () {
+                  Navigator.of(context).pop();
+                  showSleepTimerSheet(context, ref);
+                },
+              ),
+              _MenuItem(
+                icon: Icons.speed_rounded,
+                label: l10n.playbackSpeed,
+                onTap: () {
+                  Navigator.of(context).pop();
+                  showSpeedSheet(context, ref, accent);
+                },
+              ),
+              _MenuItem(
+                icon: Icons.settings_outlined,
+                label: l10n.settings,
+                onTap: () {
+                  Navigator.of(context).pop();
+                  openSettings(context);
+                },
+              ),
+              Divider(color: colors.divider, height: 1),
+              _MenuItem(
+                icon: Icons.delete_outline_rounded,
+                label: l10n.delete,
+                destructive: true,
+                onTap: () {
+                  Navigator.of(context).pop();
+                  confirmAndDeleteSong(context, ref, song);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MenuItem extends StatelessWidget {
+  const _MenuItem({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.destructive = false,
+  });
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool destructive;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final color = destructive ? Colors.redAccent : colors.onSurface;
+    return ListTile(
+      leading: Icon(icon,
+          color: destructive ? Colors.redAccent : colors.onSurfaceMuted),
+      title: Text(label, style: AppTextTheme.body.copyWith(color: color)),
+      onTap: onTap,
+    );
+  }
+}
+
+/// A read-only metadata sheet for [song].
+Future<void> showSongInfo(BuildContext context, Song song) {
+  return showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _SongInfoSheet(song: song),
+  );
+}
+
+class _SongInfoSheet extends StatelessWidget {
+  const _SongInfoSheet({required this.song});
+  final Song song;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final l10n = AppLocalizations.of(context);
+    final rows = <(String, String)>[
+      (l10n.tagTitle, song.title),
+      (l10n.tagArtist, song.artist),
+      (l10n.tagAlbum, song.album),
+      if (song.year != null) (l10n.tagYear, '${song.year}'),
+      if (song.genre != null && song.genre!.isNotEmpty)
+        (l10n.tagGenre, song.genre!),
+      (l10n.infoDuration, song.duration.clock),
+      if (song.bitrate != null) (l10n.infoBitrate, '${song.bitrate} kbps'),
+      (l10n.infoFilePath, song.filePath),
+    ];
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.all(SpacingTokens.md),
+        child: GlassSurface(
+          borderRadius: RadiusTokens.brLg,
+          intensity: GlassIntensity.strong,
+          padding: const EdgeInsets.all(SpacingTokens.lg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(l10n.songInfo,
+                  style: AppTextTheme.title.copyWith(color: colors.onSurface)),
+              const SizedBox(height: SpacingTokens.md),
+              for (final (label, value) in rows)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: 96,
+                        child: Text(label,
+                            style: AppTextTheme.caption
+                                .copyWith(color: colors.onSurfaceFaint)),
+                      ),
+                      Expanded(
+                        child: Text(value,
+                            style: AppTextTheme.body
+                                .copyWith(color: colors.onSurface)),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Confirms, then deletes [song] from the device through the OS delete flow.
+/// On success the library is rescanned and playback advances past the file.
+Future<void> confirmAndDeleteSong(
+    BuildContext context, WidgetRef ref, Song song) async {
+  final l10n = AppLocalizations.of(context);
+  final messenger = ScaffoldMessenger.of(context);
+
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) {
+      final colors = ctx.colors;
+      return AlertDialog(
+        backgroundColor: colors.surface,
+        title: Text(l10n.deleteSongTitle,
+            style: AppTextTheme.title.copyWith(color: colors.onSurface)),
+        content: Text(l10n.deleteSongBody,
+            style: AppTextTheme.body.copyWith(color: colors.onSurfaceMuted)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l10n.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+            child: Text(l10n.delete),
+          ),
+        ],
+      );
+    },
+  );
+  if (confirmed != true) return;
+
+  final deleted = await ref.read(mediaDeleteServiceProvider).deleteSong(song.id);
+  if (deleted) {
+    // Move off the now-missing file, then rescan the library.
+    final controller = ref.read(audioControllerProvider);
+    await controller.skipToNext();
+    await ref.read(rescanProvider)();
+    messenger.showSnackBar(SnackBar(content: Text(l10n.songDeleted)));
+  } else {
+    messenger.showSnackBar(SnackBar(content: Text(l10n.deleteFailed)));
+  }
+}
+
+/// The sleep-timer picker — reachable from the overflow menu.
+Future<void> showSleepTimerSheet(BuildContext context, WidgetRef ref) {
+  final active = ref.read(sleepTimerProvider);
+  final timerNotifier = ref.read(sleepTimerProvider.notifier);
+
+  return showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    builder: (sheetCtx) {
+      final colors = sheetCtx.colors;
+      final l10n = AppLocalizations.of(sheetCtx);
+      const options = [
+        Duration(minutes: 15),
+        Duration(minutes: 30),
+        Duration(minutes: 45),
+        Duration(minutes: 60),
+        Duration(minutes: 90),
+      ];
+      return SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.all(SpacingTokens.md),
+          child: GlassSurface(
+            borderRadius: RadiusTokens.brLg,
+            intensity: GlassIntensity.strong,
+            padding: const EdgeInsets.all(SpacingTokens.lg),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Sleep Timer',
-                  style: AppTextTheme.title.copyWith(color: colors.onSurface),
-                ),
+                Text(l10n.sleepTimer,
+                    style:
+                        AppTextTheme.title.copyWith(color: colors.onSurface)),
                 const SizedBox(height: SpacingTokens.md),
                 Wrap(
                   spacing: SpacingTokens.sm,
@@ -964,16 +1319,16 @@ class _BottomRow extends ConsumerWidget {
                         label: '${opt.inMinutes} min',
                         onTap: () {
                           timerNotifier.start(opt);
-                          Navigator.pop(context);
+                          Navigator.pop(sheetCtx);
                         },
                       ),
                     if (active != null)
                       _TimerChip(
-                        label: 'Cancel',
+                        label: l10n.cancel,
                         isCancel: true,
                         onTap: () {
                           timerNotifier.cancel();
-                          Navigator.pop(context);
+                          Navigator.pop(sheetCtx);
                         },
                       ),
                   ],
@@ -981,34 +1336,105 @@ class _BottomRow extends ConsumerWidget {
               ],
             ),
           ),
+        ),
+      );
+    },
+  );
+}
+
+/// The playback-speed picker — reachable from the overflow menu.
+Future<void> showSpeedSheet(BuildContext context, WidgetRef ref, Color accent) {
+  const presets = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
+  return showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    builder: (sheetCtx) {
+      final colors = sheetCtx.colors;
+      final l10n = AppLocalizations.of(sheetCtx);
+      return Consumer(builder: (consumerCtx, sheetRef, _) {
+        final current = sheetRef.watch(speedProvider).valueOrNull ?? 1.0;
+        final ctrl = sheetRef.read(audioControllerProvider);
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.all(SpacingTokens.md),
+            child: GlassSurface(
+              borderRadius: RadiusTokens.brLg,
+              intensity: GlassIntensity.strong,
+              padding: const EdgeInsets.all(SpacingTokens.lg),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(l10n.playbackSpeed,
+                      style:
+                          AppTextTheme.title.copyWith(color: colors.onSurface)),
+                  const SizedBox(height: SpacingTokens.md),
+                  Wrap(
+                    spacing: SpacingTokens.sm,
+                    runSpacing: SpacingTokens.sm,
+                    children: [
+                      for (final p in presets)
+                        _TimerChip(
+                          label: '${p % 1 == 0 ? p.toInt() : p}×',
+                          selected: (current - p).abs() < 0.001,
+                          accent: accent,
+                          onTap: () => ctrl.setSpeed(p),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
         );
-      },
-    );
-  }
+      });
+    },
+  );
 }
 
 class _TimerChip extends StatelessWidget {
-  const _TimerChip(
-      {required this.label, required this.onTap, this.isCancel = false});
+  const _TimerChip({
+    required this.label,
+    required this.onTap,
+    this.isCancel = false,
+    this.selected = false,
+    this.accent,
+  });
   final String label;
   final VoidCallback onTap;
   final bool isCancel;
+  final bool selected;
+  final Color? accent;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final bg = selected
+        ? (accent ?? colors.accent).withOpacity(0.16)
+        : colors.surfaceElevated;
+    final fg = isCancel
+        ? Colors.redAccent
+        : selected
+            ? (accent ?? colors.accent)
+            : colors.onSurface;
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: colors.surfaceElevated,
+          color: bg,
           borderRadius: RadiusTokens.brSm,
+          border: selected
+              ? Border.all(color: (accent ?? colors.accent).withOpacity(0.5))
+              : null,
         ),
         child: Text(
           label,
           style: AppTextTheme.body.copyWith(
-            color: isCancel ? Colors.redAccent : colors.onSurface,
+            color: fg,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
           ),
         ),
       ),

@@ -226,5 +226,18 @@
   "a11ySeekBar": "نوار جابه‌جایی",
   "a11yPlay": "پخش",
   "a11yPause": "مکث",
-  "a11yAlbumArt": "تصویر آلبوم"
+  "a11yAlbumArt": "تصویر آلبوم",
+  "moreActions": "بیشتر",
+  "songInfo": "اطلاعات آهنگ",
+  "goToAlbum": "رفتن به آلبوم",
+  "goToArtist": "رفتن به هنرمند",
+  "sleepTimer": "تایمر خواب",
+  "playbackSpeed": "سرعت پخش",
+  "deleteSongTitle": "حذف آهنگ؟",
+  "deleteSongBody": "این فایل برای همیشه از دستگاه شما حذف می‌شود.",
+  "songDeleted": "آهنگ حذف شد",
+  "deleteFailed": "حذف آهنگ ممکن نشد",
+  "infoDuration": "مدت",
+  "infoFilePath": "مسیر فایل",
+  "infoBitrate": "بیت‌ریت"
 }

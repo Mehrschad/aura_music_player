@@ -71,10 +71,10 @@ void main() {
     expect(find.byIcon(Icons.favorite), findsOneWidget);
 
     // Cycling repeat twice reaches "repeat one".
-    await tester.tap(find.byIcon(Icons.repeat));
+    await tester.tap(find.byIcon(Icons.repeat_rounded));
     await tester.pump();
-    await tester.tap(find.byIcon(Icons.repeat));
+    await tester.tap(find.byIcon(Icons.repeat_rounded));
     await tester.pump();
-    expect(find.byIcon(Icons.repeat_one), findsOneWidget);
+    expect(find.byIcon(Icons.repeat_one_rounded), findsOneWidget);
   });
 }

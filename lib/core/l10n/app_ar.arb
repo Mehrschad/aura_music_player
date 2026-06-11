@@ -226,5 +226,18 @@
   "a11ySeekBar": "شريط التمرير",
   "a11yPlay": "تشغيل",
   "a11yPause": "إيقاف مؤقت",
-  "a11yAlbumArt": "غلاف الألبوم"
+  "a11yAlbumArt": "غلاف الألبوم",
+  "moreActions": "المزيد",
+  "songInfo": "معلومات الأغنية",
+  "goToAlbum": "الذهاب إلى الألبوم",
+  "goToArtist": "الذهاب إلى الفنان",
+  "sleepTimer": "مؤقت النوم",
+  "playbackSpeed": "سرعة التشغيل",
+  "deleteSongTitle": "حذف الأغنية؟",
+  "deleteSongBody": "سيؤدي هذا إلى إزالة الملف نهائيًا من جهازك.",
+  "songDeleted": "تم حذف الأغنية",
+  "deleteFailed": "تعذّر حذف الأغنية",
+  "infoDuration": "المدة",
+  "infoFilePath": "مسار الملف",
+  "infoBitrate": "معدل البت"
 }

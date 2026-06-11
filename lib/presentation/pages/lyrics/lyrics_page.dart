@@ -94,16 +94,21 @@ class _LyricsPageState extends ConsumerState<LyricsPage>
     _keys = List.generate(count, (_) => GlobalKey());
   }
 
-  void _scrollTo(int index) {
+  bool _didInitialJump = false;
+
+  void _scrollTo(int index, {bool instant = false}) {
     if (index < 0 || index >= _keys.length) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final ctx = _keys[index].currentContext;
       if (ctx == null) return;
       Scrollable.ensureVisible(
         ctx,
-        alignment: 0.38, // current line sits ~38% from the top
-        duration: MotionTokens.screen,
-        curve: MotionTokens.emphasized,
+        alignment: 0.40, // current line sits ~40% from the top
+        // Longer, gentler glide than a screen transition so lines drift
+        // smoothly into focus rather than snapping.
+        duration:
+            instant ? Duration.zero : const Duration(milliseconds: 720),
+        curve: Curves.easeInOutCubic,
       );
     });
   }
@@ -125,6 +130,16 @@ class _LyricsPageState extends ConsumerState<LyricsPage>
 
     // Auto-scroll on line change.
     ref.listen<int>(currentLyricLineProvider, (_, next) => _scrollTo(next));
+
+    // On open, jump straight to the line that's playing right now so the user
+    // lands exactly where the song is — no scroll-from-top animation.
+    if (!_didInitialJump) {
+      final line = ref.read(currentLyricLineProvider);
+      if (line >= 0) {
+        _didInitialJump = true;
+        _scrollTo(line, instant: true);
+      }
+    }
 
     return Scaffold(
       backgroundColor: colors.background,

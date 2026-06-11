@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/radius_tokens.dart';
@@ -38,6 +37,9 @@ class _WaveformScrubberState extends ConsumerState<WaveformScrubber>
     with TickerProviderStateMixin {
   double? _dragFraction;
 
+  // Last fraction actually painted — the start point for a smooth tap-seek glide.
+  double _lastFraction = 0;
+
   late final AnimationController _thumbController = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 220),
@@ -47,34 +49,44 @@ class _WaveformScrubberState extends ConsumerState<WaveformScrubber>
     curve: const Cubic(0.34, 1.56, 0.64, 1.0), // spring
   );
 
-  Ticker? _ticker;
-  double _animTime = 0;
-  bool _isPlaying = false;
+  // Drives the soft glide of the fill when the user taps to seek.
+  late final AnimationController _seekController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 300),
+  );
+  Animation<double>? _seekAnim;
 
   @override
   void initState() {
     super.initState();
-    _ticker = createTicker(_onTick);
+    _seekController.addListener(() {
+      final a = _seekAnim;
+      if (a != null) setState(() => _dragFraction = a.value);
+    });
+    _seekController.addStatusListener((s) {
+      if (s == AnimationStatus.completed && _seekAnim != null) {
+        _seekToFraction(_seekAnim!.value);
+        setState(() => _dragFraction = null);
+        _thumbController.reverse();
+      }
+    });
   }
 
-  void _onTick(Duration _) {
-    if (_isPlaying) setState(() => _animTime += 1 / 60);
-  }
-
-  void _syncPlaying(bool playing) {
-    if (_isPlaying == playing) return;
-    _isPlaying = playing;
-    if (playing) {
-      if (!(_ticker?.isTicking ?? false)) _ticker?.start();
-    } else {
-      _ticker?.stop();
-    }
+  /// Glides the fill from where it is now to the tapped [target], then commits
+  /// the seek — so a tap feels like a smooth scrub rather than a hard jump.
+  void _animatedSeekTo(double target) {
+    final clamped = target.clamp(0.0, 1.0);
+    _seekAnim = Tween<double>(begin: _lastFraction, end: clamped).animate(
+      CurvedAnimation(parent: _seekController, curve: Curves.easeOutCubic),
+    );
+    _thumbController.forward();
+    _seekController.forward(from: 0);
   }
 
   @override
   void dispose() {
-    _ticker?.dispose();
     _thumbController.dispose();
+    _seekController.dispose();
     super.dispose();
   }
 
@@ -86,6 +98,8 @@ class _WaveformScrubberState extends ConsumerState<WaveformScrubber>
   }
 
   void _onDragStart(double x, double w) {
+    _seekController.stop();
+    _seekAnim = null;
     setState(() => _dragFraction = (x / w).clamp(0.0, 1.0));
     _thumbController.forward();
   }
@@ -105,13 +119,11 @@ class _WaveformScrubberState extends ConsumerState<WaveformScrubber>
     final l10n = AppLocalizations.of(context);
     final hasDuration = _totalMs > 0;
 
-    final playing = ref.watch(playbackStateProvider).valueOrNull?.playing ?? false;
-    _syncPlaying(playing);
-
     final position = ref.watch(positionProvider).valueOrNull ?? Duration.zero;
     final playFrac =
         hasDuration ? (position.inMilliseconds / _totalMs).clamp(0.0, 1.0) : 0.0;
     final fraction = _dragFraction ?? playFrac;
+    _lastFraction = fraction;
     final tooltipTime = Duration(milliseconds: (fraction * _totalMs).round());
 
     return Semantics(
@@ -143,7 +155,7 @@ class _WaveformScrubberState extends ConsumerState<WaveformScrubber>
                       key: const Key('scrubber_gesture'),
                       behavior: HitTestBehavior.opaque,
                       onTapDown: hasDuration
-                          ? (d) => _seekToFraction(d.localPosition.dx / w)
+                          ? (d) => _animatedSeekTo(d.localPosition.dx / w)
                           : null,
                       onHorizontalDragStart: hasDuration
                           ? (d) => _onDragStart(d.localPosition.dx, w)
@@ -159,11 +171,9 @@ class _WaveformScrubberState extends ConsumerState<WaveformScrubber>
                           painter: _TrackPainter(
                             progress: fraction,
                             activeColor: widget.accent,
-                            trackColor: widget.accent.withOpacity(0.22),
-                            animTime: _animTime,
-                            isPlaying: playing,
-                            totalWidth: w,
-                            trackH: 4.0 + 3.5 * _thumbScale.value,
+                            // The "off" rail: a dim neutral groove the neon fills.
+                            trackColor: colors.onSurface.withOpacity(0.10),
+                            trackH: 5.0 + 3.0 * _thumbScale.value,
                           ),
                         ),
                       ),
@@ -261,29 +271,19 @@ class _Tooltip extends StatelessWidget {
   }
 }
 
-/// Draws the thin rounded track + very-soft ripple waves in the unplayed region.
+/// Draws the dark "off" rail and the neon fill with a soft outer glow.
 class _TrackPainter extends CustomPainter {
   _TrackPainter({
     required this.progress,
     required this.activeColor,
     required this.trackColor,
-    required this.animTime,
-    required this.isPlaying,
-    required this.totalWidth,
     this.trackH = 4.0,
   });
 
   final double progress;
   final Color activeColor;
   final Color trackColor;
-  final double animTime;
-  final bool isPlaying;
-  final double totalWidth;
   final double trackH;
-
-  static const double _waveAmp = 0.06; // 6% of trackH — barely perceptible
-  static const double _waveFreq = 0.9; // Hz
-  static const int _segments = 160; // smoothness of the wave
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -291,74 +291,55 @@ class _TrackPainter extends CustomPainter {
     final playheadX = progress * size.width;
     final r = trackH / 2;
 
-    // ── played portion: solid flat pill with soft glow gradient ──────────
-    if (playheadX > r) {
-      final rect = Rect.fromLTWH(0, centerY - r, playheadX, trackH);
-      final paint = Paint()
-        ..shader = LinearGradient(
-          colors: [activeColor.withOpacity(0.75), activeColor],
-          stops: const [0.0, 1.0],
-        ).createShader(rect)
-        ..style = PaintingStyle.fill;
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, Radius.circular(r)),
-        paint,
-      );
-    }
+    // ── 1. The full "off" rail — a dim groove across the whole width ───────
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(0, centerY - r, size.width, trackH),
+        Radius.circular(r),
+      ),
+      Paint()..color = trackColor,
+    );
 
-    // ── unplayed portion: flat track + soft sine ripple on top ────────────
-    if (playheadX < size.width - r) {
-      final basePaint = Paint()
-        ..color = trackColor
-        ..style = PaintingStyle.fill;
+    if (playheadX <= 0.5) return;
+
+    final fillRect = Rect.fromLTWH(0, centerY - r, playheadX, trackH);
+    final fillRRect = RRect.fromRectAndRadius(fillRect, Radius.circular(r));
+
+    // ── 2. Neon halo — a soft blurred glow bleeding out of the filled part ─
+    canvas.drawRRect(
+      fillRRect,
+      Paint()
+        ..color = activeColor.withOpacity(0.55)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6.0),
+    );
+
+    // ── 3. Neon core — bright gradient that lights up the rail ─────────────
+    canvas.drawRRect(
+      fillRRect,
+      Paint()
+        ..shader = LinearGradient(
+          colors: [
+            activeColor.withOpacity(0.80),
+            Color.lerp(activeColor, Colors.white, 0.25)!,
+          ],
+        ).createShader(fillRect),
+    );
+
+    // ── 4. Inner top highlight — a glassy sheen along the neon's top edge ──
+    if (playheadX > r * 2) {
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-          Rect.fromLTWH(
-              playheadX, centerY - r, size.width - playheadX, trackH),
+          Rect.fromLTWH(r, centerY - r + 0.5, playheadX - r * 2, trackH * 0.34),
           Radius.circular(r),
         ),
-        basePaint,
+        Paint()..color = Colors.white.withOpacity(0.22),
       );
-
-      // Very soft ripple overlay — visible only when playing.
-      if (isPlaying && totalWidth > 0) {
-        final wavePaint = Paint()
-          ..color = activeColor.withOpacity(0.30)
-          ..style = PaintingStyle.fill;
-
-        final segW = (size.width - playheadX) / _segments;
-        final path = Path();
-        final halfAmp = trackH * _waveAmp;
-
-        for (var i = 0; i <= _segments; i++) {
-          final x = playheadX + i * segW;
-          final relX = (x - playheadX) / size.width;
-          final phase =
-              relX * 4 * math.pi - animTime * 2 * math.pi * _waveFreq;
-          final y = centerY + math.sin(phase) * halfAmp;
-          if (i == 0) {
-            path.moveTo(x, y);
-          } else {
-            path.lineTo(x, y);
-          }
-        }
-        // Close at the bottom of the track.
-        path.lineTo(size.width, centerY + r);
-        path.lineTo(playheadX, centerY + r);
-        path.close();
-        canvas.clipRect(
-          Rect.fromLTWH(playheadX, centerY - r, size.width - playheadX, trackH),
-        );
-        canvas.drawPath(path, wavePaint);
-      }
     }
   }
 
   @override
   bool shouldRepaint(_TrackPainter o) =>
       o.progress != progress ||
-      o.animTime != animTime ||
-      o.isPlaying != isPlaying ||
       o.activeColor != activeColor ||
       o.trackColor != trackColor ||
       o.trackH != trackH;
