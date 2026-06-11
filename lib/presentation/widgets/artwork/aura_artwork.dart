@@ -55,6 +55,9 @@ class AuraArtwork extends StatelessWidget {
             artworkHeight: physSize,
             artworkBorder: BorderRadius.zero,
             artworkFit: BoxFit.cover,
+            artworkQuality: FilterQuality.high,
+            quality: 100,
+            format: ArtworkFormat.JPEG,
             keepOldArtwork: true,
             nullArtworkWidget: placeholder,
           )
