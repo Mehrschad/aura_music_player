@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/constants/radius_tokens.dart';
 import '../../../core/constants/spacing_tokens.dart';
 import '../../../core/extensions/duration_format.dart';
 import '../../../core/theme/color_scheme.dart';
 import '../../../core/theme/typography.dart';
 import '../../../domain/models/song.dart';
 import '../artwork/aura_artwork.dart';
+import '../press_scale.dart';
 
 /// Standard library row: thumbnail · title / artist · album · duration · menu.
 class SongListTile extends StatelessWidget {
@@ -24,13 +24,11 @@ class SongListTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return Semantics(
-      button: true,
-      label: '${song.title}, ${song.artist}',
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: RadiusTokens.brSm,
-        child: Padding(
+    return PressScale(
+      onTap: onTap,
+      pressedScale: 0.97,
+      semanticLabel: '${song.title}, ${song.artist}',
+      child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: SpacingTokens.xs,
             vertical: SpacingTokens.sm,
@@ -79,7 +77,6 @@ class SongListTile extends StatelessWidget {
             ],
           ),
         ),
-      ),
     );
   }
 }

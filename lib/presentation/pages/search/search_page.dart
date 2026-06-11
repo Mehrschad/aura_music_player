@@ -90,8 +90,16 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                       ),
                 filled: true,
                 fillColor: colors.surfaceElevated,
-                border: const OutlineInputBorder(
-                  borderRadius: RadiusTokens.brSm,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(32),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(32),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(32),
                   borderSide: BorderSide.none,
                 ),
                 contentPadding: const EdgeInsets.symmetric(

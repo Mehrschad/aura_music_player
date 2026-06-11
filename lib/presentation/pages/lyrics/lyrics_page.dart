@@ -63,18 +63,26 @@ class LyricsPage extends ConsumerStatefulWidget {
 }
 
 class _LyricsPageState extends ConsumerState<LyricsPage>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final _scrollController = ScrollController();
   List<GlobalKey> _keys = const [];
   int _keyCount = -1;
 
+  // Slow drift for ambient orbs (24s loop)
   late final AnimationController _ambientCtrl = AnimationController(
     vsync: this,
     duration: const Duration(seconds: 24),
   )..repeat();
 
+  // Fast pulse for the frosted-glass light shimmer (~2.4s loop, ≈25 BPM)
+  late final AnimationController _pulseCtrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2400),
+  )..repeat();
+
   @override
   void dispose() {
+    _pulseCtrl.dispose();
     _ambientCtrl.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -138,7 +146,7 @@ class _LyricsPageState extends ConsumerState<LyricsPage>
               ),
             ),
           Positioned.fill(child: ColoredBox(color: colors.background.withOpacity(0.48))),
-          // Ambient frosted-glass gradient that breathes softly.
+          // Ambient orbs — slow drift layer
           Positioned.fill(
             child: AnimatedBuilder(
               animation: _ambientCtrl,
@@ -146,6 +154,50 @@ class _LyricsPageState extends ConsumerState<LyricsPage>
                 painter: _LyricsAmbientPainter(
                   t: _ambientCtrl.value,
                   accent: accent,
+                ),
+              ),
+            ),
+          ),
+          // Frosted-glass light from below — pulses softly with rhythm
+          Positioned.fill(
+            child: AnimatedBuilder(
+              animation: _pulseCtrl,
+              builder: (_, __) {
+                final pulse =
+                    0.5 + 0.5 * math.sin(_pulseCtrl.value * 2 * math.pi);
+                return DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                      colors: [
+                        // Bottom: warm glow that breathes
+                        accent.withOpacity(0.055 + 0.028 * pulse),
+                        accent.withOpacity(0.022 + 0.010 * pulse),
+                        Colors.transparent,
+                      ],
+                      stops: const [0.0, 0.38, 0.70],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          // Top edge: very faint white shimmer (frosted ceiling reflection)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 160,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.white.withOpacity(0.025),
+                    Colors.transparent,
+                  ],
                 ),
               ),
             ),

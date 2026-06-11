@@ -11,6 +11,7 @@ import '../../providers/playback_providers.dart';
 import '../../providers/playlist_providers.dart';
 import '../../providers/smart_playlist_providers.dart';
 import '../../widgets/player_bar_inset.dart';
+import '../../widgets/press_scale.dart';
 import '../../widgets/section_header.dart';
 import 'playlist_detail_page.dart';
 import 'playlist_dialogs.dart';
@@ -173,36 +174,40 @@ class _AutoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final l10n = AppLocalizations.of(context);
-    return Material(
-      color: colors.surfaceElevated,
-      borderRadius: RadiusTokens.brMd,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: RadiusTokens.brMd,
-        child: Padding(
-          padding: const EdgeInsets.all(SpacingTokens.md),
-          child: Row(
-            children: [
-              Icon(icon, color: colors.onSurface, size: 22),
-              const SizedBox(width: SpacingTokens.sm),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTextTheme.title
-                            .copyWith(color: colors.onSurface)),
-                    Text(l10n.songsCount(count),
-                        style: AppTextTheme.caption
-                            .copyWith(color: colors.onSurfaceFaint)),
-                  ],
-                ),
-              ),
-            ],
+    return PressScale(
+      onTap: onTap,
+      pressedScale: 0.95,
+      child: Container(
+        decoration: BoxDecoration(
+          color: colors.surfaceElevated,
+          borderRadius: RadiusTokens.brMd,
+          border: Border.all(
+            color: colors.onSurface.withOpacity(0.06),
+            width: 0.8,
           ),
+        ),
+        padding: const EdgeInsets.all(SpacingTokens.md),
+        child: Row(
+          children: [
+            Icon(icon, color: colors.onSurface, size: 22),
+            const SizedBox(width: SpacingTokens.sm),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style:
+                          AppTextTheme.title.copyWith(color: colors.onSurface)),
+                  Text(l10n.songsCount(count),
+                      style: AppTextTheme.caption
+                          .copyWith(color: colors.onSurfaceFaint)),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
