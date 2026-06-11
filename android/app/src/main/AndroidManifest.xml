@@ -66,10 +66,6 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- Handle media button from lock screen / notification -->
-            <intent-filter>
-                <action android:name="android.intent.action.MEDIA_BUTTON"/>
-            </intent-filter>
         </activity>
 
         <!-- ── Background audio service (audio_service package) ── -->

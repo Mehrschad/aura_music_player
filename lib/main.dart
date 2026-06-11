@@ -53,7 +53,8 @@ Future<void> main() async {
         notificationColor: Color(0xFF1A1A2E),
       ),
     );
-  } catch (_) {
+  } catch (e, st) {
+    debugPrint('[Aura] AudioService.init failed — running without media session.\n$e\n$st');
     audioController = JustAudioController();
   }
 

@@ -77,6 +77,7 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
         bg.AudioProcessingState.idle;
 
     // Set media item FIRST so the notification always has a title.
+    // Use actual decoded duration when available — it's more accurate than metadata.
     final song = _state.currentSong;
     if (song != null) {
       mediaItem.add(bg.MediaItem(
@@ -84,7 +85,7 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
         title: song.title,
         artist: song.artist,
         album: song.album,
-        duration: song.duration,
+        duration: _player.duration ?? song.duration,
       ));
     }
 
@@ -95,15 +96,36 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
         bg.MediaControl.skipToNext,
       ],
       androidCompactActionIndices: const [0, 1, 2],
-      systemActions: const {bg.MediaAction.seek},
+      // Expose all seek/skip actions so lock screen, AVRCP, and Android Auto
+      // get the full set of controls.
+      systemActions: const {
+        bg.MediaAction.seek,
+        bg.MediaAction.seekForward,
+        bg.MediaAction.seekBackward,
+        bg.MediaAction.skipToNext,
+        bg.MediaAction.skipToPrevious,
+      },
       processingState: processing,
       playing: playing,
       updatePosition: _player.position,
       bufferedPosition: _player.bufferedPosition,
       speed: _player.speed,
       queueIndex: _player.currentIndex,
+      // Wall-clock timestamp so the OS can interpolate the position in real
+      // time without needing a constant stream of position updates.
+      updateTime: DateTime.now(),
+      shuffleMode: _player.shuffleModeEnabled
+          ? bg.AudioServiceShuffleMode.all
+          : bg.AudioServiceShuffleMode.none,
+      repeatMode: _bgRepeatFrom(_player.loopMode),
     ));
   }
+
+  bg.AudioServiceRepeatMode _bgRepeatFrom(LoopMode m) => switch (m) {
+        LoopMode.off => bg.AudioServiceRepeatMode.none,
+        LoopMode.all => bg.AudioServiceRepeatMode.all,
+        LoopMode.one => bg.AudioServiceRepeatMode.one,
+      };
 
   static const _processingStateMap = {
     ProcessingState.idle: bg.AudioProcessingState.idle,
@@ -133,11 +155,27 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
         RepeatMode.one => LoopMode.one,
       };
 
+  /// Keeps [BaseAudioHandler.queue] in sync with [_queue] so Android Auto,
+  /// WearOS, and the lock-screen queue view always reflect the current list.
+  void _syncBgQueue() {
+    queue.add([
+      for (final s in _queue)
+        bg.MediaItem(
+          id: s.id,
+          title: s.title,
+          artist: s.artist,
+          album: s.album,
+          duration: s.duration,
+        ),
+    ]);
+  }
+
   // ── Transport (AudioController interface) ────────────────────────────────
 
   @override
   Future<void> playQueue(List<Song> songs, {int startIndex = 0}) async {
     _queue = List<Song>.of(songs);
+    _syncBgQueue();
 
     // Set the media item eagerly so the OS notification can appear immediately
     // when the foreground service starts — before any stream events fire.
@@ -165,8 +203,19 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
     await _player.play();
   }
 
+  // Attach a MediaItem tag to every source so just_audio / audio_service can
+  // surface per-track metadata even before _broadcastServiceState fires.
   AudioSource _toSource(Song song) {
-    return AudioSource.uri(Uri.file(song.filePath));
+    return AudioSource.uri(
+      Uri.file(song.filePath),
+      tag: bg.MediaItem(
+        id: song.id,
+        title: song.title,
+        artist: song.artist,
+        album: song.album,
+        duration: song.duration,
+      ),
+    );
   }
 
   // ── BaseAudioHandler overrides (called by notification / lock-screen) ────
@@ -187,7 +236,22 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
   Future<void> skipToPrevious() => _player.seekToPrevious();
 
   @override
-  Future<void> stop() => _player.stop();
+  Future<void> stop() async {
+    // Broadcast idle state first so the notification is dismissed cleanly
+    // before the player stops emitting stream events.
+    playbackState.add(const bg.PlaybackState(
+      processingState: bg.AudioProcessingState.idle,
+      playing: false,
+    ));
+    await _player.stop();
+  }
+
+  /// Called when the user swipes the app from the Recents screen.
+  /// We do NOT stop playback here — [stopWithTask="false"] in the manifest
+  /// keeps the foreground service running; the user dismisses the
+  /// notification to stop playback.
+  @override
+  Future<void> onTaskRemoved() async {}
 
   // ── AudioController extras ───────────────────────────────────────────────
 
@@ -243,6 +307,7 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
     }
     final at = (_player.currentIndex ?? -1) + 1;
     _queue = List<Song>.of(_queue)..insert(at, song);
+    _syncBgQueue();
     await source.insert(at, _toSource(song));
     _recompute();
   }
@@ -255,6 +320,7 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
       return;
     }
     _queue = List<Song>.of(_queue)..add(song);
+    _syncBgQueue();
     await source.add(_toSource(song));
     _recompute();
   }
@@ -264,6 +330,7 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
     final source = _concatenating;
     if (source == null || index < 0 || index >= _queue.length) return;
     _queue = List<Song>.of(_queue)..removeAt(index);
+    _syncBgQueue();
     await source.removeAt(index);
     _recompute();
   }
@@ -274,6 +341,7 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
     if (source == null || oldIndex < 0 || oldIndex >= _queue.length) return;
     final item = _queue.removeAt(oldIndex);
     _queue.insert(newIndex.clamp(0, _queue.length), item);
+    _syncBgQueue();
     await source.move(oldIndex, newIndex);
     _recompute();
   }
