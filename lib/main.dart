@@ -48,7 +48,7 @@ Future<void> main() async {
         androidNotificationChannelName: 'Aura',
         androidNotificationChannelDescription: 'Music playback controls',
         androidNotificationIcon: 'drawable/ic_notification',
-        androidNotificationOngoing: true,
+        androidNotificationOngoing: false,
         androidStopForegroundOnPause: false,
         notificationColor: Color(0xFF1A1A2E),
       ),
