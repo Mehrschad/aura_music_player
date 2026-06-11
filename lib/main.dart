@@ -49,7 +49,7 @@ Future<void> main() async {
         androidNotificationChannelDescription: 'Music playback controls',
         androidNotificationIcon: 'drawable/ic_notification',
         androidNotificationOngoing: true,
-        androidStopForegroundOnPause: true,
+        androidStopForegroundOnPause: false,
         notificationColor: Color(0xFF1A1A2E),
       ),
     );
