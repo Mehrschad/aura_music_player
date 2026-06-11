@@ -239,7 +239,7 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
   Future<void> stop() async {
     // Broadcast idle state first so the notification is dismissed cleanly
     // before the player stops emitting stream events.
-    playbackState.add(const bg.PlaybackState(
+    playbackState.add(bg.PlaybackState(
       processingState: bg.AudioProcessingState.idle,
       playing: false,
     ));
