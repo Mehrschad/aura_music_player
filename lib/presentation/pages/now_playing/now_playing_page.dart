@@ -98,14 +98,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
                 ),
               ),
             ),
-            // ── Layer 3: frosted-glass scrim ─────────────────────────────────
-            Positioned.fill(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 0, sigmaY: 0),
-                child: const SizedBox.expand(),
-              ),
-            ),
-            // ── Layer 4: content ─────────────────────────────────────────────
+            // ── Layer 3: content ─────────────────────────────────────────────
             SafeArea(
               child: isLandscape
                   ? _LandscapeBody(state: state, song: song, accent: accent)
@@ -135,8 +128,6 @@ class _PortraitBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final ctrl = ref.read(audioControllerProvider);
-    final size = MediaQuery.sizeOf(context);
-    final artSize = size.width * 0.76;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.xl),
@@ -146,35 +137,38 @@ class _PortraitBody extends ConsumerWidget {
             title: l10n.nowPlaying,
             onOpenLyrics: () => openLyrics(context),
           ),
-          const Spacer(flex: 2),
 
-          // ── Artwork with glow shadow ────────────────────────────────────
-          _ArtworkWithGlow(
-            song: song,
-            size: artSize,
-            accent: accent,
-            state: state,
+          // ── Artwork: flexible — takes whatever height is left so the page
+          // never overflows on short screens. Capped at 76% of width.
+          Expanded(
+            child: Center(
+              child: LayoutBuilder(
+                builder: (context, c) {
+                  // The glow shadow extends ~4% below the art, so cap at 94%
+                  // of the available height to avoid a sub-pixel overflow.
+                  final side = math.min(c.maxWidth * 0.76, c.maxHeight * 0.94);
+                  return _ArtworkWithGlow(
+                    song: song,
+                    size: side,
+                    accent: accent,
+                    state: state,
+                  );
+                },
+              ),
+            ),
           ),
-
-          const Spacer(flex: 2),
+          const SizedBox(height: SpacingTokens.sm),
 
           // ── 3-line lyrics carousel (always present) ─────────────────────
           _Lyrics3LineCarousel(
             accent: accent,
             onTap: () => openLyrics(context),
           ),
-          const SizedBox(height: SpacingTokens.md),
-
-          // ── Track info ──────────────────────────────────────────────────
-          _TrackInfo(
-            title: song.title,
-            subtitle: '${song.artist} · ${song.album}',
-          ),
           const SizedBox(height: SpacingTokens.sm),
 
-          // ── Like button (centered, with spring + ripple) ─────────────────
-          Center(child: _LikeButton(songId: song.id, accent: accent)),
-          const SizedBox(height: SpacingTokens.lg),
+          // ── Track info with trailing like button ────────────────────────
+          _TrackInfoRow(song: song, accent: accent),
+          const SizedBox(height: SpacingTokens.xs),
 
           // ── Scrubber (full-width) ───────────────────────────────────────
           WaveformScrubber(
@@ -182,7 +176,6 @@ class _PortraitBody extends ConsumerWidget {
             accent: accent,
             seed: song.artworkSeed,
           ),
-          const SizedBox(height: SpacingTokens.sm),
 
           // ── Transport (prev · play/pause · next) ───────────────────────
           _TransportRow(
@@ -191,11 +184,11 @@ class _PortraitBody extends ConsumerWidget {
             onNext: state.hasNext ? ctrl.skipToNext : null,
             onPlayPause: ctrl.togglePlayPause,
           ),
-          const Spacer(flex: 1),
+          const SizedBox(height: SpacingTokens.xs),
 
           // ── Bottom row ──────────────────────────────────────────────────
           _BottomRow(state: state, accent: accent),
-          const SizedBox(height: SpacingTokens.md),
+          const SizedBox(height: SpacingTokens.sm),
         ],
       ),
     );
@@ -220,19 +213,24 @@ class _LandscapeBody extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final ctrl = ref.read(audioControllerProvider);
     final size = MediaQuery.sizeOf(context);
-    final artSize = size.height * 0.68;
 
     return Row(
       children: [
-        // ── Left: Artwork ─────────────────────────────────────────────────
+        // ── Left: Artwork — sized to fit whatever height is available ─────
         SizedBox(
           width: size.width * 0.42,
           child: Center(
-            child: _ArtworkWithGlow(
-              song: song,
-              size: artSize,
-              accent: accent,
-              state: state,
+            child: LayoutBuilder(
+              builder: (context, c) {
+                final side =
+                    math.min(c.maxWidth * 0.86, c.maxHeight * 0.72);
+                return _ArtworkWithGlow(
+                  song: song,
+                  size: side,
+                  accent: accent,
+                  state: state,
+                );
+              },
             ),
           ),
         ),
@@ -242,41 +240,43 @@ class _LandscapeBody extends ConsumerWidget {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(
                 SpacingTokens.md, 0, SpacingTokens.xl, 0),
-            child: Column(
-              children: [
-                _TopBar(
-                  title: l10n.nowPlaying,
-                  onOpenLyrics: () => openLyrics(context),
-                ),
-                const Spacer(),
-                _Lyrics3LineCarousel(
-                  accent: accent,
-                  onTap: () => openLyrics(context),
-                ),
-                const SizedBox(height: SpacingTokens.sm),
-                _TrackInfo(
-                  title: song.title,
-                  subtitle: '${song.artist} · ${song.album}',
-                ),
-                const SizedBox(height: SpacingTokens.sm),
-                Center(child: _LikeButton(songId: song.id, accent: accent)),
-                const SizedBox(height: SpacingTokens.md),
-                WaveformScrubber(
-                  duration: song.duration,
-                  accent: accent,
-                  seed: song.artworkSeed,
-                ),
-                _TransportRow(
-                  state: state,
-                  onPrevious: ctrl.skipToPrevious,
-                  onNext: state.hasNext ? ctrl.skipToNext : null,
-                  onPlayPause: ctrl.togglePlayPause,
-                ),
-                const Spacer(),
-                _BottomRow(state: state, accent: accent),
-                const SizedBox(height: SpacingTokens.sm),
-              ],
-            ),
+            child: LayoutBuilder(builder: (context, c) {
+              // Landscape phone heights are tight; drop the carousel when
+              // there is no room for it.
+              final showCarousel = c.maxHeight >= 440;
+              return Column(
+                children: [
+                  _TopBar(
+                    title: l10n.nowPlaying,
+                    onOpenLyrics: () => openLyrics(context),
+                  ),
+                  const Spacer(),
+                  if (showCarousel) ...[
+                    _Lyrics3LineCarousel(
+                      accent: accent,
+                      onTap: () => openLyrics(context),
+                    ),
+                    const SizedBox(height: SpacingTokens.sm),
+                  ],
+                  _TrackInfoRow(song: song, accent: accent),
+                  const SizedBox(height: SpacingTokens.xs),
+                  WaveformScrubber(
+                    duration: song.duration,
+                    accent: accent,
+                    seed: song.artworkSeed,
+                  ),
+                  _TransportRow(
+                    state: state,
+                    onPrevious: ctrl.skipToPrevious,
+                    onNext: state.hasNext ? ctrl.skipToNext : null,
+                    onPlayPause: ctrl.togglePlayPause,
+                  ),
+                  const Spacer(),
+                  _BottomRow(state: state, accent: accent),
+                  const SizedBox(height: SpacingTokens.sm),
+                ],
+              );
+            }),
           ),
         ),
       ],
@@ -392,7 +392,7 @@ class _Lyrics3LineCarousel extends ConsumerStatefulWidget {
 
 class _Lyrics3LineCarouselState extends ConsumerState<_Lyrics3LineCarousel>
     with SingleTickerProviderStateMixin {
-  static const double _lineH = 50.0;
+  static const double _lineH = 36.0;
 
   late final AnimationController _ctrl = AnimationController(
     vsync: this,
@@ -522,7 +522,7 @@ class _LyricLineText extends StatelessWidget {
         textAlign: TextAlign.center,
         style: AppTextTheme.body.copyWith(
           color: isCurrent ? accent : colors.onSurfaceMuted,
-          fontSize: isCurrent ? 15.5 : 13.5,
+          fontSize: isCurrent ? 14.0 : 12.0,
           fontWeight: isCurrent ? FontWeight.w600 : FontWeight.w400,
         ),
       ),
@@ -558,7 +558,7 @@ class _LiquidGlassCapsule extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(
-          horizontal: SpacingTokens.lg, vertical: 6),
+          horizontal: SpacingTokens.lg, vertical: 3),
       child: ClipRRect(
         borderRadius: RadiusTokens.brPill,
         child: BackdropFilter(
@@ -630,41 +630,48 @@ class _LiquidGlassCapsule extends StatelessWidget {
   }
 }
 
-// ── Track info (title + artist, always centered) ─────────────────────────────
+// ── Track info row: title/artist left, like button right (modern standard) ───
 
-class _TrackInfo extends StatelessWidget {
-  const _TrackInfo({required this.title, required this.subtitle});
-  final String title;
-  final String subtitle;
+class _TrackInfoRow extends StatelessWidget {
+  const _TrackInfoRow({required this.song, required this.accent});
+  final dynamic song;
+  final Color accent;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return Column(
+    return Row(
       children: [
-        Text(
-          title,
-          maxLines: 1,
-          textAlign: TextAlign.center,
-          overflow: TextOverflow.ellipsis,
-          style: AppTextTheme.heroTitle.copyWith(
-            color: colors.onSurface,
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-            letterSpacing: -0.3,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                song.title as String,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextTheme.heroTitle.copyWith(
+                  color: colors.onSurface,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.3,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${song.artist} · ${song.album}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextTheme.body.copyWith(
+                  color: colors.onSurfaceMuted,
+                  fontSize: 13,
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 4),
-        Text(
-          subtitle,
-          maxLines: 1,
-          textAlign: TextAlign.center,
-          overflow: TextOverflow.ellipsis,
-          style: AppTextTheme.body.copyWith(
-            color: colors.onSurfaceMuted,
-            fontSize: 13.5,
-          ),
-        ),
+        const SizedBox(width: SpacingTokens.sm),
+        _LikeButton(songId: song.id as String, accent: accent),
       ],
     );
   }
@@ -731,12 +738,13 @@ class _LikeButtonState extends ConsumerState<_LikeButton>
           _ctrl.forward(from: 0);
         },
         child: SizedBox(
-          width: 64,
-          height: 64,
+          width: 44,
+          height: 44,
           child: AnimatedBuilder(
             animation: _ctrl,
             builder: (_, __) => Stack(
               alignment: Alignment.center,
+              clipBehavior: Clip.none,
               children: [
                 // Ripple circle expands and fades from center
                 Transform.scale(
@@ -744,8 +752,8 @@ class _LikeButtonState extends ConsumerState<_LikeButton>
                   child: Opacity(
                     opacity: _rippleOpacity.value,
                     child: Container(
-                      width: 44,
-                      height: 44,
+                      width: 32,
+                      height: 32,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: isFav ? widget.accent : colors.onSurfaceMuted,
@@ -759,7 +767,7 @@ class _LikeButtonState extends ConsumerState<_LikeButton>
                   child: Icon(
                     isFav ? Icons.favorite : Icons.favorite_border,
                     color: isFav ? widget.accent : colors.onSurfaceMuted,
-                    size: 30,
+                    size: 24,
                   ),
                 ),
               ],
@@ -803,7 +811,7 @@ class _TransportRow extends StatelessWidget {
           playing: state.playing,
           onTap: onPlayPause,
           semanticLabel: state.playing ? l10n.pause : l10n.play,
-          size: 72,
+          size: 64,
         ),
         IconButton(
           tooltip: l10n.nextTrack,
