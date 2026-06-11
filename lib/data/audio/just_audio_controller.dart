@@ -77,16 +77,10 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
         bg.AudioProcessingState.idle;
 
     // Set media item FIRST so the notification always has a title.
-    // Use actual decoded duration when available — it's more accurate than metadata.
+    // Use actual decoded duration when available — more accurate than metadata.
     final song = _state.currentSong;
     if (song != null) {
-      mediaItem.add(bg.MediaItem(
-        id: song.id,
-        title: song.title,
-        artist: song.artist,
-        album: song.album,
-        duration: _player.duration ?? song.duration,
-      ));
+      mediaItem.add(_toMediaItem(song, playerDuration: _player.duration));
     }
 
     playbackState.add(bg.PlaybackState(
@@ -96,8 +90,8 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
         bg.MediaControl.skipToNext,
       ],
       androidCompactActionIndices: const [0, 1, 2],
-      // Expose all seek/skip actions so lock screen, AVRCP, and Android Auto
-      // get the full set of controls.
+      // Full set of actions so lock screen, AVRCP, and Android Auto all get
+      // prev/next/seek/seekForward/seekBackward controls.
       systemActions: const {
         bg.MediaAction.seek,
         bg.MediaAction.seekForward,
@@ -111,8 +105,8 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
       bufferedPosition: _player.bufferedPosition,
       speed: _player.speed,
       queueIndex: _player.currentIndex,
-      // Wall-clock timestamp so the OS can interpolate the position in real
-      // time without needing a constant stream of position updates.
+      // Wall-clock timestamp so the OS interpolates the seek-bar position in
+      // real time without needing a constant stream of position updates.
       updateTime: DateTime.now(),
       shuffleMode: _player.shuffleModeEnabled
           ? bg.AudioServiceShuffleMode.all
@@ -120,6 +114,27 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
       repeatMode: _bgRepeatFrom(_player.loopMode),
     ));
   }
+
+  // ── MediaItem factory ─────────────────────────────────────────────────────
+
+  /// Builds a [bg.MediaItem] for [song], including album artwork URI so the
+  /// system notification, lock screen, and Android Auto can all show cover art.
+  ///
+  /// [artUri] points to MediaStore's pre-extracted album thumbnail
+  /// (`content://media/external/audio/albumart/<albumId>`). The system loads
+  /// it asynchronously; if no art exists it simply falls back to the app icon.
+  bg.MediaItem _toMediaItem(Song song, {Duration? playerDuration}) =>
+      bg.MediaItem(
+        id: song.id,
+        title: song.title,
+        artist: song.artist,
+        album: song.album,
+        duration: playerDuration ?? song.duration,
+        artUri: song.hasArtwork
+            ? Uri.parse(
+                'content://media/external/audio/albumart/${song.albumId}')
+            : null,
+      );
 
   bg.AudioServiceRepeatMode _bgRepeatFrom(LoopMode m) => switch (m) {
         LoopMode.off => bg.AudioServiceRepeatMode.none,
@@ -156,18 +171,9 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
       };
 
   /// Keeps [BaseAudioHandler.queue] in sync with [_queue] so Android Auto,
-  /// WearOS, and the lock-screen queue view always reflect the current list.
+  /// WearOS, and lock-screen queue views always reflect the current list.
   void _syncBgQueue() {
-    queue.add([
-      for (final s in _queue)
-        bg.MediaItem(
-          id: s.id,
-          title: s.title,
-          artist: s.artist,
-          album: s.album,
-          duration: s.duration,
-        ),
-    ]);
+    queue.add([for (final s in _queue) _toMediaItem(s)]);
   }
 
   // ── Transport (AudioController interface) ────────────────────────────────
@@ -181,14 +187,7 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
     // when the foreground service starts — before any stream events fire.
     final startIdx = songs.isEmpty ? null : startIndex.clamp(0, songs.length - 1);
     if (startIdx != null) {
-      final firstSong = _queue[startIdx];
-      mediaItem.add(bg.MediaItem(
-        id: firstSong.id,
-        title: firstSong.title,
-        artist: firstSong.artist,
-        album: firstSong.album,
-        duration: firstSong.duration,
-      ));
+      mediaItem.add(_toMediaItem(_queue[startIdx]));
     }
 
     final source = ConcatenatingAudioSource(
@@ -203,20 +202,12 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
     await _player.play();
   }
 
-  // Attach a MediaItem tag to every source so just_audio / audio_service can
-  // surface per-track metadata even before _broadcastServiceState fires.
-  AudioSource _toSource(Song song) {
-    return AudioSource.uri(
-      Uri.file(song.filePath),
-      tag: bg.MediaItem(
-        id: song.id,
-        title: song.title,
-        artist: song.artist,
-        album: song.album,
-        duration: song.duration,
-      ),
-    );
-  }
+  /// Wraps a [Song] as a [just_audio] source, tagging it with its [bg.MediaItem]
+  /// so audio_service can surface metadata immediately on source transitions.
+  AudioSource _toSource(Song song) => AudioSource.uri(
+        Uri.file(song.filePath),
+        tag: _toMediaItem(song),
+      );
 
   // ── BaseAudioHandler overrides (called by notification / lock-screen) ────
 
@@ -234,6 +225,34 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
 
   @override
   Future<void> skipToPrevious() => _player.seekToPrevious();
+
+  /// Seek +10 s (called when the lock screen / notification "fast-forward"
+  /// button is pressed — [begin]=true on press, false on release).
+  @override
+  Future<void> seekForward(bool begin) async {
+    if (!begin) return;
+    final dur = _player.duration;
+    if (dur == null) return;
+    final target = _player.position + const Duration(seconds: 10);
+    await _player.seek(target > dur ? dur : target);
+  }
+
+  /// Seek −10 s (called when the lock screen / notification "rewind" button
+  /// is pressed — [begin]=true on press, false on release).
+  @override
+  Future<void> seekBackward(bool begin) async {
+    if (!begin) return;
+    final target = _player.position - const Duration(seconds: 10);
+    await _player.seek(target.isNegative ? Duration.zero : target);
+  }
+
+  /// Skip to a specific item in the queue (used by Android Auto, WearOS,
+  /// and some lock-screen implementations).
+  @override
+  Future<void> skipToQueueItem(int index) async {
+    if (index < 0 || index >= _queue.length) return;
+    await _player.seek(Duration.zero, index: index);
+  }
 
   @override
   Future<void> stop() async {
@@ -260,7 +279,8 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
       _player.playing ? _player.pause() : _player.play();
 
   @override
-  Future<void> skipToIndex(int index) => _player.seek(Duration.zero, index: index);
+  Future<void> skipToIndex(int index) =>
+      _player.seek(Duration.zero, index: index);
 
   @override
   Stream<double> get speedStream => _player.speedStream;

@@ -6,8 +6,6 @@
     <!-- Android ≤12: broad external storage read -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32"/>
-    <!-- Android 12+: manage media files (renames, deletes via MediaStore) -->
-    <uses-permission android:name="android.permission.MANAGE_MEDIA"/>
 
     <!-- ── Background audio / foreground service ── -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
@@ -18,14 +16,9 @@
     <!-- ── Notifications ── -->
     <!-- Media notification on Android 13+ -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-    <!-- Show full-screen intent on lock screen (Android 11+) -->
-    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
 
-    <!-- ── Network (lyrics / artwork fetching) ── -->
+    <!-- ── Network (lyrics fetching) ── -->
     <uses-permission android:name="android.permission.INTERNET"/>
-
-    <!-- ── Boot receiver (resume after reboot) ── -->
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
 
     <!-- ── Hardware feature declaration ── -->
     <!-- Declares this is a media-playback app; shown in Play Store filter -->
