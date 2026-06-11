@@ -53,26 +53,66 @@ class MiniPlayer extends ConsumerWidget {
   }
 }
 
-class _Card extends ConsumerWidget {
+class _Card extends ConsumerStatefulWidget {
   const _Card({required this.state});
 
   final PlaybackState state;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_Card> createState() => _CardState();
+}
+
+class _CardState extends ConsumerState<_Card>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _bounceCtrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 480),
+  );
+
+  // Bounce sequence: mini player "absorbs" the impact of NowPlaying closing.
+  late final Animation<double> _bounceScale = TweenSequence<double>([
+    TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.96), weight: 20),
+    TweenSequenceItem(
+      tween: Tween(begin: 0.96, end: 1.02)
+          .chain(CurveTween(curve: Curves.easeOut)),
+      weight: 40,
+    ),
+    TweenSequenceItem(
+      tween: Tween(begin: 1.02, end: 1.0)
+          .chain(CurveTween(curve: Curves.easeIn)),
+      weight: 40,
+    ),
+  ]).animate(_bounceCtrl);
+
+  @override
+  void dispose() {
+    _bounceCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _openNowPlaying(BuildContext context) async {
+    await openNowPlaying(context);
+    // NowPlaying was closed — trigger the impact bounce.
+    if (mounted) _bounceCtrl.forward(from: 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final colors = context.colors;
-    final song = state.currentSong!;
+    final song = widget.state.currentSong!;
     final controller = ref.read(audioControllerProvider);
 
-    return GestureDetector(
+    return ScaleTransition(
+      scale: _bounceScale,
+      child: GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => openNowPlaying(context),
+      onTap: () => _openNowPlaying(context),
       onHorizontalDragEnd: (details) {
         final v = details.primaryVelocity ?? 0;
-        if (v < -200 && state.hasNext) {
+        if (v < -200 && widget.state.hasNext) {
           HapticFeedback.selectionClick();
           controller.skipToNext();
-        } else if (v > 200 && state.hasPrevious) {
+        } else if (v > 200 && widget.state.hasPrevious) {
           HapticFeedback.selectionClick();
           controller.skipToPrevious();
         }
@@ -131,11 +171,13 @@ class _Card extends ConsumerWidget {
                       ),
                     ),
                     _PlayPauseButton(
-                      playing: state.playing,
+                      playing: widget.state.playing,
                       onTap: controller.togglePlayPause,
                     ),
                     IconButton(
-                      onPressed: state.hasNext ? controller.skipToNext : null,
+                      onPressed: widget.state.hasNext
+                          ? controller.skipToNext
+                          : null,
                       icon: Icon(Icons.skip_next, color: colors.onSurface),
                       visualDensity: VisualDensity.compact,
                     ),
@@ -146,13 +188,14 @@ class _Card extends ConsumerWidget {
                 left: 0,
                 right: 0,
                 bottom: 0,
-                child: _ProgressLine(duration: state.duration),
+                child: _ProgressLine(duration: widget.state.duration),
               ),
             ],
           ),
         ),
       ),
-    );
+    ),  // closes GestureDetector
+    );  // closes ScaleTransition
   }
 }
 

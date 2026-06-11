@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -61,13 +62,20 @@ class LyricsPage extends ConsumerStatefulWidget {
   ConsumerState<LyricsPage> createState() => _LyricsPageState();
 }
 
-class _LyricsPageState extends ConsumerState<LyricsPage> {
+class _LyricsPageState extends ConsumerState<LyricsPage>
+    with SingleTickerProviderStateMixin {
   final _scrollController = ScrollController();
   List<GlobalKey> _keys = const [];
   int _keyCount = -1;
 
+  late final AnimationController _ambientCtrl = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 24),
+  )..repeat();
+
   @override
   void dispose() {
+    _ambientCtrl.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -130,6 +138,18 @@ class _LyricsPageState extends ConsumerState<LyricsPage> {
               ),
             ),
           Positioned.fill(child: ColoredBox(color: colors.background.withOpacity(0.48))),
+          // Ambient frosted-glass gradient that breathes softly.
+          Positioned.fill(
+            child: AnimatedBuilder(
+              animation: _ambientCtrl,
+              builder: (_, __) => CustomPaint(
+                painter: _LyricsAmbientPainter(
+                  t: _ambientCtrl.value,
+                  accent: accent,
+                ),
+              ),
+            ),
+          ),
           SafeArea(
             child: Column(
               children: [
@@ -205,35 +225,48 @@ class _TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final l10n = AppLocalizations.of(context);
-    return Row(
+    // Stack ensures the title is absolutely centered regardless of how many
+    // action buttons are on each side.
+    return Stack(
+      alignment: Alignment.center,
       children: [
-        IconButton(
-          onPressed: () => Navigator.of(context).maybePop(),
-          icon: Icon(Icons.keyboard_arrow_down, color: colors.onSurface),
-          iconSize: 28,
-        ),
-        Expanded(
-          child: Text(title,
-              textAlign: TextAlign.center,
-              style:
-                  AppTextTheme.caption.copyWith(color: colors.onSurfaceMuted)),
-        ),
-        if (hasTranslations)
-          IconButton(
-            tooltip: dual ? l10n.lyricsDual : l10n.lyricsSingle,
-            onPressed: onToggleDual,
-            icon: Icon(Icons.translate,
-                color: dual ? colors.onSurface : colors.onSurfaceFaint),
+        Center(
+          child: Text(
+            title,
+            textAlign: TextAlign.center,
+            style: AppTextTheme.caption.copyWith(
+              color: colors.onSurfaceMuted,
+              letterSpacing: 0.8,
+              fontWeight: FontWeight.w500,
+            ),
           ),
-        IconButton(
-          tooltip: l10n.lyricsFontSize,
-          onPressed: onCycleFontSize,
-          icon: Icon(Icons.format_size, color: colors.onSurfaceMuted),
         ),
-        IconButton(
-          tooltip: l10n.syncTitle,
-          onPressed: onOpenSync,
-          icon: Icon(Icons.edit_note, color: colors.onSurfaceMuted),
+        Row(
+          children: [
+            IconButton(
+              onPressed: () => Navigator.of(context).maybePop(),
+              icon: Icon(Icons.keyboard_arrow_down, color: colors.onSurface),
+              iconSize: 28,
+            ),
+            const Spacer(),
+            if (hasTranslations)
+              IconButton(
+                tooltip: dual ? l10n.lyricsDual : l10n.lyricsSingle,
+                onPressed: onToggleDual,
+                icon: Icon(Icons.translate,
+                    color: dual ? colors.onSurface : colors.onSurfaceFaint),
+              ),
+            IconButton(
+              tooltip: l10n.lyricsFontSize,
+              onPressed: onCycleFontSize,
+              icon: Icon(Icons.format_size, color: colors.onSurfaceMuted),
+            ),
+            IconButton(
+              tooltip: l10n.syncTitle,
+              onPressed: onOpenSync,
+              icon: Icon(Icons.edit_note, color: colors.onSurfaceMuted),
+            ),
+          ],
         ),
       ],
     );
@@ -413,6 +446,58 @@ class _LyricRow extends StatelessWidget {
       intl.Bidi.detectRtlDirectionality(text)
           ? TextDirection.rtl
           : TextDirection.ltr;
+}
+
+// ── Ambient frosted-glass gradient that breathes behind the lyrics ───────────
+
+class _LyricsAmbientPainter extends CustomPainter {
+  _LyricsAmbientPainter({required this.t, required this.accent});
+  final double t;
+  final Color accent;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Top orb — shifts slowly left/right
+    _drawOrb(
+      canvas,
+      Offset(
+        size.width * (0.35 + 0.30 * _n(math.sin(t * 2 * math.pi * 0.25))),
+        size.height * 0.18,
+      ),
+      size.width * 0.55,
+      accent.withOpacity(0.055),
+    );
+    // Bottom orb — counter-phase drift
+    _drawOrb(
+      canvas,
+      Offset(
+        size.width * (0.55 + 0.28 * _n(math.cos(t * 2 * math.pi * 0.20 + 1.8))),
+        size.height * 0.80,
+      ),
+      size.width * 0.48,
+      accent.withOpacity(0.045),
+    );
+  }
+
+  void _drawOrb(Canvas canvas, Offset center, double radius, Color color) {
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [color, color.withOpacity(0.0)],
+        ).createShader(Rect.fromCenter(
+          center: center,
+          width: radius * 2,
+          height: radius * 2,
+        )),
+    );
+  }
+
+  double _n(double x) => (x + 1.0) / 2.0;
+
+  @override
+  bool shouldRepaint(_LyricsAmbientPainter o) => o.t != t || o.accent != accent;
 }
 
 /// The active line's karaoke fill — watches [positionProvider] so only this one
