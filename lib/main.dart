@@ -39,6 +39,8 @@ Future<void> main() async {
   // Initialize the background audio service (media notification, lock-screen
   // controls, audio focus). Falls back to a plain JustAudioController if the
   // service fails to start (e.g. missing permissions on first cold start).
+  // The 8-second timeout guards against the service hanging when notification
+  // permission is denied and the foreground service can't post its notification.
   AudioController audioController;
   try {
     audioController = await AudioService.init<JustAudioController>(
@@ -52,7 +54,7 @@ Future<void> main() async {
         androidStopForegroundOnPause: true,
         notificationColor: Color(0xFF1A1A2E),
       ),
-    );
+    ).timeout(const Duration(seconds: 8));
   } catch (_) {
     audioController = JustAudioController();
   }
