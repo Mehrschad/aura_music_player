@@ -6,12 +6,14 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/color_scheme.dart';
 import '../../../core/theme/typography.dart';
 import '../../../domain/models/album.dart';
+import '../../../domain/models/song.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../widgets/artwork/aura_artwork.dart';
 import '../../widgets/library/song_list_tile.dart';
 import '../../widgets/player/song_actions_sheet.dart';
 import '../../widgets/player_bar_inset.dart';
+import '../tag_editor/tag_editor_page.dart';
 
 class AlbumDetailPage extends ConsumerWidget {
   const AlbumDetailPage({super.key, required this.album});
@@ -32,6 +34,20 @@ class AlbumDetailPage extends ConsumerWidget {
             backgroundColor: colors.background,
             expandedHeight: 260,
             pinned: true,
+            actions: [
+              // Edit the album's tags / artwork — applies to all its tracks.
+              songsAsync.maybeWhen(
+                data: (songs) => songs.isEmpty
+                    ? const SizedBox.shrink()
+                    : IconButton(
+                        tooltip: l10n.editAlbum,
+                        onPressed: () => openTagEditor(context, songs),
+                        icon: const Icon(Icons.edit_outlined,
+                            color: Colors.white),
+                      ),
+                orElse: () => const SizedBox.shrink(),
+              ),
+            ],
             flexibleSpace: FlexibleSpaceBar(
               titlePadding: const EdgeInsetsDirectional.fromSTEB(
                 SpacingTokens.xl, 0, SpacingTokens.xl, SpacingTokens.md),
@@ -112,7 +128,8 @@ class AlbumDetailPage extends ConsumerWidget {
             ),
           ),
 
-          // Song list
+          // Song list — split into disc sections when the album spans
+          // multiple discs.
           songsAsync.when(
             loading: () => const SliverFillRemaining(
               child: Center(child: CircularProgressIndicator()),
@@ -124,25 +141,107 @@ class AlbumDetailPage extends ConsumerWidget {
                         .copyWith(color: colors.onSurfaceMuted)),
               ),
             ),
-            data: (songs) => SliverPadding(
-              padding: EdgeInsets.only(
-                bottom:
-                    playerBarInset(context, miniPlayerVisible: miniPlayerVisible),
-              ),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (_, i) => SongListTile(
-                    song: songs[i],
-                    onTap: () => ref
-                        .read(audioControllerProvider)
-                        .playQueue(songs, startIndex: i),
-                    onMore: () => showSongActions(context, songs[i]),
-                  ),
-                  childCount: songs.length,
+            data: (songs) {
+              final rows = _buildRows(songs);
+              return SliverPadding(
+                padding: EdgeInsets.only(
+                  bottom: playerBarInset(context,
+                      miniPlayerVisible: miniPlayerVisible),
                 ),
-              ),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, i) {
+                      final row = rows[i];
+                      if (row.discHeader != null) {
+                        return _DiscHeader(disc: row.discHeader!);
+                      }
+                      final song = row.song!;
+                      return SongListTile(
+                        song: song,
+                        onTap: () => ref
+                            .read(audioControllerProvider)
+                            .playQueue(songs, startIndex: row.queueIndex),
+                        onMore: () => showSongActions(context, song),
+                      );
+                    },
+                    childCount: rows.length,
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Flattens the album into list rows. When more than one disc number is
+  /// present, a disc header row precedes each disc's tracks; the queue (and
+  /// therefore [Song] start indices) stays the full album in original order.
+  List<_Row> _buildRows(List<Song> songs) {
+    final discs = <int>{for (final s in songs) s.discNumber ?? 1};
+    if (discs.length < 2) {
+      return [
+        for (var i = 0; i < songs.length; i++)
+          _Row.song(songs[i], queueIndex: i),
+      ];
+    }
+
+    final rows = <_Row>[];
+    final sortedDiscs = discs.toList()..sort();
+    for (final disc in sortedDiscs) {
+      rows.add(_Row.header(disc));
+      for (var i = 0; i < songs.length; i++) {
+        if ((songs[i].discNumber ?? 1) == disc) {
+          rows.add(_Row.song(songs[i], queueIndex: i));
+        }
+      }
+    }
+    return rows;
+  }
+}
+
+class _Row {
+  const _Row.song(Song this.song, {required this.queueIndex})
+      : discHeader = null;
+  const _Row.header(int this.discHeader)
+      : song = null,
+        queueIndex = -1;
+
+  final Song? song;
+  final int queueIndex;
+  final int? discHeader;
+}
+
+class _DiscHeader extends StatelessWidget {
+  const _DiscHeader({required this.disc});
+  final int disc;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        SpacingTokens.xl,
+        SpacingTokens.lg,
+        SpacingTokens.xl,
+        SpacingTokens.xs,
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.album_outlined, size: 16, color: colors.onSurfaceFaint),
+          const SizedBox(width: SpacingTokens.sm),
+          Text(
+            l10n.discN(disc),
+            style: AppTextTheme.caption.copyWith(
+              color: colors.onSurfaceFaint,
+              letterSpacing: 0.8,
+              fontWeight: FontWeight.w600,
             ),
           ),
+          const SizedBox(width: SpacingTokens.md),
+          Expanded(child: Divider(color: colors.divider, height: 1)),
         ],
       ),
     );

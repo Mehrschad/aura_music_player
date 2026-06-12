@@ -73,7 +73,10 @@ final dualLanguageProvider = StateProvider<bool>((ref) => false);
 /// position tick internally but only notifies dependents when the line actually
 /// changes, so the lyrics list rebuilds on line transitions, not 5×/second.
 final currentLyricLineProvider = Provider<int>((ref) {
-  final lyrics = ref.watch(currentLyricsProvider).valueOrNull;
+  // unwrapPrevious: while the next track's lyrics load, Riverpod keeps the
+  // previous data inside AsyncLoading — without unwrapping, the old track's
+  // lines would keep highlighting (and showing) under the new track.
+  final lyrics = ref.watch(currentLyricsProvider).unwrapPrevious().valueOrNull;
   if (lyrics == null || !lyrics.synced) return -1;
   final position = ref.watch(positionProvider).valueOrNull ?? Duration.zero;
   return currentLineIndex(lyrics.lines, position);

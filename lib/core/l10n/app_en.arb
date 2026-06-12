@@ -304,5 +304,22 @@
   "deleteFailed": "Couldn't delete the song",
   "infoDuration": "Duration",
   "infoFilePath": "File path",
-  "infoBitrate": "Bitrate"
+  "infoBitrate": "Bitrate",
+  "discN": "Disc {n}",
+  "@discN": {
+    "description": "Disc section header inside a multi-disc album.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "aboutArtist": "About",
+  "@aboutArtist": {
+    "description": "Header above the artist biography on the artist page."
+  },
+  "editAlbum": "Edit album",
+  "@editAlbum": {
+    "description": "Tooltip for the album edit button on the album page."
+  }
 }

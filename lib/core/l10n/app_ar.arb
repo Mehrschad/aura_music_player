@@ -240,5 +240,8 @@
   "deleteFailed": "تعذّر حذف الأغنية",
   "infoDuration": "المدة",
   "infoFilePath": "مسار الملف",
-  "infoBitrate": "معدل البت"
+  "infoBitrate": "معدل البت",
+  "discN": "القرص {n}",
+  "aboutArtist": "نبذة عن الفنان",
+  "editAlbum": "تعديل الألبوم"
 }

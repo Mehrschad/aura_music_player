@@ -514,7 +514,9 @@ class _Lyrics3LineCarouselState extends ConsumerState<_Lyrics3LineCarousel>
 
   @override
   Widget build(BuildContext context) {
-    final lyricsAsync = ref.watch(currentLyricsProvider);
+    // unwrapPrevious: never carry the previous track's lines into the next
+    // track — if the new one has no lyrics, the placeholder shows instead.
+    final lyricsAsync = ref.watch(currentLyricsProvider).unwrapPrevious();
 
     ref.listen<int>(currentLyricLineProvider, (_, next) {
       if (!mounted || next < 0) return;

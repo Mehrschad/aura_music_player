@@ -268,5 +268,8 @@
   "deleteFailed": "Song konnte nicht gelöscht werden",
   "infoDuration": "Dauer",
   "infoFilePath": "Dateipfad",
-  "infoBitrate": "Bitrate"
+  "infoBitrate": "Bitrate",
+  "discN": "Disc {n}",
+  "aboutArtist": "Über den Künstler",
+  "editAlbum": "Album bearbeiten"
 }

@@ -240,5 +240,8 @@
   "deleteFailed": "حذف آهنگ ممکن نشد",
   "infoDuration": "مدت",
   "infoFilePath": "مسیر فایل",
-  "infoBitrate": "بیت‌ریت"
+  "infoBitrate": "بیت‌ریت",
+  "discN": "دیسک {n}",
+  "aboutArtist": "درباره هنرمند",
+  "editAlbum": "ویرایش آلبوم"
 }

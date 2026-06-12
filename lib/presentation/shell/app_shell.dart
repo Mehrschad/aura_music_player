@@ -8,6 +8,7 @@ import '../pages/library/library_page.dart';
 import '../pages/playlists/playlists_page.dart';
 import '../pages/search/search_page.dart';
 import '../providers/home_widget_providers.dart';
+import '../widgets/library/offline_prefetcher.dart';
 import '../widgets/player/mini_player.dart';
 import '../widgets/player/playback_persistor.dart';
 import 'glass_nav_bar.dart';
@@ -125,6 +126,7 @@ class _AppShellState extends ConsumerState<AppShell>
           mainAxisSize: MainAxisSize.min,
           children: const [
             _HomeWidgetBridge(),
+            OfflinePrefetcher(),
             PlaybackPersistor(),
             MiniPlayer(),
             GlassNavBar(),

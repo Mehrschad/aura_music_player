@@ -47,9 +47,9 @@ class AlbumsPage extends ConsumerWidget {
                         miniPlayerVisible: ref.watch(hasMediaProvider))),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 2,
-                  mainAxisSpacing: SpacingTokens.lg,
+                  mainAxisSpacing: SpacingTokens.xl,
                   crossAxisSpacing: SpacingTokens.lg,
-                  childAspectRatio: 0.78,
+                  childAspectRatio: 0.76,
                 ),
                 itemCount: albums.length,
                 itemBuilder: (_, i) => AlbumGridTile(

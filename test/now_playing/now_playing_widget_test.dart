@@ -49,9 +49,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Start playback from the library; mini player appears (no breathing yet).
+    // Start playback from the library; mini player appears. The library row's
+    // now-playing indicator animates forever once a track plays, so advance
+    // with explicit pumps instead of pumpAndSettle from here on.
     await tester.tap(find.text('Test Song').first);
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
     expect(find.byType(MiniPlayer), findsOneWidget);
 
     // Expand to Now Playing. Breathing animation repeats forever, so advance

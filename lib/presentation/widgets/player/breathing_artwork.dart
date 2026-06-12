@@ -108,20 +108,40 @@ class _BreathingArtworkState extends State<BreathingArtwork>
     // and 1→0 for the outgoing child (status = reverse / dismissed).
     final isIn = anim.status == AnimationStatus.forward ||
         anim.status == AnimationStatus.completed;
-    final eased = CurvedAnimation(
-      parent: anim,
-      curve: Curves.easeInOutCubic,
-      reverseCurve: Curves.easeIn,
-    );
+
+    if (isIn) {
+      // New cover: glides in from the skip direction and settles into place
+      // with a confident decelerating landing and a slight grow.
+      final eased = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
+      return FadeTransition(
+        opacity: eased,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: Offset(dir * 0.42, 0),
+            end: Offset.zero,
+          ).animate(eased),
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.92, end: 1.0).animate(eased),
+            child: child,
+          ),
+        ),
+      );
+    }
+
+    // Old cover: accelerates out the opposite side, shrinking slightly as it
+    // leaves so the incoming art clearly takes the stage.
+    final eased = CurvedAnimation(parent: anim, curve: Curves.easeInCubic);
     return FadeTransition(
       opacity: eased,
       child: SlideTransition(
         position: Tween<Offset>(
-          // Incoming starts from the skip direction; outgoing exits the other way.
-          begin: isIn ? Offset(dir * 0.20, 0) : Offset(-dir * 0.20, 0),
+          begin: Offset(-dir * 0.42, 0),
           end: Offset.zero,
         ).animate(eased),
-        child: child,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.92, end: 1.0).animate(eased),
+          child: child,
+        ),
       ),
     );
   }
@@ -156,7 +176,7 @@ class _BreathingArtworkState extends State<BreathingArtwork>
           ),
           child: AnimatedSwitcher(
             // Plain linear parent; all easing is applied inside _buildTransition.
-            duration: const Duration(milliseconds: 300),
+            duration: const Duration(milliseconds: 340),
             transitionBuilder: _buildTransition,
             child: AuraArtwork(
               key: ValueKey('${widget.seed}_${widget.artworkId}'),

@@ -6,6 +6,37 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+### Added — Offline content & library polish (phase 4)
+- **Offline lyrics for the whole library**: a background prefetcher walks every
+  scanned track on launch, downloads its lyrics from LRCLIB, and caches them on
+  the device — newly added songs are picked up on the next library refresh, and
+  anything fetched once (including on-demand plays) stays available offline.
+- **Artist biographies**: downloaded from Wikipedia in the same background
+  sweep, cached offline, and shown under the artist image (tap to expand).
+- **Like artists**: a heart button on the artist page favourites the artist,
+  persisted across launches.
+- **Artist page albums rail**: the artist's albums are shown separately as
+  tappable cards above the song list.
+- **Multi-disc albums**: album pages split into per-disc sections with
+  "Disc n" headers; track order is disc-then-track.
+- **Edit album**: an edit button on the album page opens the batch tag editor
+  for all of the album's tracks (info, cover, everything).
+- **Now-playing row highlight**: in Library / Albums / Artists lists the
+  playing track is set apart with a soft accent halo and a small dancing-bars
+  indicator that freezes when paused.
+
+### Changed
+- Albums grid redesigned: artwork floats on a soft shadow with a larger corner
+  radius, tighter caption (artist · year), and more breathing room.
+- Now Playing cover-change animation is more pronounced: the old cover slides
+  off opposite to the skip direction while the new one glides in and settles
+  (left/right per next/previous).
+
+### Fixed
+- Lyrics no longer linger from the previous track: when a track changes —
+  even to one with no lyrics at all — the stale lines are dropped immediately
+  (Now Playing carousel, lyrics page, and sync editor).
+
 ### Added — Player & shell polish (phase 3)
 - **Resume last session**: the queue, current track, position, and
   shuffle/repeat are remembered across cold starts and restored **paused**.

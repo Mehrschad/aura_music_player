@@ -123,7 +123,9 @@ class _LyricsPageState extends ConsumerState<LyricsPage>
     final colors = context.colors;
     final l10n = AppLocalizations.of(context);
     final song = ref.watch(currentSongProvider);
-    final lyricsAsync = ref.watch(currentLyricsProvider);
+    // unwrapPrevious: don't render the previous track's lyrics while the new
+    // track's lookup is still in flight (or when it finds nothing).
+    final lyricsAsync = ref.watch(currentLyricsProvider).unwrapPrevious();
     final fontSize = ref.watch(lyricsFontSizeProvider);
     final dual = ref.watch(dualLanguageProvider);
     final accent = SeedPalette.accent(song?.artworkSeed ?? 'lyrics');

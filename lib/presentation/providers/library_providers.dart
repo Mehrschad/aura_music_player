@@ -104,7 +104,11 @@ final albumSongsProvider =
     Provider.family<AsyncValue<List<Song>>, String>((ref, albumId) {
   return ref.watch(effectiveSongsProvider).whenData((list) {
     final out = list.where((s) => s.albumId == albumId).toList()
-      ..sort((a, b) => (a.trackNumber ?? 0).compareTo(b.trackNumber ?? 0));
+      ..sort((a, b) {
+        final discCmp = (a.discNumber ?? 1).compareTo(b.discNumber ?? 1);
+        if (discCmp != 0) return discCmp;
+        return (a.trackNumber ?? 0).compareTo(b.trackNumber ?? 0);
+      });
     return out;
   });
 });
