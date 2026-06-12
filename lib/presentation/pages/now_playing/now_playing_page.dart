@@ -50,6 +50,10 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
     duration: const Duration(seconds: 28),
   )..repeat();
 
+  // Tracks skip direction for the cover art slide animation.
+  // +1 = forward (skip-next), -1 = backward (skip-prev), 0 = initial / unknown.
+  int _artSlideDir = 0;
+
   @override
   void dispose() {
     _ambientCtrl.dispose();
@@ -60,6 +64,16 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
   Widget build(BuildContext context) {
     final colors = context.colors;
     final state = ref.watch(playbackStateProvider).valueOrNull ?? PlaybackState.empty;
+
+    // Detect skip direction so the artwork can slide in from the right side.
+    ref.listen(playbackStateProvider, (prev, next) {
+      final prevIdx = prev?.valueOrNull?.currentIndex;
+      final nextIdx = next.valueOrNull?.currentIndex;
+      if (prevIdx != null && nextIdx != null && prevIdx != nextIdx) {
+        _artSlideDir = nextIdx > prevIdx ? 1 : -1;
+      }
+    });
+
     final song = state.currentSong;
 
     if (song == null) {
@@ -113,8 +127,8 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
             // ── Layer 3: content ─────────────────────────────────────────────
             SafeArea(
               child: isLandscape
-                  ? _LandscapeBody(state: state, song: song, accent: accent)
-                  : _PortraitBody(state: state, song: song, accent: accent),
+                  ? _LandscapeBody(state: state, song: song, accent: accent, slideDirection: _artSlideDir)
+                  : _PortraitBody(state: state, song: song, accent: accent, slideDirection: _artSlideDir),
             ),
           ],
         ),
@@ -130,11 +144,13 @@ class _PortraitBody extends ConsumerWidget {
     required this.state,
     required this.song,
     required this.accent,
+    required this.slideDirection,
   });
 
   final PlaybackState state;
   final Song song;
   final Color accent;
+  final int slideDirection;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -158,6 +174,7 @@ class _PortraitBody extends ConsumerWidget {
                     size: side,
                     accent: accent,
                     state: state,
+                    slideDirection: slideDirection,
                   );
                 },
               ),
@@ -199,11 +216,13 @@ class _LandscapeBody extends ConsumerWidget {
     required this.state,
     required this.song,
     required this.accent,
+    required this.slideDirection,
   });
 
   final PlaybackState state;
   final Song song;
   final Color accent;
+  final int slideDirection;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -224,6 +243,7 @@ class _LandscapeBody extends ConsumerWidget {
                   size: side,
                   accent: accent,
                   state: state,
+                  slideDirection: slideDirection,
                 );
               },
             ),
@@ -391,12 +411,14 @@ class _ArtworkWithGlow extends StatelessWidget {
     required this.size,
     required this.accent,
     required this.state,
+    this.slideDirection = 0,
   });
 
   final dynamic song;
   final double size;
   final Color accent;
   final PlaybackState state;
+  final int slideDirection;
 
   @override
   Widget build(BuildContext context) {
@@ -431,6 +453,7 @@ class _ArtworkWithGlow extends StatelessWidget {
             playing: state.playing,
             hasArtwork: song.hasArtwork,
             artworkId: int.tryParse(song.id),
+            slideDirection: slideDirection,
           ),
         ],
       ),

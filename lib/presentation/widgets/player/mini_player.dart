@@ -334,21 +334,18 @@ class _ProgressLine extends ConsumerWidget {
     final fraction =
         total <= 0 ? 0.0 : (position.inMilliseconds / total).clamp(0.0, 1.0);
 
+    // No track background — only the accent fill is rendered, so the bar is
+    // invisible at fraction=0 and grows as the track plays. This removes the
+    // "divider line" artifact that the full-width track color produced.
+    if (fraction <= 0) return const SizedBox.shrink();
     return ClipRRect(
-      borderRadius: BorderRadius.circular(2),
-      child: SizedBox(
-        height: 3,
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: ColoredBox(color: colors.onSurface.withOpacity(0.12)),
-            ),
-            FractionallySizedBox(
-              alignment: AlignmentDirectional.centerStart,
-              widthFactor: fraction,
-              child: ColoredBox(color: colors.accent),
-            ),
-          ],
+      borderRadius: BorderRadius.circular(1.5),
+      child: FractionallySizedBox(
+        alignment: AlignmentDirectional.centerStart,
+        widthFactor: fraction,
+        child: SizedBox(
+          height: 2,
+          child: ColoredBox(color: colors.accent),
         ),
       ),
     );

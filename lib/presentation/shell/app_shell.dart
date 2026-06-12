@@ -20,14 +20,35 @@ class AppShell extends ConsumerStatefulWidget {
   ConsumerState<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends ConsumerState<AppShell> {
-  // One key per tab so we can pop their inner navigators.
+class _AppShellState extends ConsumerState<AppShell>
+    with SingleTickerProviderStateMixin {
   final List<GlobalKey<NavigatorState>> _navKeys = List.generate(
     AppTab.values.length,
     (_) => GlobalKey<NavigatorState>(),
   );
 
+  late final AnimationController _tabCtrl;
+  late final Animation<double> _tabProgress;
+
+  int _prevTabIndex = 0;
+  int _slideDir = 1;
   DateTime? _lastBackPress;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+    )..value = 1.0; // start "done" — no enter animation on first load
+    _tabProgress = CurvedAnimation(parent: _tabCtrl, curve: Curves.easeInOutCubic);
+  }
+
+  @override
+  void dispose() {
+    _tabCtrl.dispose();
+    super.dispose();
+  }
 
   Future<bool> _handleBack() async {
     final tabIndex = ref.read(selectedTabProvider).index;
@@ -36,7 +57,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     // 1. If the current tab's nested navigator has pages, pop one.
     if (key.currentState?.canPop() ?? false) {
       key.currentState!.pop();
-      return false; // don't exit
+      return false;
     }
 
     // 2. If not on Library tab, go to Library tab.
@@ -68,20 +89,37 @@ class _AppShellState extends ConsumerState<AppShell> {
   @override
   Widget build(BuildContext context) {
     final tab = ref.watch(selectedTabProvider);
+    final tabIndex = tab.index;
+
+    // Listen for tab changes to drive the directional slide animation.
+    ref.listen(selectedTabProvider, (prev, next) {
+      if (prev != null && prev != next) {
+        _prevTabIndex = prev.index;
+        _slideDir = next.index > prev.index ? 1 : -1;
+        _tabCtrl.forward(from: 0);
+      }
+    });
+
     return PopScope(
       canPop: false,
       onPopInvoked: (_) => _handleBack(),
       child: Scaffold(
         extendBody: true,
-        body: IndexedStack(
-          index: tab.index,
-          children: [
-            for (var i = 0; i < AppTab.values.length; i++)
-              _TabNavigator(
-                navigatorKey: _navKeys[i],
-                root: _rootForTab(AppTab.values[i]),
-              ),
-          ],
+        body: AnimatedBuilder(
+          animation: _tabCtrl,
+          builder: (context, _) {
+            final t = _tabProgress.value;
+            final isAnim = _tabCtrl.isAnimating;
+            final W = MediaQuery.sizeOf(context).width * 0.25;
+            return Stack(
+              children: [
+                for (var i = 0; i < AppTab.values.length; i++)
+                  Positioned.fill(
+                    child: _buildTabSlot(i, tabIndex, t, isAnim, W),
+                  ),
+              ],
+            );
+          },
         ),
         bottomNavigationBar: Column(
           mainAxisSize: MainAxisSize.min,
@@ -91,6 +129,42 @@ class _AppShellState extends ConsumerState<AppShell> {
             MiniPlayer(),
             GlassNavBar(),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTabSlot(int i, int tabIndex, double t, bool isAnim, double W) {
+    final nav = _TabNavigator(
+      navigatorKey: _navKeys[i],
+      root: _rootForTab(AppTab.values[i]),
+    );
+
+    final isActive = i == tabIndex;
+    final isOut = i == _prevTabIndex && isAnim && i != tabIndex;
+
+    double dx, opacity;
+    if (isActive) {
+      // Incoming: slides in from the skip direction and fades in.
+      dx = _slideDir * (1.0 - t) * W;
+      opacity = t;
+    } else if (isOut) {
+      // Outgoing: slides away and fades out.
+      dx = -_slideDir * t * W;
+      opacity = 1.0 - t;
+    } else {
+      // Inactive — invisible, zero overhead.
+      dx = 0;
+      opacity = 0;
+    }
+
+    return IgnorePointer(
+      ignoring: !isActive,
+      child: Opacity(
+        opacity: opacity,
+        child: Transform.translate(
+          offset: Offset(dx, 0),
+          child: nav,
         ),
       ),
     );
