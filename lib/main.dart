@@ -8,9 +8,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app.dart';
 import 'data/audio/just_audio_controller.dart';
 import 'data/audio/visual_equalizer_controller.dart';
+import 'data/platform/playback_persistence.dart';
 import 'data/repositories/shared_preferences_settings_repository.dart';
 import 'domain/audio/audio_controller.dart';
 import 'presentation/providers/equalizer_providers.dart';
+import 'presentation/providers/playback_persistence_provider.dart';
 import 'presentation/providers/playback_providers.dart';
 import 'presentation/providers/settings_providers.dart';
 
@@ -37,6 +39,9 @@ Future<void> main() async {
   final prefs = await SharedPreferences.getInstance();
   final settingsRepo = SharedPreferencesSettingsRepository(prefs);
   final initialSettings = await settingsRepo.load();
+
+  // Remembers the last playback session so the player resumes where it left off.
+  final playbackPersistence = PlaybackPersistence(prefs);
 
   // Create the equalizer controller before the audio service so the same
   // instance is shared by both the UI provider and the JustAudioController's
@@ -75,6 +80,7 @@ Future<void> main() async {
       // Override equalizerControllerProvider with the same instance passed to
       // JustAudioController so UI changes immediately propagate to the DSP.
       equalizerControllerProvider.overrideWithValue(eqController),
+      playbackPersistenceProvider.overrideWithValue(playbackPersistence),
     ],
     child: const AuraApp(),
   ));

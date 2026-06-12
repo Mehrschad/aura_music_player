@@ -299,6 +299,38 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
     await _player.play();
   }
 
+  @override
+  Future<void> restoreQueue(
+    List<Song> songs, {
+    int startIndex = 0,
+    Duration position = Duration.zero,
+  }) async {
+    if (songs.isEmpty) return;
+    _queue = List<Song>.of(songs);
+    _syncBgQueue();
+
+    final idx = startIndex.clamp(0, songs.length - 1);
+    mediaItem.add(_toMediaItem(_queue[idx]));
+
+    final source = ConcatenatingAudioSource(
+      children: [for (final s in _queue) _toSource(s)],
+    );
+    try {
+      await _player.setAudioSource(
+        source,
+        initialIndex: idx,
+        initialPosition: position,
+      );
+    } catch (e) {
+      // A restored file may have been moved or deleted since last session —
+      // fail soft so the app still launches cleanly with no track loaded.
+      debugPrint('[Aura] restoreQueue skipped: $e');
+      return;
+    }
+    _recompute();
+    // Deliberately do NOT call play() — the session resumes paused.
+  }
+
   /// Wraps a [Song] as a [just_audio] source, tagging it with its [bg.MediaItem]
   /// so audio_service can surface metadata immediately on source transitions.
   ///

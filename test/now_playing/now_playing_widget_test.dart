@@ -1,5 +1,4 @@
 import 'package:aura_music_player/app.dart';
-import 'package:aura_music_player/core/constants/motion_tokens.dart';
 import 'package:aura_music_player/data/audio/fake_audio_controller.dart';
 import 'package:aura_music_player/domain/models/song.dart';
 import 'package:aura_music_player/domain/repositories/library_repository.dart';
@@ -56,10 +55,11 @@ void main() {
     expect(find.byType(MiniPlayer), findsOneWidget);
 
     // Expand to Now Playing. Breathing animation repeats forever, so advance
-    // with explicit pumps rather than pumpAndSettle.
+    // with explicit pumps rather than pumpAndSettle. The open transition runs
+    // ~460ms; pump comfortably past it so the page is settled and interactive.
     await tester.tap(find.byType(MiniPlayer));
     await tester.pump(); // start the route transition
-    await tester.pump(MotionTokens.screen + const Duration(milliseconds: 80));
+    await tester.pump(const Duration(milliseconds: 560));
 
     expect(find.byType(NowPlayingPage), findsOneWidget);
     expect(find.text('Test Song'), findsWidgets);

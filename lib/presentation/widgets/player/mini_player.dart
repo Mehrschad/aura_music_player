@@ -66,21 +66,42 @@ class _CardState extends ConsumerState<_Card>
     with SingleTickerProviderStateMixin {
   late final AnimationController _bounceCtrl = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 480),
+    duration: const Duration(milliseconds: 560),
   );
 
-  // Bounce sequence: mini player "absorbs" the impact of NowPlaying closing.
+  // Bounce sequence: the mini player "catches" the Now Playing page as it
+  // collapses back into it — compressing under the impact, then springing
+  // back past its resting size with an elastic overshoot before settling.
   late final Animation<double> _bounceScale = TweenSequence<double>([
-    TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.96), weight: 20),
     TweenSequenceItem(
-      tween: Tween(begin: 0.96, end: 1.02)
-          .chain(CurveTween(curve: Curves.easeOut)),
-      weight: 40,
+      tween: Tween(begin: 1.0, end: 0.91)
+          .chain(CurveTween(curve: Curves.easeOutCubic)),
+      weight: 16,
     ),
     TweenSequenceItem(
-      tween: Tween(begin: 1.02, end: 1.0)
-          .chain(CurveTween(curve: Curves.easeIn)),
+      tween: Tween(begin: 0.91, end: 1.05)
+          .chain(CurveTween(curve: Curves.easeOutBack)),
+      weight: 44,
+    ),
+    TweenSequenceItem(
+      tween: Tween(begin: 1.05, end: 1.0)
+          .chain(CurveTween(curve: Curves.easeInOut)),
       weight: 40,
+    ),
+  ]).animate(_bounceCtrl);
+
+  // A whisper of vertical give, so the catch reads as a real settling motion
+  // rather than a pure scale pulse.
+  late final Animation<double> _bounceLift = TweenSequence<double>([
+    TweenSequenceItem(
+      tween: Tween(begin: 0.0, end: 4.0)
+          .chain(CurveTween(curve: Curves.easeOutCubic)),
+      weight: 16,
+    ),
+    TweenSequenceItem(
+      tween: Tween(begin: 4.0, end: 0.0)
+          .chain(CurveTween(curve: Curves.easeOutBack)),
+      weight: 84,
     ),
   ]).animate(_bounceCtrl);
 
@@ -102,8 +123,12 @@ class _CardState extends ConsumerState<_Card>
     final song = widget.state.currentSong!;
     final controller = ref.read(audioControllerProvider);
 
-    return ScaleTransition(
-      scale: _bounceScale,
+    return AnimatedBuilder(
+      animation: _bounceCtrl,
+      builder: (context, child) => Transform.translate(
+        offset: Offset(0, _bounceLift.value),
+        child: Transform.scale(scale: _bounceScale.value, child: child),
+      ),
       child: GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => _openNowPlaying(context),
@@ -124,16 +149,19 @@ class _CardState extends ConsumerState<_Card>
         }
       },
       child: GlassSurface(
-        borderRadius: RadiusTokens.brMd,
+        // Fully-rounded stadium shell — matched to the nav bar below it.
+        borderRadius: RadiusTokens.brPill,
         intensity: ref.watch(settingsProvider.select((s) => s.glassIntensity)),
         child: SizedBox(
           height: MiniPlayerMetrics.height,
           child: Stack(
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: SpacingTokens.sm,
-                  vertical: SpacingTokens.sm,
+                padding: const EdgeInsets.only(
+                  left: SpacingTokens.md,
+                  right: SpacingTokens.xs,
+                  top: SpacingTokens.sm,
+                  bottom: SpacingTokens.sm,
                 ),
                 child: Row(
                   children: [
@@ -170,32 +198,47 @@ class _CardState extends ConsumerState<_Card>
                         ],
                       ),
                     ),
+                    _MiniIconButton(
+                      icon: Icons.skip_previous_rounded,
+                      tooltip: AppLocalizations.of(context).previousTrack,
+                      onTap: widget.state.hasPrevious
+                          ? () {
+                              HapticFeedback.selectionClick();
+                              controller.skipToPrevious();
+                            }
+                          : null,
+                    ),
                     _PlayPauseButton(
                       playing: widget.state.playing,
                       onTap: controller.togglePlayPause,
                     ),
-                    IconButton(
-                      onPressed: widget.state.hasNext
-                          ? controller.skipToNext
+                    _MiniIconButton(
+                      icon: Icons.skip_next_rounded,
+                      tooltip: AppLocalizations.of(context).nextTrack,
+                      onTap: widget.state.hasNext
+                          ? () {
+                              HapticFeedback.selectionClick();
+                              controller.skipToNext();
+                            }
                           : null,
-                      icon: Icon(Icons.skip_next, color: colors.onSurface),
-                      visualDensity: VisualDensity.compact,
                     ),
                   ],
                 ),
               ),
+              // A slim, inset rounded progress capsule that sits cleanly within
+              // the pill — far enough from the rounded ends to never clip.
               Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
+                left: SpacingTokens.xl,
+                right: SpacingTokens.xl,
+                bottom: 6,
                 child: _ProgressLine(duration: widget.state.duration),
               ),
             ],
           ),
         ),
       ),
-    ),  // closes GestureDetector
-    );  // closes ScaleTransition
+    ),  // closes GestureDetector (AnimatedBuilder.child)
+    );  // closes AnimatedBuilder
   }
 }
 
@@ -224,8 +267,60 @@ class _PlayPauseButton extends StatelessWidget {
   }
 }
 
-/// A 2px progress line. Watches [positionProvider] in isolation so only this
-/// sliver repaints as the position advances — the rest of the card is static.
+/// A compact transport icon that springs down on press and dims when disabled.
+class _MiniIconButton extends StatefulWidget {
+  const _MiniIconButton({
+    required this.icon,
+    required this.onTap,
+    this.tooltip,
+  });
+
+  final IconData icon;
+  final VoidCallback? onTap;
+  final String? tooltip;
+
+  @override
+  State<_MiniIconButton> createState() => _MiniIconButtonState();
+}
+
+class _MiniIconButtonState extends State<_MiniIconButton> {
+  bool _down = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final enabled = widget.onTap != null;
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: widget.tooltip,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: enabled ? (_) => setState(() => _down = true) : null,
+        onTapCancel: enabled ? () => setState(() => _down = false) : null,
+        onTapUp: enabled ? (_) => setState(() => _down = false) : null,
+        onTap: widget.onTap,
+        child: AnimatedScale(
+          scale: _down ? 0.80 : 1.0,
+          duration: const Duration(milliseconds: 130),
+          curve: Curves.easeOut,
+          child: SizedBox(
+            width: 38,
+            height: 44,
+            child: Icon(
+              widget.icon,
+              size: 24,
+              color: enabled ? colors.onSurface : colors.onSurfaceFaint,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A slim rounded progress capsule. Watches [positionProvider] in isolation so
+/// only this sliver repaints as the position advances — the rest is static.
 class _ProgressLine extends ConsumerWidget {
   const _ProgressLine({required this.duration});
 
@@ -239,17 +334,22 @@ class _ProgressLine extends ConsumerWidget {
     final fraction =
         total <= 0 ? 0.0 : (position.inMilliseconds / total).clamp(0.0, 1.0);
 
-    return SizedBox(
-      height: 2,
-      child: Stack(
-        children: [
-          Positioned.fill(child: ColoredBox(color: colors.divider)),
-          FractionallySizedBox(
-            alignment: AlignmentDirectional.centerStart,
-            widthFactor: fraction,
-            child: ColoredBox(color: colors.accent),
-          ),
-        ],
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(2),
+      child: SizedBox(
+        height: 3,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: ColoredBox(color: colors.onSurface.withOpacity(0.12)),
+            ),
+            FractionallySizedBox(
+              alignment: AlignmentDirectional.centerStart,
+              widthFactor: fraction,
+              child: ColoredBox(color: colors.accent),
+            ),
+          ],
+        ),
       ),
     );
   }

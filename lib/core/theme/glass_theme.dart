@@ -8,12 +8,20 @@ enum GlassIntensity {
   off(0),
   subtle(16),
   medium(22),
-  strong(32);
+  strong(32),
+
+  /// The deepest, most liquid setting — a heavier blur with a richer tint
+  /// boost so surfaces read as thick frosted crystal floating over content.
+  ultra(48);
 
   const GlassIntensity(this.sigma);
 
   /// `BackdropFilter` blur sigma (X and Y).
   final double sigma;
+
+  /// Extra white tint opacity layered on top of the theme's base glass tint.
+  /// Only [ultra] adds any — it deepens the frosted look at the highest blur.
+  double get extraTint => this == GlassIntensity.ultra ? 0.06 : 0.0;
 }
 
 abstract final class GlassTokens {

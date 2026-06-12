@@ -29,6 +29,15 @@ abstract interface class AudioController {
   /// Replaces the queue with [songs] and starts playing at [startIndex].
   Future<void> playQueue(List<Song> songs, {int startIndex = 0});
 
+  /// Loads [songs] at [startIndex] and [position] **without auto-playing** —
+  /// used on cold start to restore the last session, paused and ready to
+  /// resume from exactly where the user left off.
+  Future<void> restoreQueue(
+    List<Song> songs, {
+    int startIndex = 0,
+    Duration position = Duration.zero,
+  });
+
   Future<void> play();
   Future<void> pause();
   Future<void> togglePlayPause();

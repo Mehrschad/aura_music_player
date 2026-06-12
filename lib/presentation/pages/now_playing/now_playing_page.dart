@@ -138,8 +138,6 @@ class _PortraitBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final ctrl = ref.read(audioControllerProvider);
-
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.xl),
       child: Column(
@@ -185,18 +183,9 @@ class _PortraitBody extends ConsumerWidget {
             seed: song.artworkSeed,
           ),
 
-          // ── Transport (prev · play/pause · next) ───────────────────────
-          _TransportRow(
-            state: state,
-            onPrevious: ctrl.skipToPrevious,
-            onNext: state.hasNext ? ctrl.skipToNext : null,
-            onPlayPause: ctrl.togglePlayPause,
-          ),
-          const SizedBox(height: SpacingTokens.xs),
-
-          // ── Bottom row ──────────────────────────────────────────────────
-          _BottomRow(state: state, accent: accent),
-          const SizedBox(height: SpacingTokens.sm),
+          // ── Transport: shuffle · prev · play/pause · next · repeat ──────
+          _TransportRow(state: state, accent: accent),
+          const SizedBox(height: SpacingTokens.md),
         ],
       ),
     );
@@ -218,7 +207,6 @@ class _LandscapeBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final ctrl = ref.read(audioControllerProvider);
     final size = MediaQuery.sizeOf(context);
 
     return Row(
@@ -269,14 +257,9 @@ class _LandscapeBody extends ConsumerWidget {
                     accent: accent,
                     seed: song.artworkSeed,
                   ),
-                  _TransportRow(
-                    state: state,
-                    onPrevious: ctrl.skipToPrevious,
-                    onNext: state.hasNext ? ctrl.skipToNext : null,
-                    onPlayPause: ctrl.togglePlayPause,
-                  ),
+                  const SizedBox(height: SpacingTokens.xs),
+                  _TransportRow(state: state, accent: accent),
                   const Spacer(),
-                  _BottomRow(state: state, accent: accent),
                   const SizedBox(height: SpacingTokens.sm),
                 ],
               );
@@ -322,6 +305,12 @@ class _TopBar extends StatelessWidget {
                 onTap: () => Navigator.of(context).maybePop(),
               ),
               const Spacer(),
+              _PressIcon(
+                icon: Icons.queue_music_rounded,
+                tooltip: l10n.queueTitle,
+                color: colors.onSurfaceMuted,
+                onTap: () => showQueueSheet(context),
+              ),
               _PressIcon(
                 icon: Icons.graphic_eq_rounded,
                 tooltip: l10n.equalizer,
@@ -835,55 +824,10 @@ class _LikeButtonState extends ConsumerState<_LikeButton>
   }
 }
 
-// ── Transport row (prev · play/pause · next) ──────────────────────────────────
+// ── Transport row: shuffle · prev · play/pause · next · repeat ────────────────
 
-class _TransportRow extends StatelessWidget {
-  const _TransportRow({
-    required this.state,
-    required this.onPrevious,
-    required this.onNext,
-    required this.onPlayPause,
-  });
-
-  final PlaybackState state;
-  final Future<void> Function() onPrevious;
-  final Future<void> Function()? onNext;
-  final Future<void> Function() onPlayPause;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final l10n = AppLocalizations.of(context);
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        IconButton(
-          tooltip: l10n.previousTrack,
-          onPressed: () => onPrevious(),
-          icon: Icon(Icons.skip_previous_rounded, color: colors.onSurface),
-          iconSize: 36,
-        ),
-        PlayPauseButton(
-          playing: state.playing,
-          onTap: onPlayPause,
-          semanticLabel: state.playing ? l10n.pause : l10n.play,
-          size: 64,
-        ),
-        IconButton(
-          tooltip: l10n.nextTrack,
-          onPressed: onNext == null ? null : () => onNext!(),
-          icon: Icon(Icons.skip_next_rounded, color: colors.onSurface),
-          iconSize: 36,
-        ),
-      ],
-    );
-  }
-}
-
-// ── Bottom row ────────────────────────────────────────────────────────────────
-
-class _BottomRow extends ConsumerWidget {
-  const _BottomRow({required this.state, required this.accent});
+class _TransportRow extends ConsumerWidget {
+  const _TransportRow({required this.state, required this.accent});
   final PlaybackState state;
   final Color accent;
 
@@ -895,46 +839,108 @@ class _BottomRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.colors;
     final l10n = AppLocalizations.of(context);
     final ctrl = ref.read(audioControllerProvider);
+    final repeatOne = state.repeatMode == RepeatMode.one;
 
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        _ToggleIconButton(
+        _PlayerToggle(
           icon: Icons.shuffle_rounded,
           tooltip: l10n.shuffle,
           active: state.shuffleEnabled,
           accent: accent,
           onTap: () => ctrl.setShuffle(!state.shuffleEnabled),
         ),
-        _ToggleIconButton(
-          icon: state.repeatMode == RepeatMode.one
-              ? Icons.repeat_one_rounded
-              : Icons.repeat_rounded,
-          tooltip:
-              state.repeatMode == RepeatMode.one ? l10n.repeatOne : l10n.repeat,
+        _SkipButton(
+          icon: Icons.skip_previous_rounded,
+          tooltip: l10n.previousTrack,
+          onTap: ctrl.skipToPrevious,
+        ),
+        PlayPauseButton(
+          playing: state.playing,
+          onTap: ctrl.togglePlayPause,
+          semanticLabel: state.playing ? l10n.pause : l10n.play,
+          size: 68,
+        ),
+        _SkipButton(
+          icon: Icons.skip_next_rounded,
+          tooltip: l10n.nextTrack,
+          onTap: state.hasNext ? ctrl.skipToNext : null,
+        ),
+        _PlayerToggle(
+          icon: repeatOne ? Icons.repeat_one_rounded : Icons.repeat_rounded,
+          tooltip: repeatOne ? l10n.repeatOne : l10n.repeat,
           active: state.repeatMode != RepeatMode.off,
           accent: accent,
           onTap: () => ctrl.setRepeat(_nextRepeat(state.repeatMode)),
-        ),
-        _ToggleIconButton(
-          icon: Icons.queue_music_rounded,
-          tooltip: l10n.queueTitle,
-          active: false,
-          accent: accent,
-          onTap: () => showQueueSheet(context),
         ),
       ],
     );
   }
 }
 
-/// A control that animates a soft accent "pill" behind its icon when active,
-/// and bumps the icon with a quick spring on every tap.
-class _ToggleIconButton extends StatefulWidget {
-  const _ToggleIconButton({
+/// Prev / next skip control with a quick press-spring and a dimmed disabled
+/// state — matched in feel to the toggles flanking the row.
+class _SkipButton extends StatefulWidget {
+  const _SkipButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String tooltip;
+  final Future<void> Function()? onTap;
+
+  @override
+  State<_SkipButton> createState() => _SkipButtonState();
+}
+
+class _SkipButtonState extends State<_SkipButton> {
+  bool _down = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final enabled = widget.onTap != null;
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: widget.tooltip,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: enabled ? (_) => setState(() => _down = true) : null,
+        onTapCancel: enabled ? () => setState(() => _down = false) : null,
+        onTapUp: enabled ? (_) => setState(() => _down = false) : null,
+        onTap: enabled
+            ? () {
+                HapticFeedback.selectionClick();
+                widget.onTap!();
+              }
+            : null,
+        child: AnimatedScale(
+          scale: _down ? 0.80 : 1.0,
+          duration: const Duration(milliseconds: 130),
+          curve: Curves.easeOut,
+          child: Padding(
+            padding: const EdgeInsets.all(6),
+            child: Icon(
+              widget.icon,
+              size: 38,
+              color: enabled ? colors.onSurface : colors.onSurfaceFaint,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A circular shuffle / repeat toggle. When active it lifts onto a soft accent
+/// disc with an outer glow; every tap fires a springy bump with overshoot.
+class _PlayerToggle extends StatefulWidget {
+  const _PlayerToggle({
     required this.icon,
     required this.tooltip,
     required this.active,
@@ -949,23 +955,31 @@ class _ToggleIconButton extends StatefulWidget {
   final VoidCallback onTap;
 
   @override
-  State<_ToggleIconButton> createState() => _ToggleIconButtonState();
+  State<_PlayerToggle> createState() => _PlayerToggleState();
 }
 
-class _ToggleIconButtonState extends State<_ToggleIconButton>
+class _PlayerToggleState extends State<_PlayerToggle>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _bump = AnimationController(
+  late final AnimationController _press = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 320),
+    duration: const Duration(milliseconds: 440),
   );
-  late final Animation<double> _bumpScale = TweenSequence<double>([
-    TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.28), weight: 40),
-    TweenSequenceItem(tween: Tween(begin: 1.28, end: 1.0), weight: 60),
-  ]).animate(CurvedAnimation(parent: _bump, curve: Curves.easeOut));
+  late final Animation<double> _bump = TweenSequence<double>([
+    TweenSequenceItem(
+      tween: Tween(begin: 1.0, end: 1.24)
+          .chain(CurveTween(curve: Curves.easeOut)),
+      weight: 36,
+    ),
+    TweenSequenceItem(
+      tween: Tween(begin: 1.24, end: 1.0)
+          .chain(CurveTween(curve: Curves.easeOutBack)),
+      weight: 64,
+    ),
+  ]).animate(_press);
 
   @override
   void dispose() {
-    _bump.dispose();
+    _press.dispose();
     super.dispose();
   }
 
@@ -980,22 +994,33 @@ class _ToggleIconButtonState extends State<_ToggleIconButton>
         behavior: HitTestBehavior.opaque,
         onTap: () {
           HapticFeedback.selectionClick();
-          _bump.forward(from: 0);
+          _press.forward(from: 0);
           widget.onTap();
         },
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 240),
+          duration: const Duration(milliseconds: 260),
           curve: Curves.easeOut,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          width: 46,
+          height: 46,
+          alignment: Alignment.center,
           decoration: BoxDecoration(
+            shape: BoxShape.circle,
             color: widget.active
-                ? widget.accent.withOpacity(0.14)
+                ? widget.accent.withOpacity(0.16)
                 : Colors.transparent,
-            borderRadius: RadiusTokens.brPill,
+            boxShadow: widget.active
+                ? [
+                    BoxShadow(
+                      color: widget.accent.withOpacity(0.30),
+                      blurRadius: 16,
+                      spreadRadius: -2,
+                    ),
+                  ]
+                : null,
           ),
           child: ScaleTransition(
-            scale: _bumpScale,
-            child: Icon(widget.icon, color: color, size: 24),
+            scale: _bump,
+            child: Icon(widget.icon, color: color, size: 23),
           ),
         ),
       ),

@@ -73,6 +73,28 @@ class FakeAudioController implements AudioController {
   }
 
   @override
+  Future<void> restoreQueue(
+    List<Song> songs, {
+    int startIndex = 0,
+    Duration position = Duration.zero,
+  }) async {
+    if (songs.isEmpty) return;
+    final queue = List<Song>.of(songs);
+    final index = startIndex.clamp(0, queue.length - 1);
+    _rebuildOrder(queue.length);
+    _setPosition(position);
+    _emit(_state.copyWithVia(
+      queue: queue,
+      setIndex: true,
+      currentIndex: index,
+      playing: false, // restored sessions resume paused
+      status: PlaybackStatus.ready,
+      duration: queue[index].duration,
+    ));
+    _syncTimer();
+  }
+
+  @override
   Future<void> play() async {
     if (!_state.hasMedia) return;
     _emit(_state.copyWithVia(playing: true, status: PlaybackStatus.ready));

@@ -47,6 +47,12 @@ class GlassSurface extends StatelessWidget {
     }
 
     final sigma = intensity.sigma;
+    // At the deepest setting we layer a touch more white over the base tint so
+    // the surface reads as thicker frosted crystal rather than just blurrier.
+    final tint = intensity.extraTint > 0
+        ? Color.alphaBlend(
+            Colors.white.withOpacity(intensity.extraTint), colors.glassTint)
+        : colors.glassTint;
 
     return ClipRRect(
       borderRadius: borderRadius,
@@ -54,7 +60,7 @@ class GlassSurface extends StatelessWidget {
         filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: colors.glassTint,
+            color: tint,
             borderRadius: borderRadius,
             border: Border.all(
               color: colors.glassBorder,

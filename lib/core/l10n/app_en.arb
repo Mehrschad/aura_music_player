@@ -233,6 +233,7 @@
   "glassSubtle": "Subtle",
   "glassMedium": "Medium",
   "glassStrong": "Strong",
+  "glassUltra": "Ultra",
   "dynamicColor": "Dynamic colour",
   "textScale": "Text size",
   "density": "Display density",

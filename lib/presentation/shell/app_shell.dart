@@ -9,6 +9,7 @@ import '../pages/playlists/playlists_page.dart';
 import '../pages/search/search_page.dart';
 import '../providers/home_widget_providers.dart';
 import '../widgets/player/mini_player.dart';
+import '../widgets/player/playback_persistor.dart';
 import 'glass_nav_bar.dart';
 import 'nav_provider.dart';
 
@@ -86,6 +87,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           mainAxisSize: MainAxisSize.min,
           children: const [
             _HomeWidgetBridge(),
+            PlaybackPersistor(),
             MiniPlayer(),
             GlassNavBar(),
           ],

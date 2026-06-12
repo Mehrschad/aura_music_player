@@ -46,7 +46,9 @@ class GlassNavBar extends ConsumerWidget {
         bottom: SpacingTokens.lg + bottomInset,
       ),
       child: GlassSurface(
-        borderRadius: RadiusTokens.brXl,
+        // Fully-rounded stadium shell — matched to the mini player above it so
+        // the two floating bars share one clean, pill-shaped language.
+        borderRadius: RadiusTokens.brPill,
         intensity: intensity,
         child: SizedBox(
           height: 64,
@@ -59,13 +61,18 @@ class GlassNavBar extends ConsumerWidget {
 
               return Stack(
                 children: [
-                  // Animated glass pill / capsule indicator
+                  // Animated glass pill / capsule indicator.
+                  //
+                  // Positioned by `start` (not `left`) so it mirrors correctly
+                  // in RTL (fa/ar): the tab Row lays out from the start edge, so
+                  // measuring the pill offset from the same start edge keeps it
+                  // under the selected tab in both directions.
                   TweenAnimationBuilder<double>(
                     tween: Tween<double>(begin: pillLeft, end: pillLeft),
                     duration: MotionTokens.screen,
                     curve: MotionTokens.spring,
-                    builder: (context, left, _) => Positioned(
-                      left: left,
+                    builder: (context, start, _) => PositionedDirectional(
+                      start: start,
                       top: (64 - 44) / 2,
                       width: pillWidth,
                       height: 44,

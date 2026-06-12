@@ -68,6 +68,7 @@ class SettingsPage extends ConsumerWidget {
               GlassIntensity.subtle => l10n.glassSubtle,
               GlassIntensity.medium => l10n.glassMedium,
               GlassIntensity.strong => l10n.glassStrong,
+              GlassIntensity.ultra => l10n.glassUltra,
             },
             onSelect: n.setGlassIntensity,
           ),

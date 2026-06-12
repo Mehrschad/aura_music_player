@@ -6,7 +6,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added — Player & shell polish (phase 3)
+- **Resume last session**: the queue, current track, position, and
+  shuffle/repeat are remembered across cold starts and restored **paused**.
+  New `AudioController.restoreQueue`, a `PlaybackPersistence` store, and an
+  invisible `PlaybackPersistor` that saves on change / heartbeat / background.
+- **Ultra glass**: new `GlassIntensity.ultra` setting — a deeper blur with a
+  richer frosted tint, selectable in Settings.
+
+### Changed
+- Mini player and bottom nav bar now share one fully-rounded stadium shell;
+  the mini-player progress is a slim inset rounded capsule.
+- Mini player gains a **previous-track** control.
+- Now Playing transport regrouped to `shuffle · prev · play/pause · next ·
+  repeat`; queue moved to the top bar. Shuffle/repeat toggles redesigned with a
+  glowing accent disc and a springy press bump.
+- Smoother, weightier open/close animation for Now Playing; the mini player
+  now "catches" the closing page with an elastic settle.
+
+### Fixed
+- Bottom nav glass pill now mirrors correctly in RTL (fa/ar) via
+  `PositionedDirectional`.
+- Soft keyboard no longer re-opens on the Search page after returning from Now
+  Playing (focus is dropped before the route is pushed).
 
 ## [1.0.0] - 2026-06-07
 
