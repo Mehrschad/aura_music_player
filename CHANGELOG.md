@@ -6,6 +6,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+### Added — Selection mode & bulk operations (step 16)
+- **Multi-select** in the Library: long-press to enter, tap to toggle,
+  long-press a second row to range-select. A selection bar replaces the header
+  with count, select-all, invert, and a bulk-actions menu; haptics on
+  enter/toggle; system back clears the selection first.
+- **Bulk actions**: play now / next, add to queue, add to playlist (multi-add),
+  add/remove favorites, batch edit tags, hide from library, export M3U to
+  clipboard, and delete from device with a count-aware confirmation.
+- **Soft-hide**: a persisted `hiddenSongsProvider`, filtered into
+  `effectiveSongsProvider` so hidden tracks disappear everywhere at once.
+- New generic, tested `SelectionController` + `selectionProvider(listId)` and a
+  pure `idsInRange` helper, ready to adopt across the other lists.
+
 ### Added — Offline content & library polish (phase 4)
 - **Offline lyrics for the whole library**: a background prefetcher walks every
   scanned track on launch, downloads its lyrics from LRCLIB, and caches them on

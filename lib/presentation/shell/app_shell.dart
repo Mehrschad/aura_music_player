@@ -8,6 +8,7 @@ import '../pages/library/library_page.dart';
 import '../pages/playlists/playlists_page.dart';
 import '../pages/search/search_page.dart';
 import '../providers/home_widget_providers.dart';
+import '../providers/selection_providers.dart';
 import '../widgets/library/offline_prefetcher.dart';
 import '../widgets/player/mini_player.dart';
 import '../widgets/player/playback_persistor.dart';
@@ -52,6 +53,17 @@ class _AppShellState extends ConsumerState<AppShell>
   }
 
   Future<bool> _handleBack() async {
+    // 0. An active multi-selection swallows back first — it just clears.
+    for (final scope in const [
+      SelectionScopes.library,
+      SelectionScopes.search,
+    ]) {
+      if (ref.read(selectionProvider(scope)).active) {
+        ref.read(selectionProvider(scope).notifier).clear();
+        return false;
+      }
+    }
+
     final tabIndex = ref.read(selectedTabProvider).index;
     final key = _navKeys[tabIndex];
 

@@ -301,6 +301,27 @@ The waveform scrubber (`CustomPainter`) replaces the slider in step 5.
   free.
 - **Tested** — the reduced-motion helper and the waveform's screen-reader slider.
 
+## What step 16 delivers
+
+- **Multi-select mode** — long-press any library row to enter selection; tap to
+  toggle, long-press a second row to range-select between the two. A
+  `SelectionBar` replaces the section header with the live count, select-all,
+  invert, and a bulk-actions overflow. Haptics fire on enter and toggle.
+- **Generic selection core** — `SelectionController` (pure, `StateNotifier`)
+  keyed per list via `selectionProvider(listId)`, so a list keeps its own
+  selection across tab switches; system back clears an active selection first.
+  Backed by a pure `idsInRange` range helper.
+- **Bulk actions** — play now, play next, add to queue, add to playlist
+  (multi-add), add/remove favorites, edit tags (batch), hide from library,
+  export as M3U (clipboard), and delete from device with a count-aware
+  confirmation. All three display modes (list, compact, grid) show selection
+  state.
+- **Soft-hide** — a persisted `hiddenSongsProvider` filtered into
+  `effectiveSongsProvider`, so hidden tracks vanish from every list at once.
+- **Tested** — `idsInRange` and the controller's gesture logic as pure units,
+  plus an end-to-end widget test (long-press → select all → bulk favorite, and
+  bulk hide empties the library).
+
 ## Running it
 
 Requires Flutter 3.24+ / Dart 3.5+.

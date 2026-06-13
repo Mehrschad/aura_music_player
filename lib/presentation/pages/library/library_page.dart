@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/spacing_tokens.dart';
@@ -8,8 +9,10 @@ import '../../../domain/models/song.dart';
 import '../../providers/async_value_x.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
+import '../../providers/selection_providers.dart';
 import '../../widgets/async_state_view.dart';
 import '../../widgets/library/library_controls.dart';
+import '../../widgets/library/selection_bar.dart';
 import '../../widgets/library/song_compact_tile.dart';
 import '../../widgets/library/song_grid_tile.dart';
 import '../../widgets/library/song_list_tile.dart';
@@ -20,6 +23,8 @@ import '../settings/settings_page.dart';
 
 class LibraryPage extends ConsumerWidget {
   const LibraryPage({super.key});
+
+  static const String _listId = SelectionScopes.library;
 
   void _play(WidgetRef ref, List<Song> queue, int index) {
     ref.read(audioControllerProvider).playQueue(queue, startIndex: index);
@@ -32,39 +37,45 @@ class LibraryPage extends ConsumerWidget {
     final sort = ref.watch(librarySortProvider);
     final mode = ref.watch(libraryDisplayModeProvider);
     final miniPlayerVisible = ref.watch(hasMediaProvider);
+    final selecting = ref.watch(
+        selectionProvider(_listId).select((s) => s.active));
     final count = songsAsync.maybeWhen(data: (s) => s.length, orElse: () => 0);
+    final allSongs = songsAsync.valueOrNull ?? const <Song>[];
 
     return SafeArea(
       bottom: false,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SectionHeader(
-            title: l10n.tabLibrary,
-            subtitle: count > 0 ? l10n.songsCount(count) : null,
-            actions: [
-              DisplayModeButton(
-                mode: mode,
-                onChanged: (m) =>
-                    ref.read(libraryDisplayModeProvider.notifier).state = m,
-              ),
-              IconButton(
-                tooltip: l10n.sortLabel,
-                onPressed: () => showSortSheet(
-                  context,
-                  current: sort,
-                  onChanged: (s) =>
-                      ref.read(librarySortProvider.notifier).state = s,
+          if (selecting)
+            SelectionBar(listId: _listId, allSongs: allSongs)
+          else
+            SectionHeader(
+              title: l10n.tabLibrary,
+              subtitle: count > 0 ? l10n.songsCount(count) : null,
+              actions: [
+                DisplayModeButton(
+                  mode: mode,
+                  onChanged: (m) =>
+                      ref.read(libraryDisplayModeProvider.notifier).state = m,
                 ),
-                icon: const Icon(Icons.sort),
-              ),
-              IconButton(
-                tooltip: l10n.settings,
-                onPressed: () => openSettings(context),
-                icon: const Icon(Icons.settings_outlined),
-              ),
-            ],
-          ),
+                IconButton(
+                  tooltip: l10n.sortLabel,
+                  onPressed: () => showSortSheet(
+                    context,
+                    current: sort,
+                    onChanged: (s) =>
+                        ref.read(librarySortProvider.notifier).state = s,
+                  ),
+                  icon: const Icon(Icons.sort),
+                ),
+                IconButton(
+                  tooltip: l10n.settings,
+                  onPressed: () => openSettings(context),
+                  icon: const Icon(Icons.settings_outlined),
+                ),
+              ],
+            ),
           Expanded(
             child: AsyncStateView<List<Song>>(
               value: songsAsync.like,
@@ -85,7 +96,7 @@ class LibraryPage extends ConsumerWidget {
   }
 }
 
-class _SongsBody extends StatelessWidget {
+class _SongsBody extends ConsumerWidget {
   const _SongsBody({
     required this.songs,
     required this.mode,
@@ -99,9 +110,33 @@ class _SongsBody extends StatelessWidget {
   final ValueChanged<int> onPlayAt;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final bottom =
         playerBarInset(context, miniPlayerVisible: miniPlayerVisible);
+    final selection = ref.watch(selectionProvider(LibraryPage._listId));
+    final notifier = ref.read(selectionProvider(LibraryPage._listId).notifier);
+    final selecting = selection.active;
+    final orderedIds = [for (final s in songs) s.id];
+
+    void onLongPress(Song song) {
+      HapticFeedback.mediumImpact();
+      if (selecting) {
+        notifier.selectRange(orderedIds, song.id);
+      } else {
+        notifier.enter(song.id);
+      }
+    }
+
+    void onTapAt(int i) {
+      if (selecting) {
+        HapticFeedback.selectionClick();
+        notifier.toggle(songs[i].id);
+      } else {
+        onPlayAt(i);
+      }
+    }
+
+    bool? selectedOf(Song s) => selecting ? selection.contains(s.id) : null;
 
     switch (mode) {
       case DisplayMode.list:
@@ -111,7 +146,9 @@ class _SongsBody extends StatelessWidget {
           itemCount: songs.length,
           itemBuilder: (_, i) => SongListTile(
             song: songs[i],
-            onTap: () => onPlayAt(i),
+            selected: selectedOf(songs[i]),
+            onTap: () => onTapAt(i),
+            onLongPress: () => onLongPress(songs[i]),
             onMore: () => showSongActions(context, songs[i]),
           ),
         );
@@ -120,8 +157,12 @@ class _SongsBody extends StatelessWidget {
           padding:
               EdgeInsets.fromLTRB(SpacingTokens.sm, 0, SpacingTokens.sm, bottom),
           itemCount: songs.length,
-          itemBuilder: (_, i) =>
-              SongCompactTile(song: songs[i], onTap: () => onPlayAt(i)),
+          itemBuilder: (_, i) => SongCompactTile(
+            song: songs[i],
+            selected: selectedOf(songs[i]),
+            onTap: () => onTapAt(i),
+            onLongPress: () => onLongPress(songs[i]),
+          ),
         );
       case DisplayMode.grid:
         return GridView.builder(
@@ -134,8 +175,12 @@ class _SongsBody extends StatelessWidget {
             childAspectRatio: 0.78,
           ),
           itemCount: songs.length,
-          itemBuilder: (_, i) =>
-              SongGridTile(song: songs[i], onTap: () => onPlayAt(i)),
+          itemBuilder: (_, i) => SongGridTile(
+            song: songs[i],
+            selected: selectedOf(songs[i]),
+            onTap: () => onTapAt(i),
+            onLongPress: () => onLongPress(songs[i]),
+          ),
         );
     }
   }

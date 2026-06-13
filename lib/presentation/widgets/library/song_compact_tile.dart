@@ -8,28 +8,60 @@ import '../../../core/theme/typography.dart';
 import '../../../domain/models/song.dart';
 
 /// Ultra-dense, text-only row. No artwork, tight vertical rhythm.
+///
+/// When [selected] is non-null the row is in selection mode and shows a compact
+/// check dot; [onTap] toggles and [onLongPress] extends a range.
 class SongCompactTile extends StatelessWidget {
-  const SongCompactTile({super.key, required this.song, required this.onTap});
+  const SongCompactTile({
+    super.key,
+    required this.song,
+    required this.onTap,
+    this.onLongPress,
+    this.selected,
+  });
 
   final Song song;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+  final bool? selected;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final selecting = selected != null;
+    final isSelected = selected ?? false;
     return Semantics(
       button: true,
       label: '${song.title}, ${song.artist}',
+      onLongPress: onLongPress,
       child: InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         borderRadius: RadiusTokens.brSm,
-        child: Padding(
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: RadiusTokens.brSm,
+            color: isSelected
+                ? colors.accent.withOpacity(0.10)
+                : Colors.transparent,
+          ),
           padding: const EdgeInsets.symmetric(
             horizontal: SpacingTokens.sm,
             vertical: SpacingTokens.xs + 2,
           ),
           child: Row(
             children: [
+              if (selecting) ...[
+                Icon(
+                  isSelected
+                      ? Icons.check_circle
+                      : Icons.radio_button_unchecked,
+                  size: 18,
+                  color:
+                      isSelected ? colors.accent : colors.onSurfaceFaint,
+                ),
+                const SizedBox(width: SpacingTokens.sm),
+              ],
               Expanded(
                 child: RichText(
                   maxLines: 1,

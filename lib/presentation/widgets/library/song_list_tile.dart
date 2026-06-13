@@ -18,30 +18,48 @@ import 'now_playing_indicator.dart';
 /// The row that is currently playing is set apart with a soft accent halo
 /// around it and a small dancing-bars indicator beside the duration, so it's
 /// always obvious which track is live as you browse.
+///
+/// When [selected] is non-null the row is in **selection mode**: it shows a
+/// check circle instead of the overflow button, [onTap] toggles the pick, and
+/// [onLongPress] extends a range. The now-playing halo is suppressed so the
+/// selection state reads cleanly.
 class SongListTile extends ConsumerWidget {
   const SongListTile({
     super.key,
     required this.song,
     required this.onTap,
     this.onMore,
+    this.onLongPress,
+    this.selected,
   });
 
   final Song song;
   final VoidCallback onTap;
   final VoidCallback? onMore;
+  final VoidCallback? onLongPress;
+
+  /// Null = not in selection mode. true/false = selected state in selection mode.
+  final bool? selected;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
-    final isCurrent =
+    final selecting = selected != null;
+    final isSelected = selected ?? false;
+
+    final isCurrent = !selecting &&
         ref.watch(currentSongProvider.select((s) => s?.id == song.id));
     final playing = isCurrent &&
         ref.watch(playbackStateProvider
             .select((st) => st.valueOrNull?.playing ?? false));
     final accent = SeedPalette.accent(song.artworkSeed);
 
+    final highlight = isSelected || isCurrent;
+    final highlightColor = isSelected ? colors.accent : accent;
+
     return PressScale(
       onTap: onTap,
+      onLongPress: onLongPress,
       pressedScale: 0.97,
       semanticLabel: '${song.title}, ${song.artist}',
       child: AnimatedContainer(
@@ -50,10 +68,11 @@ class SongListTile extends ConsumerWidget {
         margin: const EdgeInsets.symmetric(vertical: 1),
         decoration: BoxDecoration(
           borderRadius: RadiusTokens.brMd,
-          color: isCurrent ? accent.withOpacity(0.07) : Colors.transparent,
+          color: highlight ? highlightColor.withOpacity(0.07) : Colors.transparent,
           border: Border.all(
-            color:
-                isCurrent ? accent.withOpacity(0.22) : Colors.transparent,
+            color: highlight
+                ? highlightColor.withOpacity(0.22)
+                : Colors.transparent,
           ),
           boxShadow: isCurrent
               ? [
@@ -72,6 +91,10 @@ class SongListTile extends ConsumerWidget {
           ),
           child: Row(
             children: [
+              if (selecting) ...[
+                _SelectCheck(selected: isSelected),
+                const SizedBox(width: SpacingTokens.sm),
+              ],
               AuraArtwork(
                 seed: song.artworkSeed,
                 size: 48,
@@ -113,7 +136,7 @@ class SongListTile extends ConsumerWidget {
                 style:
                     AppTextTheme.caption.copyWith(color: colors.onSurfaceFaint),
               ),
-              if (onMore != null)
+              if (!selecting && onMore != null)
                 IconButton(
                   onPressed: onMore,
                   visualDensity: VisualDensity.compact,
@@ -124,6 +147,33 @@ class SongListTile extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The leading check circle shown in selection mode.
+class _SelectCheck extends StatelessWidget {
+  const _SelectCheck({required this.selected});
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      width: 24,
+      height: 24,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: selected ? colors.accent : Colors.transparent,
+        border: Border.all(
+          color: selected ? colors.accent : colors.onSurfaceFaint,
+          width: 2,
+        ),
+      ),
+      child: selected
+          ? Icon(Icons.check, size: 16, color: colors.background)
+          : null,
     );
   }
 }

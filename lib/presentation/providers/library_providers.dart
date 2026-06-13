@@ -10,6 +10,7 @@ import '../../domain/models/artist.dart';
 import '../../domain/models/library_sort.dart';
 import '../../domain/models/song.dart';
 import '../../domain/repositories/library_repository.dart';
+import 'hidden_songs_providers.dart';
 import 'settings_providers.dart';
 
 /// The active library data source — backed by the device media store.
@@ -54,13 +55,18 @@ final tagOverridesProvider =
 /// persist to the files.
 final tagWriterProvider = Provider<TagWriter>((ref) => const NoopTagWriter());
 
-/// The song index with any tag edits applied. Everything downstream (library,
-/// albums, artists, search, playlists) reads this rather than the raw scan.
+/// The song index with any tag edits applied and soft-hidden tracks removed.
+/// Everything downstream (library, albums, artists, search, playlists) reads
+/// this rather than the raw scan, so a hidden track disappears everywhere.
 final effectiveSongsProvider = Provider<AsyncValue<List<Song>>>((ref) {
   final overrides = ref.watch(tagOverridesProvider);
+  final hidden = ref.watch(hiddenSongsProvider);
   return ref.watch(songsProvider).whenData((list) {
-    if (overrides.isEmpty) return list;
-    return [for (final s in list) overrides[s.id] ?? s];
+    if (overrides.isEmpty && hidden.isEmpty) return list;
+    return [
+      for (final s in list)
+        if (!hidden.contains(s.id)) overrides[s.id] ?? s,
+    ];
   });
 });
 

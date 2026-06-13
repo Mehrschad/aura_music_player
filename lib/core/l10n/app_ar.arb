@@ -243,5 +243,14 @@
   "infoBitrate": "معدل البت",
   "discN": "القرص {n}",
   "aboutArtist": "نبذة عن الفنان",
-  "editAlbum": "تعديل الألبوم"
+  "editAlbum": "تعديل الألبوم",
+  "selectedCount": "{count} محدد",
+  "selectAll": "تحديد الكل",
+  "invertSelection": "عكس التحديد",
+  "playNow": "تشغيل الآن",
+  "hideFromLibrary": "إخفاء من المكتبة",
+  "songsHidden": "{count, plural, other{تم إخفاء {count} أغنية}}",
+  "deleteSelectedTitle": "{count, plural, other{حذف {count} أغنية؟}}",
+  "deleteSelectedBody": "هذا يزيل الملفات المحددة نهائيًا من جهازك.",
+  "songsDeleted": "{count, plural, other{تم حذف {count} أغنية}}"
 }

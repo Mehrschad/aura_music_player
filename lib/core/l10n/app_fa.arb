@@ -243,5 +243,14 @@
   "infoBitrate": "بیت‌ریت",
   "discN": "دیسک {n}",
   "aboutArtist": "درباره هنرمند",
-  "editAlbum": "ویرایش آلبوم"
+  "editAlbum": "ویرایش آلبوم",
+  "selectedCount": "{count} انتخاب‌شده",
+  "selectAll": "انتخاب همه",
+  "invertSelection": "وارونه",
+  "playNow": "پخش اکنون",
+  "hideFromLibrary": "پنهان کردن از کتابخانه",
+  "songsHidden": "{count, plural, other{{count} آهنگ پنهان شد}}",
+  "deleteSelectedTitle": "{count, plural, other{{count} آهنگ حذف شود؟}}",
+  "deleteSelectedBody": "این کار فایل‌های انتخاب‌شده را برای همیشه از دستگاه شما حذف می‌کند.",
+  "songsDeleted": "{count, plural, other{{count} آهنگ حذف شد}}"
 }

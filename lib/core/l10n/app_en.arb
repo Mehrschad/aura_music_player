@@ -321,5 +321,46 @@
   "editAlbum": "Edit album",
   "@editAlbum": {
     "description": "Tooltip for the album edit button on the album page."
+  },
+  "selectedCount": "{count} selected",
+  "@selectedCount": {
+    "description": "Title in the selection bar showing how many items are picked.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "selectAll": "Select all",
+  "invertSelection": "Invert",
+  "playNow": "Play now",
+  "hideFromLibrary": "Hide from library",
+  "songsHidden": "{count, plural, =1{1 song hidden} other{{count} songs hidden}}",
+  "@songsHidden": {
+    "description": "Snackbar after hiding tracks from the library.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "deleteSelectedTitle": "{count, plural, =1{Delete 1 song?} other{Delete {count} songs?}}",
+  "@deleteSelectedTitle": {
+    "description": "Confirmation dialog title for bulk delete.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "deleteSelectedBody": "This permanently removes the selected files from your device.",
+  "songsDeleted": "{count, plural, =1{1 song deleted} other{{count} songs deleted}}",
+  "@songsDeleted": {
+    "description": "Snackbar after bulk-deleting tracks.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   }
 }

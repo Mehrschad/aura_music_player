@@ -11,12 +11,17 @@ class PressScale extends StatefulWidget {
     super.key,
     required this.child,
     required this.onTap,
+    this.onLongPress,
     this.pressedScale = 0.92,
     this.semanticLabel,
   });
 
   final Widget child;
   final VoidCallback? onTap;
+
+  /// Optional long-press handler (e.g. enter multi-select). When set, the
+  /// gesture also exposes a Semantics long-press action.
+  final VoidCallback? onLongPress;
   final double pressedScale;
   final String? semanticLabel;
 
@@ -35,12 +40,14 @@ class _PressScaleState extends State<PressScale> {
     return Semantics(
       button: widget.onTap != null,
       label: widget.semanticLabel,
+      onLongPress: widget.onLongPress,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTapDown: widget.onTap == null ? null : (_) => setState(() => _down = true),
         onTapCancel: widget.onTap == null ? null : () => setState(() => _down = false),
         onTapUp: widget.onTap == null ? null : (_) => setState(() => _down = false),
         onTap: widget.onTap,
+        onLongPress: widget.onLongPress,
         child: AnimatedScale(
           scale: scale,
           duration: reduceMotion ? Duration.zero : MotionTokens.press,
