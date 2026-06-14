@@ -72,6 +72,10 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   void setGeniusApiKey(String v) => _update(state.copyWith(geniusApiKey: v));
 
   void setLastFm(bool v) => _update(state.copyWith(lastFmEnabled: v));
+  void setLastFmApiKey(String v) => _update(state.copyWith(lastFmApiKey: v));
+  void setLastFmApiSecret(String v) => _update(state.copyWith(lastFmApiSecret: v));
+  void setLastFmSessionKey(String v) => _update(state.copyWith(lastFmSessionKey: v));
+  void setLastFmUsername(String v) => _update(state.copyWith(lastFmUsername: v));
   void setAndroidAuto(bool v) => _update(state.copyWith(androidAuto: v));
 
   /// Replaces the whole settings object (settings backup import).

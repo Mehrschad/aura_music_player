@@ -71,6 +71,7 @@ class _ListeningRecorderState extends ConsumerState<ListeningRecorder> {
     ref.read(playHistoryProvider.notifier).record(
           PlayEvent(
             songId: song.id,
+            title: song.title,
             artist: song.artist,
             album: song.album,
             genre: song.genre,

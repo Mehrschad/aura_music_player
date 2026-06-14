@@ -348,5 +348,25 @@
   "pitchControl": "Tonhöhe",
   "pitchOriginal": "Original",
   "pitchReset": "Tonhöhe zurücksetzen",
-  "skipSilence": "Stille überspringen"
+  "skipSilence": "Stille überspringen",
+  "lastFmConnect": "Mit Last.fm verbinden",
+  "lastFmConnectedAs": "Verbunden als @{username}",
+  "@lastFmConnectedAs": {
+    "placeholders": {
+      "username": { "type": "String" }
+    }
+  },
+  "lastFmDisconnect": "Verbindung trennen",
+  "lastFmApiKey": "API-Schlüssel",
+  "lastFmApiSecret": "API-Geheimnis",
+  "lastFmGetAuthUrl": "Autorisierungs-URL abrufen",
+  "lastFmAuthUrlHint": "Öffne diese URL im Browser, autorisiere, dann tippe auf Fertig",
+  "lastFmComplete": "Autorisierung abschließen",
+  "lastFmScrobbling": "Scrobbling aktiv",
+  "lastFmPendingScrobbles": "{count} ausstehende Scrobbles",
+  "@lastFmPendingScrobbles": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  }
 }

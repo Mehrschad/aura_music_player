@@ -18,6 +18,7 @@ import '../../providers/lyrics_providers.dart';
 import '../../providers/settings_providers.dart';
 import '../equalizer/equalizer_page.dart';
 import '../statistics/statistics_page.dart';
+import 'lastfm_connect_page.dart';
 import 'widget_preview_page.dart';
 
 Future<void> openSettings(BuildContext context) {
@@ -235,6 +236,22 @@ class SettingsPage extends ConsumerWidget {
             icon: Icons.widgets_outlined,
             onTap: () => openWidgetPreview(context),
           ),
+          if (s.lastFmSessionKey.isNotEmpty)
+            _NavTile(
+              label: l10n.lastFmConnectedAs(s.lastFmUsername),
+              icon: Icons.check_circle_outline,
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute<void>(
+                      builder: (_) => const LastFmConnectPage())),
+            )
+          else
+            _NavTile(
+              label: l10n.lastFmConnect,
+              icon: Icons.link,
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute<void>(
+                      builder: (_) => const LastFmConnectPage())),
+            ),
           _SwitchTile(
               label: l10n.lastFm,
               value: s.lastFmEnabled,

@@ -39,6 +39,10 @@ class AppSettings {
     this.lyricsDefaultLanguage = 'auto',
     this.geniusApiKey = '',
     this.lastFmEnabled = false,
+    this.lastFmApiKey = '',
+    this.lastFmApiSecret = '',
+    this.lastFmSessionKey = '',
+    this.lastFmUsername = '',
     this.androidAuto = true,
   });
 
@@ -81,6 +85,10 @@ class AppSettings {
   final String geniusApiKey;
 
   final bool lastFmEnabled;
+  final String lastFmApiKey;
+  final String lastFmApiSecret;
+  final String lastFmSessionKey;
+  final String lastFmUsername;
   final bool androidAuto;
 
   AppSettings copyWith({
@@ -108,6 +116,10 @@ class AppSettings {
     String? lyricsDefaultLanguage,
     String? geniusApiKey,
     bool? lastFmEnabled,
+    String? lastFmApiKey,
+    String? lastFmApiSecret,
+    String? lastFmSessionKey,
+    String? lastFmUsername,
     bool? androidAuto,
   }) {
     return AppSettings(
@@ -135,6 +147,10 @@ class AppSettings {
       lyricsDefaultLanguage: lyricsDefaultLanguage ?? this.lyricsDefaultLanguage,
       geniusApiKey: geniusApiKey ?? this.geniusApiKey,
       lastFmEnabled: lastFmEnabled ?? this.lastFmEnabled,
+      lastFmApiKey: lastFmApiKey ?? this.lastFmApiKey,
+      lastFmApiSecret: lastFmApiSecret ?? this.lastFmApiSecret,
+      lastFmSessionKey: lastFmSessionKey ?? this.lastFmSessionKey,
+      lastFmUsername: lastFmUsername ?? this.lastFmUsername,
       androidAuto: androidAuto ?? this.androidAuto,
     );
   }
@@ -165,6 +181,10 @@ class AppSettings {
         'lyricsDefaultLanguage': lyricsDefaultLanguage,
         'geniusApiKey': geniusApiKey,
         'lastFmEnabled': lastFmEnabled,
+        'lastFmApiKey': lastFmApiKey,
+        'lastFmApiSecret': lastFmApiSecret,
+        'lastFmSessionKey': lastFmSessionKey,
+        'lastFmUsername': lastFmUsername,
         'androidAuto': androidAuto,
       };
 
@@ -209,6 +229,10 @@ class AppSettings {
           json['lyricsDefaultLanguage'] as String? ?? d.lyricsDefaultLanguage,
       geniusApiKey: json['geniusApiKey'] as String? ?? d.geniusApiKey,
       lastFmEnabled: json['lastFmEnabled'] as bool? ?? d.lastFmEnabled,
+      lastFmApiKey: json['lastFmApiKey'] as String? ?? d.lastFmApiKey,
+      lastFmApiSecret: json['lastFmApiSecret'] as String? ?? d.lastFmApiSecret,
+      lastFmSessionKey: json['lastFmSessionKey'] as String? ?? d.lastFmSessionKey,
+      lastFmUsername: json['lastFmUsername'] as String? ?? d.lastFmUsername,
       androidAuto: json['androidAuto'] as bool? ?? d.androidAuto,
     );
   }

@@ -14,6 +14,7 @@ PlayEvent _ev({
 }) =>
     PlayEvent(
       songId: song,
+      title: song,
       artist: artist,
       album: album,
       genre: genre,
@@ -165,6 +166,7 @@ void main() {
       final plays = [
         PlayEvent(
             songId: 's',
+            title: 's',
             artist: 'A',
             album: 'X',
             genre: null,

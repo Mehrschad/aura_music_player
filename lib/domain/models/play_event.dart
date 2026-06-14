@@ -6,6 +6,7 @@
 class PlayEvent {
   const PlayEvent({
     required this.songId,
+    required this.title,
     required this.artist,
     required this.album,
     required this.genre,
@@ -15,6 +16,8 @@ class PlayEvent {
   });
 
   final String songId;
+  // Denormalised track title for scrobbling without re-resolving the library.
+  final String title;
   final String artist;
   final String album;
   final String? genre;
@@ -33,6 +36,7 @@ class PlayEvent {
 
   Map<String, dynamic> toJson() => {
         's': songId,
+        'ti': title,
         'ar': artist,
         'al': album,
         'g': genre,
@@ -43,6 +47,7 @@ class PlayEvent {
 
   factory PlayEvent.fromJson(Map<String, dynamic> j) => PlayEvent(
         songId: j['s'] as String,
+        title: (j['ti'] as String?) ?? '',
         artist: (j['ar'] as String?) ?? '',
         album: (j['al'] as String?) ?? '',
         genre: j['g'] as String?,

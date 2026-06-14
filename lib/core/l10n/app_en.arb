@@ -563,5 +563,35 @@
   "pitchReset": "Reset pitch",
   "@pitchReset": { "description": "Button to reset pitch to 0 semitones." },
   "skipSilence": "Skip silence",
-  "@skipSilence": { "description": "Settings toggle to auto-skip silent sections during playback." }
+  "@skipSilence": { "description": "Settings toggle to auto-skip silent sections during playback." },
+  "lastFmConnect": "Connect to Last.fm",
+  "@lastFmConnect": { "description": "Nav tile label to open the Last.fm auth page." },
+  "lastFmConnectedAs": "Connected as @{username}",
+  "@lastFmConnectedAs": {
+    "description": "Shows the authenticated Last.fm username.",
+    "placeholders": {
+      "username": { "type": "String" }
+    }
+  },
+  "lastFmDisconnect": "Disconnect",
+  "@lastFmDisconnect": { "description": "Button to revoke the Last.fm session." },
+  "lastFmApiKey": "API key",
+  "@lastFmApiKey": { "description": "Label for the Last.fm API key text field." },
+  "lastFmApiSecret": "API secret",
+  "@lastFmApiSecret": { "description": "Label for the Last.fm API secret text field." },
+  "lastFmGetAuthUrl": "Get authorization URL",
+  "@lastFmGetAuthUrl": { "description": "Button that fetches a Last.fm auth token and builds the browser URL." },
+  "lastFmAuthUrlHint": "Open this URL in your browser, authorize, then tap Complete",
+  "@lastFmAuthUrlHint": { "description": "Hint shown above the Last.fm auth URL." },
+  "lastFmComplete": "Complete authorization",
+  "@lastFmComplete": { "description": "Button to exchange the authorized token for a session key." },
+  "lastFmScrobbling": "Scrobbling enabled",
+  "@lastFmScrobbling": { "description": "Label for the Last.fm scrobbling toggle." },
+  "lastFmPendingScrobbles": "{count} scrobbles pending",
+  "@lastFmPendingScrobbles": {
+    "description": "Count of scrobbles waiting to be sent.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  }
 }

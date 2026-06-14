@@ -320,5 +320,25 @@
   "pitchControl": "زیر و بم",
   "pitchOriginal": "اصلی",
   "pitchReset": "بازنشانی زیر و بم",
-  "skipSilence": "حذف سکوت"
+  "skipSilence": "حذف سکوت",
+  "lastFmConnect": "اتصال به Last.fm",
+  "lastFmConnectedAs": "متصل به عنوان @{username}",
+  "@lastFmConnectedAs": {
+    "placeholders": {
+      "username": { "type": "String" }
+    }
+  },
+  "lastFmDisconnect": "قطع اتصال",
+  "lastFmApiKey": "کلید API",
+  "lastFmApiSecret": "راز API",
+  "lastFmGetAuthUrl": "دریافت لینک مجوز",
+  "lastFmAuthUrlHint": "این لینک را در مرورگر باز کنید، تأیید کنید، سپس کامل کنید",
+  "lastFmComplete": "تکمیل مجوز",
+  "lastFmScrobbling": "اسکروبل فعال",
+  "lastFmPendingScrobbles": "{count} اسکروبل در انتظار",
+  "@lastFmPendingScrobbles": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  }
 }

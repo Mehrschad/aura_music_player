@@ -320,5 +320,25 @@
   "pitchControl": "طبقة الصوت",
   "pitchOriginal": "أصلي",
   "pitchReset": "إعادة ضبط الطبقة",
-  "skipSilence": "تخطي الصمت"
+  "skipSilence": "تخطي الصمت",
+  "lastFmConnect": "الاتصال بـ Last.fm",
+  "lastFmConnectedAs": "متصل بـ @{username}",
+  "@lastFmConnectedAs": {
+    "placeholders": {
+      "username": { "type": "String" }
+    }
+  },
+  "lastFmDisconnect": "قطع الاتصال",
+  "lastFmApiKey": "مفتاح API",
+  "lastFmApiSecret": "سر API",
+  "lastFmGetAuthUrl": "الحصول على رابط التخويل",
+  "lastFmAuthUrlHint": "افتح هذا الرابط في متصفحك، وافق، ثم اضغط إتمام",
+  "lastFmComplete": "إتمام التخويل",
+  "lastFmScrobbling": "التسجيل نشط",
+  "lastFmPendingScrobbles": "{count} تسجيل معلق",
+  "@lastFmPendingScrobbles": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  }
 }

@@ -9,6 +9,7 @@ import '../pages/playlists/playlists_page.dart';
 import '../pages/search/search_page.dart';
 import '../providers/engine_bridge_provider.dart';
 import '../providers/home_widget_providers.dart';
+import '../providers/scrobbler_provider.dart';
 import '../providers/selection_providers.dart';
 import '../widgets/library/offline_prefetcher.dart';
 import '../widgets/player/listening_recorder.dart';
@@ -219,6 +220,8 @@ class _HomeWidgetBridge extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Wire settings (pitch, skip-silence, ReplayGain, crossfade) to the engine.
     ref.watch(engineBridgeProvider);
+    // Wire Last.fm scrobbling (no-op when disabled or unauthenticated).
+    ref.watch(scrobblerProvider);
     ref.listen(homeWidgetStateProvider, (_, next) {
       ref.read(homeWidgetSyncProvider).push(next);
     });
