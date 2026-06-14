@@ -109,12 +109,6 @@ flutter analyze
 
 ---
 
-## CI / CD
-
-Every push and pull request runs `flutter analyze`, `flutter test`, and a release APK build via GitHub Actions. Pushing a `v*` tag triggers a release build that produces both an APK and an App Bundle, published automatically as a GitHub Release with generated notes.
-
----
-
 ## Contributing
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the setup guide, code standards, and PR workflow.
