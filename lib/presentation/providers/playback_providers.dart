@@ -54,3 +54,13 @@ final speedProvider = StreamProvider<double>((ref) {
 final volumeProvider = StreamProvider<double>((ref) {
   return ref.watch(audioControllerProvider).volumeStream;
 });
+
+/// Current pitch in semitones. 0.0 = original pitch.
+final pitchProvider = StreamProvider<double>((ref) {
+  return ref.watch(audioControllerProvider).pitchStream;
+});
+
+/// Whether skip-silence is active on the engine.
+final skipSilenceStreamProvider = StreamProvider<bool>((ref) {
+  return ref.watch(audioControllerProvider).skipSilenceStream;
+});

@@ -343,5 +343,10 @@
   "topArtists": "Top-Künstler",
   "topAlbums": "Top-Alben",
   "playsCount": "{count, plural, =1{1 Wiedergabe} other{{count} Wiedergaben}}",
-  "forgottenGems": "Vergessene Schätze"
+  "forgottenGems": "Vergessene Schätze",
+  "speedAndPitch": "Tempo & Tonhöhe",
+  "pitchControl": "Tonhöhe",
+  "pitchOriginal": "Original",
+  "pitchReset": "Tonhöhe zurücksetzen",
+  "skipSilence": "Stille überspringen"
 }

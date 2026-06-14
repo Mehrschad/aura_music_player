@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:math' show log;
+import 'dart:math' show log, pow;
 
 import 'package:audio_service/audio_service.dart' as bg;
 import 'package:flutter/foundation.dart' show debugPrint;
@@ -54,6 +54,12 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
 
   List<Song> _queue = const [];
   final List<StreamSubscription<dynamic>> _subs = [];
+
+  // Pitch and skip-silence backing fields.
+  double _pitch = 0.0;
+  bool _skipSilence = false;
+  final _pitchController = StreamController<double>.broadcast();
+  final _skipSilenceController = StreamController<bool>.broadcast();
 
   @override
   Stream<PlaybackState> get stateStream async* {
@@ -509,11 +515,46 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
   }
 
   @override
+  Stream<double> get pitchStream async* {
+    yield _pitch;
+    yield* _pitchController.stream;
+  }
+
+  @override
+  double get pitch => _pitch;
+
+  @override
+  Future<void> setPitch(double semitones) async {
+    _pitch = semitones.clamp(-12.0, 12.0);
+    // Convert semitones to a pitch multiplier (12-TET formula).
+    await _player.setPitch(pow(2, _pitch / 12).toDouble());
+    if (!_pitchController.isClosed) _pitchController.add(_pitch);
+  }
+
+  @override
+  Stream<bool> get skipSilenceStream async* {
+    yield _skipSilence;
+    yield* _skipSilenceController.stream;
+  }
+
+  @override
+  bool get skipSilence => _skipSilence;
+
+  @override
+  Future<void> setSkipSilence(bool enabled) async {
+    _skipSilence = enabled;
+    await _player.setSkipSilenceEnabled(enabled);
+    if (!_skipSilenceController.isClosed) _skipSilenceController.add(_skipSilence);
+  }
+
+  @override
   Future<void> dispose() async {
     for (final s in _subs) {
       await s.cancel();
     }
     await _player.dispose();
     await _stateController.close();
+    await _pitchController.close();
+    await _skipSilenceController.close();
   }
 }

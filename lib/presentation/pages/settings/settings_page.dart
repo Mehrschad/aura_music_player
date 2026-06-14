@@ -174,6 +174,10 @@ class SettingsPage extends ConsumerWidget {
               label: l10n.speedMemory,
               value: s.speedMemory,
               onChanged: n.setSpeedMemory),
+          _SwitchTile(
+              label: l10n.skipSilence,
+              value: s.skipSilence,
+              onChanged: n.setSkipSilence),
           _Chips<InterruptionBehavior>(
             label: l10n.interruption,
             values: InterruptionBehavior.values,

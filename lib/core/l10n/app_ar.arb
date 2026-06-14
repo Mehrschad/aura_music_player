@@ -315,5 +315,10 @@
   "topArtists": "أفضل الفنانين",
   "topAlbums": "أفضل الألبومات",
   "playsCount": "{count, plural, =0{لا تشغيل} =1{تشغيل واحد} =2{تشغيلان} few{{count} تشغيلات} many{{count} تشغيلًا} other{{count} تشغيل}}",
-  "forgottenGems": "جواهر منسية"
+  "forgottenGems": "جواهر منسية",
+  "speedAndPitch": "السرعة والطبقة",
+  "pitchControl": "طبقة الصوت",
+  "pitchOriginal": "أصلي",
+  "pitchReset": "إعادة ضبط الطبقة",
+  "skipSilence": "تخطي الصمت"
 }

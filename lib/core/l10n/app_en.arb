@@ -553,5 +553,15 @@
     "placeholders": { "count": { "type": "int" } }
   },
   "forgottenGems": "Forgotten gems",
-  "@forgottenGems": { "description": "Section: old, rarely-played tracks." }
+  "@forgottenGems": { "description": "Section: old, rarely-played tracks." },
+  "speedAndPitch": "Speed & Pitch",
+  "@speedAndPitch": { "description": "Title of the combined speed and pitch bottom sheet." },
+  "pitchControl": "Pitch",
+  "@pitchControl": { "description": "Label for the pitch slider." },
+  "pitchOriginal": "Original",
+  "@pitchOriginal": { "description": "Pitch label shown when pitch is at 0 semitones." },
+  "pitchReset": "Reset pitch",
+  "@pitchReset": { "description": "Button to reset pitch to 0 semitones." },
+  "skipSilence": "Skip silence",
+  "@skipSilence": { "description": "Settings toggle to auto-skip silent sections during playback." }
 }

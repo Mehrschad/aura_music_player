@@ -60,6 +60,8 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
       _update(state.copyWith(replayGain: v));
   void setGapless(bool v) => _update(state.copyWith(gapless: v));
   void setSpeedMemory(bool v) => _update(state.copyWith(speedMemory: v));
+  void setSkipSilence(bool v) => _update(state.copyWith(skipSilence: v));
+  void setPitchSemitones(double v) => _update(state.copyWith(pitchSemitones: v));
   void setInterruption(InterruptionBehavior v) =>
       _update(state.copyWith(interruption: v));
 

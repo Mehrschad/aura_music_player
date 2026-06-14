@@ -315,5 +315,10 @@
   "topArtists": "برترین هنرمندان",
   "topAlbums": "برترین آلبوم‌ها",
   "playsCount": "{count, plural, other{{count} پخش}}",
-  "forgottenGems": "گوهرهای فراموش‌شده"
+  "forgottenGems": "گوهرهای فراموش‌شده",
+  "speedAndPitch": "سرعت و زیر و بم",
+  "pitchControl": "زیر و بم",
+  "pitchOriginal": "اصلی",
+  "pitchReset": "بازنشانی زیر و بم",
+  "skipSilence": "حذف سکوت"
 }

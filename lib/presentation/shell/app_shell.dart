@@ -7,6 +7,7 @@ import '../pages/artists/artists_page.dart';
 import '../pages/library/library_page.dart';
 import '../pages/playlists/playlists_page.dart';
 import '../pages/search/search_page.dart';
+import '../providers/engine_bridge_provider.dart';
 import '../providers/home_widget_providers.dart';
 import '../providers/selection_providers.dart';
 import '../widgets/library/offline_prefetcher.dart';
@@ -216,6 +217,8 @@ class _HomeWidgetBridge extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Wire settings (pitch, skip-silence, ReplayGain, crossfade) to the engine.
+    ref.watch(engineBridgeProvider);
     ref.listen(homeWidgetStateProvider, (_, next) {
       ref.read(homeWidgetSyncProvider).push(next);
     });

@@ -36,6 +36,7 @@ import '../lyrics/lyrics_page.dart';
 import '../settings/settings_page.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/player/ab_repeat_controls.dart';
+import '../../widgets/player/pitch_speed_sheet.dart';
 import '../../widgets/player/breathing_artwork.dart';
 import '../../widgets/player/play_pause_button.dart';
 import '../../widgets/player/queue_drawer.dart';
@@ -1216,10 +1217,10 @@ class _NowPlayingMenu extends ConsumerWidget {
               ),
               _MenuItem(
                 icon: Icons.speed_rounded,
-                label: l10n.playbackSpeed,
+                label: l10n.speedAndPitch,
                 onTap: () {
                   Navigator.of(context).pop();
-                  showSpeedSheet(context, ref, accent);
+                  showPitchSpeedSheet(context, ref, accent);
                 },
               ),
               _MenuItem(
@@ -1585,57 +1586,6 @@ class _ActiveStatus extends StatelessWidget {
               color: colors.accent, fontWeight: FontWeight.w600)),
     ]);
   }
-}
-
-/// The playback-speed picker — reachable from the overflow menu.
-Future<void> showSpeedSheet(BuildContext context, WidgetRef ref, Color accent) {
-  const presets = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
-  return showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: Colors.transparent,
-    builder: (sheetCtx) {
-      final colors = sheetCtx.colors;
-      final l10n = AppLocalizations.of(sheetCtx);
-      return Consumer(builder: (consumerCtx, sheetRef, _) {
-        final current = sheetRef.watch(speedProvider).valueOrNull ?? 1.0;
-        final ctrl = sheetRef.read(audioControllerProvider);
-        return SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.all(SpacingTokens.md),
-            child: GlassSurface(
-              borderRadius: RadiusTokens.brLg,
-              intensity: GlassIntensity.strong,
-              padding: const EdgeInsets.all(SpacingTokens.lg),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(l10n.playbackSpeed,
-                      style:
-                          AppTextTheme.title.copyWith(color: colors.onSurface)),
-                  const SizedBox(height: SpacingTokens.md),
-                  Wrap(
-                    spacing: SpacingTokens.sm,
-                    runSpacing: SpacingTokens.sm,
-                    children: [
-                      for (final p in presets)
-                        _TimerChip(
-                          label: '${p % 1 == 0 ? p.toInt() : p}×',
-                          selected: (current - p).abs() < 0.001,
-                          accent: accent,
-                          onTap: () => ctrl.setSpeed(p),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      });
-    },
-  );
 }
 
 class _TimerChip extends StatelessWidget {
