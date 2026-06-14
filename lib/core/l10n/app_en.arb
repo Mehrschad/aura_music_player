@@ -432,5 +432,58 @@
   "bookmarkDeleted": "Bookmark removed",
   "@bookmarkDeleted": {
     "description": "Snackbar shown after a bookmark is removed."
+  },
+  "queues": "Queues",
+  "@queues": {
+    "description": "Title of the multi-queue drawer."
+  },
+  "saveQueueAs": "Save queue as…",
+  "@saveQueueAs": {
+    "description": "Action to save the current play queue as a named queue."
+  },
+  "queueNameHint": "Queue name",
+  "@queueNameHint": {
+    "description": "Hint text for the queue name field."
+  },
+  "sendToNewQueue": "Send to new queue…",
+  "@sendToNewQueue": {
+    "description": "Bulk action to create a new queue from a selection."
+  },
+  "duplicate": "Duplicate",
+  "@duplicate": {
+    "description": "Action to duplicate a queue."
+  },
+  "queueColor": "Colour",
+  "@queueColor": {
+    "description": "Label for the queue colour picker."
+  },
+  "treatAsAudiobook": "Treat as audiobook",
+  "@treatAsAudiobook": {
+    "description": "Per-queue toggle enabling resume + speed memory."
+  },
+  "treatAsPodcast": "Treat as podcast",
+  "@treatAsPodcast": {
+    "description": "Per-queue toggle enabling resume + skip-silence default."
+  },
+  "noQueues": "No saved queues",
+  "@noQueues": {
+    "description": "Empty state for the queue drawer."
+  },
+  "queueSaved": "Queue saved",
+  "@queueSaved": {
+    "description": "Snackbar after saving a queue."
+  },
+  "queueLimitReached": "Queue limit reached (20)",
+  "@queueLimitReached": {
+    "description": "Snackbar when the 20-queue cap is hit."
+  },
+  "queuePlays": "{count, plural, =0{Never played} =1{1 play} other{{count} plays}}",
+  "@queuePlays": {
+    "description": "Play-count label for a queue.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   }
 }

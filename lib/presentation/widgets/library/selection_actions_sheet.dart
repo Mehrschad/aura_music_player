@@ -15,6 +15,7 @@ import '../../providers/favorites_providers.dart';
 import '../../providers/hidden_songs_providers.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/media_actions_provider.dart';
+import '../../providers/multi_queue_controller.dart';
 import '../../providers/playback_providers.dart';
 import '../../providers/selection_providers.dart';
 import '../glass/glass_surface.dart';
@@ -102,6 +103,21 @@ class _SelectionActionsSheet extends ConsumerWidget {
                   }
                   closeWith(l10n.addedToQueue);
                 }),
+                _action(context, Icons.dynamic_feed_rounded, l10n.sendToNewQueue,
+                    () async {
+                  Navigator.of(context).pop();
+                  final name = await _promptQueueName(context);
+                  if (name != null) {
+                    final created = ref
+                        .read(multiQueueControllerProvider)
+                        .createFrom(name, _ids);
+                    messenger.showSnackBar(SnackBar(
+                        content: Text(created == null
+                            ? l10n.queueLimitReached
+                            : l10n.queueSaved)));
+                  }
+                  _clear(ref);
+                }),
                 _action(context, Icons.playlist_add, l10n.addToPlaylist, () {
                   Navigator.of(context).pop();
                   showAddSongsToPlaylist(context, _ids);
@@ -188,6 +204,40 @@ class _SelectionActionsSheet extends ConsumerWidget {
     messenger.showSnackBar(SnackBar(
       content: Text(deleted > 0 ? l10n.songsDeleted(deleted) : l10n.deleteFailed),
     ));
+  }
+
+  Future<String?> _promptQueueName(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final ctrl = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final colors = ctx.colors;
+        return AlertDialog(
+          backgroundColor: colors.surface,
+          title: Text(l10n.sendToNewQueue,
+              style: AppTextTheme.title.copyWith(color: colors.onSurface)),
+          content: TextField(
+            controller: ctrl,
+            autofocus: true,
+            decoration: InputDecoration(hintText: l10n.queueNameHint),
+            onSubmitted: (v) => Navigator.of(ctx).pop(v.trim()),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: Text(l10n.cancel)),
+            TextButton(
+              onPressed: () {
+                final v = ctrl.text.trim();
+                Navigator.of(ctx).pop(v.isEmpty ? null : v);
+              },
+              child: Text(l10n.save),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Widget _action(

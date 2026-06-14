@@ -37,6 +37,7 @@ import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/player/ab_repeat_controls.dart';
 import '../../widgets/player/breathing_artwork.dart';
 import '../../widgets/player/play_pause_button.dart';
+import '../../widgets/player/queue_drawer.dart';
 import '../../widgets/player/queue_sheet.dart';
 import '../../widgets/player/sleep_timer_chip.dart';
 import '../../widgets/waveform/waveform_scrubber.dart';
@@ -364,6 +365,12 @@ class _TopBar extends StatelessWidget {
                 onTap: () => Navigator.of(context).maybePop(),
               ),
               const Spacer(),
+              _PressIcon(
+                icon: Icons.dynamic_feed_rounded,
+                tooltip: l10n.queues,
+                color: colors.onSurfaceMuted,
+                onTap: () => showQueueDrawer(context),
+              ),
               _PressIcon(
                 icon: Icons.queue_music_rounded,
                 tooltip: l10n.queueTitle,

@@ -6,6 +6,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+### Added — Multi-queue support (step 18)
+- **Up to 20 named queues**, each keeping its own track list, cursor, shuffle/
+  repeat, colour (1 of 12 tokens), and audiobook/podcast kind. Persisted across
+  launches via SharedPreferences.
+- **One live queue** drives the engine; the rest are editable in the background.
+  Switching snapshots the outgoing queue's position and resumes the target from
+  exactly where it was left.
+- **Queue drawer** on Now Playing: 4-album mosaic thumbnails, play count, track
+  count; tap to switch, drag to reorder, overflow to rename / recolour /
+  duplicate / set kind / delete.
+- **Create queues** from "Save queue as…" (current play queue) or "Send to new
+  queue…" (any multi-selection).
+
 ### Added — Sleep timer, A-B repeat & bookmarks (step 17)
 - **Sleep timer, reimagined**: timed presets (5/10/15/30/45/60/90/120 min),
   plus "End of track" and "After N tracks" modes. A configurable fade-out

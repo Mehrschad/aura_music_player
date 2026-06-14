@@ -267,5 +267,17 @@
   "bookmarkAdded": "نشانک افزوده شد",
   "bookmarkLabelHint": "عنوان (اختیاری)",
   "noBookmarks": "نشانکی وجود ندارد",
-  "bookmarkDeleted": "نشانک حذف شد"
+  "bookmarkDeleted": "نشانک حذف شد",
+  "queues": "صف‌ها",
+  "saveQueueAs": "ذخیره صف به نام…",
+  "queueNameHint": "نام صف",
+  "sendToNewQueue": "ارسال به صف جدید…",
+  "duplicate": "تکثیر",
+  "queueColor": "رنگ",
+  "treatAsAudiobook": "به‌عنوان کتاب صوتی",
+  "treatAsPodcast": "به‌عنوان پادکست",
+  "noQueues": "صف ذخیره‌شده‌ای نیست",
+  "queueSaved": "صف ذخیره شد",
+  "queueLimitReached": "به سقف صف‌ها رسیدید (۲۰)",
+  "queuePlays": "{count, plural, =0{پخش‌نشده} other{{count} پخش}}"
 }

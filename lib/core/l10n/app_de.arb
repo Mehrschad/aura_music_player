@@ -295,5 +295,17 @@
   "bookmarkAdded": "Lesezeichen hinzugefügt",
   "bookmarkLabelHint": "Bezeichnung (optional)",
   "noBookmarks": "Keine Lesezeichen",
-  "bookmarkDeleted": "Lesezeichen entfernt"
+  "bookmarkDeleted": "Lesezeichen entfernt",
+  "queues": "Warteschlangen",
+  "saveQueueAs": "Warteschlange speichern als…",
+  "queueNameHint": "Name der Warteschlange",
+  "sendToNewQueue": "An neue Warteschlange senden…",
+  "duplicate": "Duplizieren",
+  "queueColor": "Farbe",
+  "treatAsAudiobook": "Als Hörbuch behandeln",
+  "treatAsPodcast": "Als Podcast behandeln",
+  "noQueues": "Keine gespeicherten Warteschlangen",
+  "queueSaved": "Warteschlange gespeichert",
+  "queueLimitReached": "Limit erreicht (20)",
+  "queuePlays": "{count, plural, =0{Nie gespielt} =1{1 Wiedergabe} other{{count} Wiedergaben}}"
 }

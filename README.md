@@ -345,6 +345,25 @@ The waveform scrubber (`CustomPainter`) replaces the slider in step 5.
   (`shouldLoop`, song-change reset), and bookmark add/dedup/remove/sort plus
   JSON round-trip.
 
+## What step 18 delivers
+
+- **Multi-queue (Musicolet-style)** — up to 20 named queues, each an immutable
+  `NamedQueue` (id, name, songIds, cursor, shuffle/repeat, position, colour,
+  kind, play count). `QueueRegistry` (`StateNotifier`) does CRUD with a hard
+  20-cap and best-effort SharedPreferences persistence.
+- **Live switching** — `MultiQueueController` snapshots the outgoing queue's
+  cursor/position back into the registry, resolves the target's song ids against
+  the library, and restores it at its remembered position. Reads the engine's
+  synchronous `state`/`position` so it's correct even before the first stream
+  emit.
+- **Queue drawer** — a glass bottom sheet with 4-album mosaic thumbnails, play
+  counts, tap-to-switch, drag-to-reorder, and per-queue rename / recolour (12
+  tokens) / duplicate / audiobook–podcast kind / delete.
+- **Entry points** — "Save queue as…" in the drawer, "Send to new queue…" in
+  the bulk-selection sheet, and a drawer button in the Now Playing top bar.
+- **Tested** — registry CRUD, snapshot/position preservation, the 20-cap, JSON
+  round-trip, and an end-to-end queue-swap test through the fake engine.
+
 ## Running it
 
 Requires Flutter 3.24+ / Dart 3.5+.
