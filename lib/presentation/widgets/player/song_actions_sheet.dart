@@ -12,8 +12,10 @@ import '../../pages/playlists/playlist_dialogs.dart';
 import '../../pages/tag_editor/tag_editor_page.dart';
 import '../../providers/playback_providers.dart';
 import '../../providers/playlist_providers.dart';
+import '../../providers/song_ratings_provider.dart';
 import '../artwork/aura_artwork.dart';
 import '../glass/glass_surface.dart';
+import '../library/star_rating.dart';
 
 /// The per-song overflow menu: play next, add to queue, add to playlist.
 Future<void> showSongActions(BuildContext context, Song song) {
@@ -63,6 +65,24 @@ class _SongActionsSheet extends ConsumerWidget {
                     overflow: TextOverflow.ellipsis,
                     style: AppTextTheme.caption
                         .copyWith(color: colors.onSurfaceMuted)),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(SpacingTokens.lg, 0,
+                    SpacingTokens.lg, SpacingTokens.sm),
+                child: Row(
+                  children: [
+                    Text(l10n.rateSong,
+                        style: AppTextTheme.caption
+                            .copyWith(color: colors.onSurfaceMuted)),
+                    const Spacer(),
+                    StarRating(
+                      rating: ref.watch(songRatingProvider(song.id)) ?? 0,
+                      onRate: (r) => ref
+                          .read(songRatingsProvider.notifier)
+                          .setRating(song.id, r),
+                    ),
+                  ],
+                ),
               ),
               Divider(color: colors.divider, height: 1),
               _action(context, Icons.queue_play_next, l10n.playNext, () {

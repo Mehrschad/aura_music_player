@@ -19,6 +19,7 @@ String fieldLabel(RuleField f, AppLocalizations l) => switch (f) {
       RuleField.year => l.fieldYear,
       RuleField.duration => l.fieldDuration,
       RuleField.playCount => l.fieldPlayCount,
+      RuleField.rating => l.fieldRating,
       RuleField.lastPlayed => l.fieldLastPlayed,
       RuleField.dateAdded => l.fieldDateAdded,
       RuleField.bitrate => l.fieldBitrate,

@@ -6,6 +6,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+### Added — Ratings, play count & listening stats (step 20)
+- **Star ratings** (1–5): inline in the song menu, in the Now Playing overflow,
+  and as a bulk selection action. Persisted and merged onto the library like tag
+  edits; smart playlists gain a `rating` rule field.
+- **Listening history**: an invisible recorder turns playback into play/skip
+  events (a "play" at ≥50% or ≥30 s heard), rotated and persisted.
+- **Listening Stats screen** (Settings → Listening stats): period toggle
+  (today/week/month/year/all-time), overview cards, a consecutive-day streak,
+  a 365-day activity heatmap, a time-of-day chart, top songs/artists/albums,
+  and "forgotten gems" (old, rarely-played tracks).
+
 ### Added — Folder browsing & file operations (step 19)
 - **Folder browser** (Library → folder icon): hierarchical navigation with a
   tappable breadcrumb, per-folder track count + duration, album-art thumbnails,

@@ -117,6 +117,7 @@ String? _textValue(RuleField f, Song s) => switch (f) {
 int? _intValue(RuleField f, Song s) => switch (f) {
       RuleField.year => s.year,
       RuleField.playCount => s.playCount,
+      RuleField.rating => s.rating,
       RuleField.bitrate => s.bitrate,
       _ => null,
     };

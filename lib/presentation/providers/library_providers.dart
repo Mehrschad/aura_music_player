@@ -13,6 +13,7 @@ import '../../domain/models/song.dart';
 import '../../domain/repositories/library_repository.dart';
 import 'hidden_songs_providers.dart';
 import 'settings_providers.dart';
+import 'song_ratings_provider.dart';
 
 /// The active library data source — backed by the device media store.
 /// Rebuilt whenever [sourceFolders] changes so the scan is always in sync
@@ -64,15 +65,17 @@ final tagWriterProvider = Provider<TagWriter>((ref) => const NoopTagWriter());
 final effectiveSongsProvider = Provider<AsyncValue<List<Song>>>((ref) {
   final overrides = ref.watch(tagOverridesProvider);
   final hidden = ref.watch(hiddenSongsProvider);
+  final ratings = ref.watch(songRatingsProvider);
   final excluded = ref.watch(settingsProvider.select((s) => s.excludedFolders));
   final hideDot = ref.watch(settingsProvider.select((s) => s.hideDotFolders));
   final minSecs = ref.watch(settingsProvider.select((s) => s.minTrackSeconds));
   return ref.watch(songsProvider).whenData((list) {
-    final base = (overrides.isEmpty && hidden.isEmpty)
+    final base = (overrides.isEmpty && hidden.isEmpty && ratings.isEmpty)
         ? list
         : [
             for (final s in list)
-              if (!hidden.contains(s.id)) overrides[s.id] ?? s,
+              if (!hidden.contains(s.id))
+                _withRating(overrides[s.id] ?? s, ratings),
           ];
     return FolderLogic.filter(
       base,
@@ -82,6 +85,14 @@ final effectiveSongsProvider = Provider<AsyncValue<List<Song>>>((ref) {
     );
   });
 });
+
+/// Applies a user rating to [song] when one exists, leaving the scan value
+/// otherwise. Keeps the rating merge identical to the tag-overrides pattern.
+Song _withRating(Song song, Map<String, int> ratings) {
+  final r = ratings[song.id];
+  if (r == null || r == song.rating) return song;
+  return song.copyWith(rating: r);
+}
 
 // ── Per-section UI state ───────────────────────────────────────────────────
 

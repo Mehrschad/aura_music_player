@@ -516,5 +516,42 @@
   "@filesRenamed": {
     "description": "Snackbar after bulk rename.",
     "placeholders": { "count": { "type": "int" } }
-  }
+  },
+  "rateSong": "Rate",
+  "@rateSong": { "description": "Star-rating action label." },
+  "fieldRating": "Rating",
+  "@fieldRating": { "description": "Smart-playlist rule field: star rating." },
+  "listeningStats": "Listening stats",
+  "@listeningStats": { "description": "Title of the statistics screen." },
+  "noStatsYet": "No listening yet",
+  "@noStatsYet": { "description": "Empty state for the stats screen." },
+  "periodToday": "Today",
+  "periodWeek": "Week",
+  "periodMonth": "Month",
+  "periodYear": "Year",
+  "periodAllTime": "All time",
+  "statPlays": "Plays",
+  "statListening": "Listening",
+  "statTracks": "Tracks",
+  "statArtists": "Artists",
+  "statAlbums": "Albums",
+  "streakDays": "{count, plural, =0{No streak} =1{1 day streak} other{{count} day streak}}",
+  "@streakDays": {
+    "description": "Consecutive-days listening streak.",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "listeningHeatmap": "Activity",
+  "@listeningHeatmap": { "description": "Heatmap section heading." },
+  "timeOfDay": "Time of day",
+  "@timeOfDay": { "description": "Hour-of-day chart heading." },
+  "topSongs": "Top songs",
+  "topArtists": "Top artists",
+  "topAlbums": "Top albums",
+  "playsCount": "{count, plural, =1{1 play} other{{count} plays}}",
+  "@playsCount": {
+    "description": "Play-count suffix in top lists.",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "forgottenGems": "Forgotten gems",
+  "@forgottenGems": { "description": "Section: old, rarely-played tracks." }
 }

@@ -17,6 +17,7 @@ import '../../providers/library_providers.dart';
 import '../../providers/lyrics_providers.dart';
 import '../../providers/settings_providers.dart';
 import '../equalizer/equalizer_page.dart';
+import '../statistics/statistics_page.dart';
 import 'widget_preview_page.dart';
 
 Future<void> openSettings(BuildContext context) {
@@ -191,6 +192,14 @@ class SettingsPage extends ConsumerWidget {
             label: l10n.manageEqualizer,
             icon: Icons.graphic_eq,
             onTap: () => openEqualizer(context),
+          ),
+
+          // ── Listening stats ──
+          _Header(l10n.listeningStats),
+          _NavTile(
+            label: l10n.listeningStats,
+            icon: Icons.bar_chart_rounded,
+            onTap: () => openStatistics(context),
           ),
 
           // ── Lyrics ──

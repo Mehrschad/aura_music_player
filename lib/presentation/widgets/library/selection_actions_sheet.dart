@@ -21,7 +21,9 @@ import '../../providers/media_actions_provider.dart';
 import '../../providers/multi_queue_controller.dart';
 import '../../providers/playback_providers.dart';
 import '../../providers/selection_providers.dart';
+import '../../providers/song_ratings_provider.dart';
 import '../glass/glass_surface.dart';
+import 'star_rating.dart';
 import '../player/song_actions_sheet.dart';
 
 /// The bulk-actions sheet for a multi-selection: play, queue, playlist,
@@ -141,6 +143,15 @@ class _SelectionActionsSheet extends ConsumerWidget {
                   openTagEditor(context, songs);
                   _clear(ref);
                 }),
+                _action(context, Icons.star_outline_rounded, l10n.rateSong,
+                    () async {
+                  Navigator.of(context).pop();
+                  final r = await _pickRating(context);
+                  if (r != null) {
+                    ref.read(songRatingsProvider.notifier).setAll(_ids, r);
+                  }
+                  _clear(ref);
+                }),
                 _action(context, Icons.drive_file_rename_outline,
                     l10n.bulkRename, () {
                   Navigator.of(context).pop();
@@ -222,6 +233,32 @@ class _SelectionActionsSheet extends ConsumerWidget {
     return showDialog<void>(
       context: context,
       builder: (ctx) => _BulkRenameDialog(songs: songs),
+    );
+  }
+
+  /// A compact 1–5 star picker dialog for bulk rating.
+  Future<int?> _pickRating(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return showDialog<int>(
+      context: context,
+      builder: (ctx) {
+        final colors = ctx.colors;
+        return AlertDialog(
+          backgroundColor: colors.surface,
+          title: Text(l10n.rateSong,
+              style: AppTextTheme.title.copyWith(color: colors.onSurface)),
+          content: StarRating(
+            rating: 0,
+            size: 34,
+            onRate: (r) => Navigator.of(ctx).pop(r),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: Text(l10n.cancel)),
+          ],
+        );
+      },
     );
   }
 

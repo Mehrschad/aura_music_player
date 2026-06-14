@@ -383,6 +383,22 @@ The waveform scrubber (`CustomPainter`) replaces the slider in step 5.
   grouping/browse across mixed internal + SD paths, and the rename renderer
   (padding, sanitising, empty-segment collapse, album-artist fallback).
 
+## What step 20 delivers
+
+- **Ratings** — a `rating` field on `Song` merged from `songRatingsProvider`
+  (persisted, same seam as tag overrides), a reusable `StarRating` widget wired
+  into the song menu / Now Playing / bulk selection, and a `rating` smart-playlist
+  rule field.
+- **Listening history** — `ListeningRecorder` (mounted in the shell) converts
+  playback into `PlayEvent`s, counting a play at ≥50% or ≥30 s; the rotated log
+  is persisted via `playHistoryProvider`.
+- **Stats** — pure `StatsLogic` (period filtering, overview, top
+  songs/artists/albums/genres, 365-day heatmap, time-of-day & day-of-week
+  buckets, consecutive-day streak, forgotten gems) behind a `StatisticsPage`
+  with a period toggle, heatmap + bar-chart `CustomPainter`s, and top lists.
+- **Tested** — `stats_logic_test` covers aggregation, period filters, heatmap
+  shape, top lists, streaks, and forgotten gems on a seeded history.
+
 ## Running it
 
 Requires Flutter 3.24+ / Dart 3.5+.

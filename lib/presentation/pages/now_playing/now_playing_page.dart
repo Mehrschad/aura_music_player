@@ -28,6 +28,7 @@ import '../../providers/media_actions_provider.dart';
 import '../../providers/playback_providers.dart';
 import '../../providers/settings_providers.dart';
 import '../../providers/sleep_timer_provider.dart';
+import '../../providers/song_ratings_provider.dart';
 import '../albums/album_detail_page.dart';
 import '../artists/artist_detail_page.dart';
 import '../equalizer/equalizer_page.dart';
@@ -40,6 +41,7 @@ import '../../widgets/player/play_pause_button.dart';
 import '../../widgets/player/queue_drawer.dart';
 import '../../widgets/player/queue_sheet.dart';
 import '../../widgets/player/sleep_timer_chip.dart';
+import '../../widgets/library/star_rating.dart';
 import '../../widgets/waveform/waveform_scrubber.dart';
 
 class NowPlayingPage extends ConsumerStatefulWidget {
@@ -1189,6 +1191,14 @@ class _NowPlayingMenu extends ConsumerWidget {
                 },
               ),
               _MenuItem(
+                icon: Icons.star_outline_rounded,
+                label: l10n.rateSong,
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _showRatingDialog(context, ref, song.id);
+                },
+              ),
+              _MenuItem(
                 icon: Icons.bookmark_outline_rounded,
                 label: l10n.bookmarks,
                 onTap: () {
@@ -1675,6 +1685,37 @@ class _TimerChip extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A small star-rating dialog bound to [songRatingsProvider].
+Future<void> _showRatingDialog(
+    BuildContext context, WidgetRef ref, String songId) {
+  final l10n = AppLocalizations.of(context);
+  return showDialog<void>(
+    context: context,
+    builder: (ctx) {
+      final colors = ctx.colors;
+      return AlertDialog(
+        backgroundColor: colors.surface,
+        title: Text(l10n.rateSong,
+            style: AppTextTheme.title.copyWith(color: colors.onSurface)),
+        content: Consumer(builder: (c, r, _) {
+          return StarRating(
+            rating: r.watch(songRatingProvider(songId)) ?? 0,
+            size: 34,
+            onRate: (v) =>
+                r.read(songRatingsProvider.notifier).setRating(songId, v),
+          );
+        }),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(l10n.save),
+          ),
+        ],
+      );
+    },
+  );
 }
 
 // ── Bookmarks sheet ──────────────────────────────────────────────────────────

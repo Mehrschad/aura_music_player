@@ -32,6 +32,7 @@ class Song {
     this.compilation = false,
     this.playCount = 0,
     this.lastPlayed,
+    this.rating,
     this.hasLyrics = false,
     this.hasArtwork = false,
   });
@@ -69,6 +70,9 @@ class Song {
   final int playCount;
   final DateTime? lastPlayed;
 
+  /// User star rating, 0–5, or null when unrated.
+  final int? rating;
+
   final bool hasLyrics;
   final bool hasArtwork;
 
@@ -93,6 +97,7 @@ class Song {
     bool? compilation,
     int? playCount,
     DateTime? lastPlayed,
+    int? rating,
     bool? hasLyrics,
     bool? hasArtwork,
   }) {
@@ -118,6 +123,7 @@ class Song {
       compilation: compilation ?? this.compilation,
       playCount: playCount ?? this.playCount,
       lastPlayed: lastPlayed ?? this.lastPlayed,
+      rating: rating ?? this.rating,
       hasLyrics: hasLyrics ?? this.hasLyrics,
       hasArtwork: hasArtwork ?? this.hasArtwork,
     );

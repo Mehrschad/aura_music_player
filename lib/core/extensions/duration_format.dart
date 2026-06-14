@@ -14,4 +14,19 @@ extension DurationFormat on Duration {
     }
     return '$minutes:$ss';
   }
+
+  /// Compact human form for totals: `45s`, `12m`, `3h`, `3h 20m`, `2d 4h`.
+  String get humanized {
+    final totalMinutes = inMinutes;
+    if (totalMinutes < 1) return '${inSeconds}s';
+    if (totalMinutes < 60) return '${totalMinutes}m';
+    final hours = totalMinutes ~/ 60;
+    if (hours < 24) {
+      final m = totalMinutes % 60;
+      return m == 0 ? '${hours}h' : '${hours}h ${m}m';
+    }
+    final days = hours ~/ 24;
+    final h = hours % 24;
+    return h == 0 ? '${days}d' : '${days}d ${h}h';
+  }
 }
