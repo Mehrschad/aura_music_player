@@ -252,5 +252,20 @@
   "songsHidden": "{count, plural, other{{count} آهنگ پنهان شد}}",
   "deleteSelectedTitle": "{count, plural, other{{count} آهنگ حذف شود؟}}",
   "deleteSelectedBody": "این کار فایل‌های انتخاب‌شده را برای همیشه از دستگاه شما حذف می‌کند.",
-  "songsDeleted": "{count, plural, other{{count} آهنگ حذف شد}}"
+  "songsDeleted": "{count, plural, other{{count} آهنگ حذف شد}}",
+  "sleepEndOfTrack": "پایان آهنگ",
+  "sleepAfterNTracks": "بعد از {n} آهنگ",
+  "sleepTracksLeft": "{n} آهنگ باقی‌مانده",
+  "sleepExtend": "+۵ دقیقه",
+  "sleepFadeOut": "محو تدریجی",
+  "abRepeat": "تکرار A-B",
+  "abSetA": "تنظیم A",
+  "abSetB": "تنظیم B",
+  "abClear": "پاک کردن",
+  "bookmarks": "نشانک‌ها",
+  "addBookmark": "افزودن نشانک",
+  "bookmarkAdded": "نشانک افزوده شد",
+  "bookmarkLabelHint": "عنوان (اختیاری)",
+  "noBookmarks": "نشانکی وجود ندارد",
+  "bookmarkDeleted": "نشانک حذف شد"
 }

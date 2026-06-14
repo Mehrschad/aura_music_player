@@ -15,9 +15,12 @@ import '../../../core/theme/typography.dart';
 import '../../../core/utils/seed_color.dart';
 import '../../../domain/models/album.dart';
 import '../../../domain/models/artist.dart';
+import '../../../domain/models/bookmark.dart';
 import '../../../domain/models/lyrics.dart';
 import '../../../domain/models/playback.dart';
 import '../../../domain/models/song.dart';
+import '../../providers/ab_repeat_provider.dart';
+import '../../providers/bookmarks_provider.dart';
 import '../../providers/favorites_providers.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/lyrics_providers.dart';
@@ -31,9 +34,11 @@ import '../equalizer/equalizer_page.dart';
 import '../lyrics/lyrics_page.dart';
 import '../settings/settings_page.dart';
 import '../../widgets/glass/glass_surface.dart';
+import '../../widgets/player/ab_repeat_controls.dart';
 import '../../widgets/player/breathing_artwork.dart';
 import '../../widgets/player/play_pause_button.dart';
 import '../../widgets/player/queue_sheet.dart';
+import '../../widgets/player/sleep_timer_chip.dart';
 import '../../widgets/waveform/waveform_scrubber.dart';
 
 class NowPlayingPage extends ConsumerStatefulWidget {
@@ -71,6 +76,18 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
       final nextIdx = next.valueOrNull?.currentIndex;
       if (prevIdx != null && nextIdx != null && prevIdx != nextIdx) {
         _artSlideDir = nextIdx > prevIdx ? 1 : -1;
+      }
+    });
+
+    // A-B repeat loop enforcement: seek back to A whenever position passes B.
+    ref.listen(positionProvider, (_, next) {
+      final pos = next.valueOrNull;
+      if (pos == null) return;
+      final ab = ref.read(abRepeatProvider);
+      final currentSong = ref.read(currentSongProvider);
+      if (currentSong != null &&
+          ref.read(abRepeatProvider.notifier).shouldLoop(currentSong.id, pos)) {
+        ref.read(audioControllerProvider).seek(ab.pointA!);
       }
     });
 
@@ -154,11 +171,19 @@ class _PortraitBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final bookmarkFracs = ref.watch(songBookmarksProvider(song.id)).map((b) {
+      final total = song.duration.inMilliseconds;
+      return total > 0 ? b.positionMs / total : 0.0;
+    }).where((f) => f > 0 && f < 1).toList();
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.xl),
       child: Column(
         children: [
           _TopBar(song: song, accent: accent),
+
+          // ── Sleep timer countdown chip ───────────────────────────────────
+          SleepTimerChip(accent: accent),
 
           // ── Artwork: flexible — takes whatever height is left so the page
           // never overflows on short screens. Capped at 76% of width.
@@ -193,12 +218,18 @@ class _PortraitBody extends ConsumerWidget {
           _TrackInfoRow(song: song, accent: accent),
           const SizedBox(height: SpacingTokens.xs),
 
-          // ── Scrubber (full-width) ───────────────────────────────────────
+          // ── Scrubber (full-width) — long-press to add bookmark ──────────
           WaveformScrubber(
             duration: song.duration,
             accent: accent,
             seed: song.artworkSeed,
+            bookmarkFractions: bookmarkFracs,
+            onLongPress: (position) =>
+                _showAddBookmarkDialog(context, ref, song, position),
           ),
+
+          // ── A-B repeat controls ─────────────────────────────────────────
+          ABRepeatControls(accent: accent, song: song),
 
           // ── Transport: shuffle · prev · play/pause · next · repeat ──────
           _TransportRow(state: state, accent: accent),
@@ -227,6 +258,10 @@ class _LandscapeBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final size = MediaQuery.sizeOf(context);
+    final bookmarkFracs = ref.watch(songBookmarksProvider(song.id)).map((b) {
+      final total = song.duration.inMilliseconds;
+      return total > 0 ? b.positionMs / total : 0.0;
+    }).where((f) => f > 0 && f < 1).toList();
 
     return Row(
       children: [
@@ -262,6 +297,7 @@ class _LandscapeBody extends ConsumerWidget {
               return Column(
                 children: [
                   _TopBar(song: song, accent: accent),
+                  SleepTimerChip(accent: accent),
                   const Spacer(),
                   if (showCarousel) ...[
                     _Lyrics3LineCarousel(
@@ -276,8 +312,11 @@ class _LandscapeBody extends ConsumerWidget {
                     duration: song.duration,
                     accent: accent,
                     seed: song.artworkSeed,
+                    bookmarkFractions: bookmarkFracs,
+                    onLongPress: (position) =>
+                        _showAddBookmarkDialog(context, ref, song, position),
                   ),
-                  const SizedBox(height: SpacingTokens.xs),
+                  ABRepeatControls(accent: accent, song: song),
                   _TransportRow(state: state, accent: accent),
                   const Spacer(),
                   const SizedBox(height: SpacingTokens.sm),
@@ -1143,6 +1182,14 @@ class _NowPlayingMenu extends ConsumerWidget {
                 },
               ),
               _MenuItem(
+                icon: Icons.bookmark_outline_rounded,
+                label: l10n.bookmarks,
+                onTap: () {
+                  Navigator.of(context).pop();
+                  showBookmarksSheet(context, ref, song);
+                },
+              ),
+              _MenuItem(
                 icon: Icons.bedtime_outlined,
                 label: l10n.sleepTimer,
                 onTap: () {
@@ -1327,69 +1374,200 @@ Future<void> confirmAndDeleteSong(
 }
 
 /// The sleep-timer picker — reachable from the overflow menu.
+/// Supports timed presets, end-of-track, end-of-N-tracks, and fade-out config.
 Future<void> showSleepTimerSheet(BuildContext context, WidgetRef ref) {
-  final active = ref.read(sleepTimerProvider);
-  final timerNotifier = ref.read(sleepTimerProvider.notifier);
-
   return showModalBottomSheet<void>(
     context: context,
     backgroundColor: Colors.transparent,
-    builder: (sheetCtx) {
-      final colors = sheetCtx.colors;
-      final l10n = AppLocalizations.of(sheetCtx);
-      const options = [
-        Duration(minutes: 15),
-        Duration(minutes: 30),
-        Duration(minutes: 45),
-        Duration(minutes: 60),
-        Duration(minutes: 90),
-      ];
-      return SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.all(SpacingTokens.md),
-          child: GlassSurface(
-            borderRadius: RadiusTokens.brLg,
-            intensity: GlassIntensity.strong,
-            padding: const EdgeInsets.all(SpacingTokens.lg),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+    isScrollControlled: true,
+    builder: (_) => const _SleepTimerSheet(),
+  );
+}
+
+class _SleepTimerSheet extends ConsumerStatefulWidget {
+  const _SleepTimerSheet();
+  @override
+  ConsumerState<_SleepTimerSheet> createState() => _SleepTimerSheetState();
+}
+
+class _SleepTimerSheetState extends ConsumerState<_SleepTimerSheet> {
+  int _fadeSecs = 10;
+
+  static const _minutePresets = [5, 10, 15, 30, 45, 60, 90, 120];
+  static const _trackPresets = [1, 2, 3, 5, 10];
+
+  @override
+  Widget build(BuildContext context) {
+    final mode = ref.watch(sleepTimerProvider);
+    final notifier = ref.read(sleepTimerProvider.notifier);
+    final colors = context.colors;
+    final l10n = AppLocalizations.of(context);
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          SpacingTokens.md,
+          SpacingTokens.md,
+          SpacingTokens.md,
+          SpacingTokens.md + MediaQuery.viewInsetsOf(context).bottom,
+        ),
+        child: GlassSurface(
+          borderRadius: RadiusTokens.brLg,
+          intensity: GlassIntensity.strong,
+          padding: const EdgeInsets.all(SpacingTokens.lg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(children: [
+                Icon(Icons.bedtime_outlined,
+                    size: 18, color: colors.onSurfaceMuted),
+                const SizedBox(width: SpacingTokens.xs),
                 Text(l10n.sleepTimer,
                     style:
                         AppTextTheme.title.copyWith(color: colors.onSurface)),
-                const SizedBox(height: SpacingTokens.md),
-                Wrap(
-                  spacing: SpacingTokens.sm,
-                  runSpacing: SpacingTokens.sm,
-                  children: [
-                    for (final opt in options)
-                      _TimerChip(
-                        label: '${opt.inMinutes} min',
+              ]),
+              const SizedBox(height: SpacingTokens.md),
+
+              // Active-timer status + extend/cancel
+              if (mode.isActive) ...[
+                _ActiveStatus(mode: mode),
+                const SizedBox(height: SpacingTokens.sm),
+                Row(children: [
+                  if (mode is SleepTimerCountdown) ...[
+                    Expanded(
+                      child: _TimerChip(
+                        label: l10n.sleepExtend,
                         onTap: () {
-                          timerNotifier.start(opt);
-                          Navigator.pop(sheetCtx);
+                          notifier.extend();
+                          Navigator.pop(context);
                         },
                       ),
-                    if (active != null)
-                      _TimerChip(
-                        label: l10n.cancel,
-                        isCancel: true,
-                        onTap: () {
-                          timerNotifier.cancel();
-                          Navigator.pop(sheetCtx);
-                        },
-                      ),
+                    ),
+                    const SizedBox(width: SpacingTokens.xs),
                   ],
-                ),
+                  Expanded(
+                    child: _TimerChip(
+                      label: l10n.cancel,
+                      isCancel: true,
+                      onTap: () {
+                        notifier.cancel();
+                        Navigator.pop(context);
+                      },
+                    ),
+                  ),
+                ]),
+                Divider(
+                    color: colors.divider,
+                    height: SpacingTokens.lg + SpacingTokens.md),
               ],
-            ),
+
+              // Timed presets
+              Wrap(
+                spacing: SpacingTokens.xs,
+                runSpacing: SpacingTokens.xs,
+                children: [
+                  for (final m in _minutePresets)
+                    _TimerChip(
+                      label: '$m min',
+                      selected: mode is SleepTimerCountdown &&
+                          mode.remaining.inMinutes == m,
+                      onTap: () {
+                        notifier.startCountdown(Duration(minutes: m),
+                            fadeSecs: _fadeSecs);
+                        Navigator.pop(context);
+                      },
+                    ),
+                ],
+              ),
+              const SizedBox(height: SpacingTokens.sm),
+
+              // Track-based presets
+              Wrap(
+                spacing: SpacingTokens.xs,
+                runSpacing: SpacingTokens.xs,
+                children: [
+                  _TimerChip(
+                    label: l10n.sleepEndOfTrack,
+                    selected: mode is SleepTimerEndOfTrack,
+                    onTap: () {
+                      notifier.startEndOfTrack();
+                      Navigator.pop(context);
+                    },
+                  ),
+                  for (final n in _trackPresets)
+                    _TimerChip(
+                      label: l10n.sleepAfterNTracks(n),
+                      selected: mode is SleepTimerEndOfNTracks &&
+                          mode.tracksLeft == n,
+                      onTap: () {
+                        notifier.startEndOfNTracks(n);
+                        Navigator.pop(context);
+                      },
+                    ),
+                ],
+              ),
+              const SizedBox(height: SpacingTokens.sm),
+
+              // Fade-out duration slider
+              Row(children: [
+                Icon(Icons.volume_down_outlined,
+                    size: 16, color: colors.onSurfaceMuted),
+                const SizedBox(width: SpacingTokens.xs),
+                Text(
+                  '${l10n.sleepFadeOut}: ${_fadeSecs}s',
+                  style: AppTextTheme.caption
+                      .copyWith(color: colors.onSurfaceMuted),
+                ),
+              ]),
+              SliderTheme(
+                data: SliderThemeData(
+                  trackHeight: 2,
+                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+                  overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+                ),
+                child: Slider(
+                  value: _fadeSecs.toDouble(),
+                  min: 0,
+                  max: 30,
+                  divisions: 6,
+                  onChanged: (v) => setState(() => _fadeSecs = v.round()),
+                ),
+              ),
+            ],
           ),
         ),
-      );
-    },
-  );
+      ),
+    );
+  }
+}
+
+/// Shows the current timer mode in readable form inside the sheet.
+class _ActiveStatus extends StatelessWidget {
+  const _ActiveStatus({required this.mode});
+  final SleepTimerMode mode;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final l10n = AppLocalizations.of(context);
+    final text = switch (mode) {
+      SleepTimerOff() => '',
+      SleepTimerCountdown(:final remaining) => remaining.clock,
+      SleepTimerEndOfTrack() => l10n.sleepEndOfTrack,
+      SleepTimerEndOfNTracks(:final tracksLeft) =>
+        l10n.sleepTracksLeft(tracksLeft),
+    };
+    return Row(children: [
+      Icon(Icons.bedtime_outlined, size: 16, color: colors.accent),
+      const SizedBox(width: 6),
+      Text(text,
+          style: AppTextTheme.body.copyWith(
+              color: colors.accent, fontWeight: FontWeight.w600)),
+    ]);
+  }
 }
 
 /// The playback-speed picker — reachable from the overflow menu.
@@ -1489,6 +1667,121 @@ class _TimerChip extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+// ── Bookmarks sheet ──────────────────────────────────────────────────────────
+
+/// Shows the bookmarks list for [song]. Tapping a bookmark seeks to it.
+Future<void> showBookmarksSheet(
+    BuildContext context, WidgetRef ref, Song song) {
+  return showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    builder: (sheetCtx) => Consumer(builder: (ctx, sheetRef, _) {
+      final colors = ctx.colors;
+      final l10n = AppLocalizations.of(ctx);
+      final bmarks = sheetRef.watch(songBookmarksProvider(song.id));
+      final ctrl = sheetRef.read(audioControllerProvider);
+
+      return SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.all(SpacingTokens.md),
+          child: GlassSurface(
+            borderRadius: RadiusTokens.brLg,
+            intensity: GlassIntensity.strong,
+            padding: const EdgeInsets.all(SpacingTokens.lg),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(l10n.bookmarks,
+                    style:
+                        AppTextTheme.title.copyWith(color: colors.onSurface)),
+                const SizedBox(height: SpacingTokens.md),
+                if (bmarks.isEmpty)
+                  Text(l10n.noBookmarks,
+                      style: AppTextTheme.body
+                          .copyWith(color: colors.onSurfaceMuted))
+                else
+                  for (final bm in bmarks)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.bookmark_outline_rounded,
+                          color: colors.onSurfaceMuted, size: 20),
+                      title: Text(bm.label,
+                          style: AppTextTheme.body
+                              .copyWith(color: colors.onSurface)),
+                      trailing: IconButton(
+                        icon: Icon(Icons.close_rounded,
+                            color: colors.onSurfaceMuted, size: 18),
+                        onPressed: () async {
+                          await sheetRef
+                              .read(bookmarksProvider.notifier)
+                              .removeBookmark(song.id, bm.positionMs);
+                          if (ctx.mounted) {
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                              SnackBar(content: Text(l10n.bookmarkDeleted)),
+                            );
+                          }
+                        },
+                      ),
+                      onTap: () {
+                        ctrl.seek(bm.position);
+                        Navigator.pop(sheetCtx);
+                      },
+                    ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }),
+  );
+}
+
+/// Dialog to label a new bookmark at [position] and save it.
+Future<void> _showAddBookmarkDialog(
+    BuildContext context, WidgetRef ref, Song song, Duration position) async {
+  final l10n = AppLocalizations.of(context);
+  final ctrl = TextEditingController(text: position.clock);
+  final messenger = ScaffoldMessenger.of(context);
+
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) {
+      final colors = ctx.colors;
+      return AlertDialog(
+        backgroundColor: colors.surface,
+        title: Text(l10n.addBookmark,
+            style: AppTextTheme.title.copyWith(color: colors.onSurface)),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: InputDecoration(hintText: l10n.bookmarkLabelHint),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l10n.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(l10n.save),
+          ),
+        ],
+      );
+    },
+  );
+
+  if (confirmed != true) return;
+  final label = ctrl.text.trim().isEmpty ? position.clock : ctrl.text.trim();
+  await ref.read(bookmarksProvider.notifier).addBookmark(
+        Bookmark(songId: song.id, positionMs: position.inMilliseconds, label: label),
+      );
+  if (context.mounted) {
+    messenger.showSnackBar(SnackBar(content: Text(l10n.bookmarkAdded)));
   }
 }
 

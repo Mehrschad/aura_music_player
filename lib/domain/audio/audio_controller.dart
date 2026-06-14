@@ -67,5 +67,10 @@ abstract interface class AudioController {
   /// Stops playback and clears the current position (keeps the queue).
   Future<void> stop();
 
+  /// Output volume in [0.0, 1.0]. Separate from the system media volume.
+  Stream<double> get volumeStream;
+  double get volume;
+  Future<void> setVolume(double volume);
+
   Future<void> dispose();
 }

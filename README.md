@@ -322,6 +322,29 @@ The waveform scrubber (`CustomPainter`) replaces the slider in step 5.
   plus an end-to-end widget test (long-press → select all → bulk favorite, and
   bulk hide empties the library).
 
+## What step 17 delivers
+
+- **Sleep timer** — timed presets (5/10/15/30/45/60/90/120 min) alongside
+  "End of track" and "After N tracks" modes, driven by a sealed
+  `SleepTimerMode` state machine. A configurable fade-out (0–30 s) ramps the
+  output volume down before pausing; a live countdown chip in Now Playing
+  offers a one-tap **+5 min** extend. The notifier watches the playback stream
+  to count track completions for the track-based modes.
+- **A-B repeat** — `Set A` / `Set B` controls under the scrubber loop a region
+  of the current track; a position listener seeks back to A on reaching B.
+  `ABRepeatNotifier` resets the region when the song changes so it never loops
+  the wrong track.
+- **Bookmarks** — long-press the scrubber to add a labelled position marker;
+  markers render as ticks on the scrubber and in a per-song list (overflow →
+  Bookmarks) that seeks on tap. Persisted to SharedPreferences as JSON, keyed
+  by `songId` + position, with a 2-second de-dup window.
+- **Volume on the controller** — `AudioController` gains `volume` / `setVolume`
+  / `volumeStream` (real + fake backends) so the sleep-timer fade has a clean
+  seam to drive.
+- **Tested** — pure unit suites for the sleep-timer modes, the A-B loop logic
+  (`shouldLoop`, song-change reset), and bookmark add/dedup/remove/sort plus
+  JSON round-trip.
+
 ## Running it
 
 Requires Flutter 3.24+ / Dart 3.5+.

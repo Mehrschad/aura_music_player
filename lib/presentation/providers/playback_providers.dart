@@ -48,3 +48,9 @@ final hasMediaProvider = Provider<bool>((ref) {
 final speedProvider = StreamProvider<double>((ref) {
   return ref.watch(audioControllerProvider).speedStream;
 });
+
+/// Output volume (0.0 – 1.0). Driven by [SleepTimerNotifier] during fade-out;
+/// also writable by any other UI element that needs to adjust volume.
+final volumeProvider = StreamProvider<double>((ref) {
+  return ref.watch(audioControllerProvider).volumeStream;
+});

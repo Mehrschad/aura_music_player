@@ -17,17 +17,25 @@ import '../../providers/playback_providers.dart';
 /// When playing, very soft sine-wave ripples travel behind the dot in the
 /// unplayed portion — barely perceptible, never distracting (≤ 8% amplitude).
 /// When scrubbing, the dot inflates with a spring and a time tooltip appears.
+///
+/// [onLongPress] fires with the tapped position when the user long-presses —
+/// used by the host to open the add-bookmark dialog.
+/// [bookmarkFractions] are normalised [0, 1] fractions drawn as tick marks.
 class WaveformScrubber extends ConsumerStatefulWidget {
   const WaveformScrubber({
     super.key,
     required this.duration,
     required this.accent,
     required this.seed,
+    this.onLongPress,
+    this.bookmarkFractions = const [],
   });
 
   final Duration duration;
   final Color accent;
   final String seed;
+  final void Function(Duration position)? onLongPress;
+  final List<double> bookmarkFractions;
 
   @override
   ConsumerState<WaveformScrubber> createState() => _WaveformScrubberState();
@@ -157,6 +165,19 @@ class _WaveformScrubberState extends ConsumerState<WaveformScrubber>
                       onTapDown: hasDuration
                           ? (d) => _animatedSeekTo(d.localPosition.dx / w)
                           : null,
+                      onLongPressStart: widget.onLongPress != null && hasDuration
+                          ? (d) {
+                              // Cancel any tap-seek in flight so long-press
+                              // is clean (no double seek + bookmark).
+                              _seekController.stop();
+                              _seekAnim = null;
+                              _thumbController.reverse();
+                              final f = (d.localPosition.dx / w).clamp(0.0, 1.0);
+                              widget.onLongPress!(
+                                Duration(milliseconds: (f * _totalMs).round()),
+                              );
+                            }
+                          : null,
                       onHorizontalDragStart: hasDuration
                           ? (d) => _onDragStart(d.localPosition.dx, w)
                           : null,
@@ -174,6 +195,7 @@ class _WaveformScrubberState extends ConsumerState<WaveformScrubber>
                             // The "off" rail: a dim neutral groove the neon fills.
                             trackColor: colors.onSurface.withOpacity(0.10),
                             trackH: 5.0 + 3.0 * _thumbScale.value,
+                            bookmarkFractions: widget.bookmarkFractions,
                           ),
                         ),
                       ),
@@ -271,19 +293,21 @@ class _Tooltip extends StatelessWidget {
   }
 }
 
-/// Draws the dark "off" rail and the neon fill with a soft outer glow.
+/// Draws the dark "off" rail, neon fill with glow, and bookmark tick marks.
 class _TrackPainter extends CustomPainter {
   _TrackPainter({
     required this.progress,
     required this.activeColor,
     required this.trackColor,
     this.trackH = 4.0,
+    this.bookmarkFractions = const [],
   });
 
   final double progress;
   final Color activeColor;
   final Color trackColor;
   final double trackH;
+  final List<double> bookmarkFractions;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -335,6 +359,20 @@ class _TrackPainter extends CustomPainter {
         Paint()..color = Colors.white.withOpacity(0.22),
       );
     }
+
+    // ── 5. Bookmark tick marks ─────────────────────────────────────────────
+    final tickPaint = Paint()
+      ..color = activeColor.withOpacity(0.75)
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+    for (final f in bookmarkFractions) {
+      final x = f.clamp(0.0, 1.0) * size.width;
+      canvas.drawLine(
+        Offset(x, centerY - 5),
+        Offset(x, centerY + 5),
+        tickPaint,
+      );
+    }
   }
 
   @override
@@ -342,5 +380,6 @@ class _TrackPainter extends CustomPainter {
       o.progress != progress ||
       o.activeColor != activeColor ||
       o.trackColor != trackColor ||
-      o.trackH != trackH;
+      o.trackH != trackH ||
+      o.bookmarkFractions != bookmarkFractions;
 }

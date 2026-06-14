@@ -25,10 +25,12 @@ class FakeAudioController implements AudioController {
   final _stateController = StreamController<PlaybackState>.broadcast();
   final _positionController = StreamController<Duration>.broadcast();
   final _speedController = StreamController<double>.broadcast();
+  final _volumeController = StreamController<double>.broadcast();
 
   PlaybackState _state = PlaybackState.empty;
   Duration _position = Duration.zero;
   double _speed = 1.0;
+  double _volume = 1.0;
   Timer? _timer;
 
   /// Shuffle order: indices into [_state.queue]. When shuffle is off this is
@@ -171,6 +173,22 @@ class FakeAudioController implements AudioController {
     _speed = speed;
     if (!_speedController.isClosed) _speedController.add(_speed);
   }
+
+  @override
+  Stream<double> get volumeStream async* {
+    yield _volume;
+    yield* _volumeController.stream;
+  }
+
+  @override
+  double get volume => _volume;
+
+  @override
+  Future<void> setVolume(double vol) async {
+    _volume = vol.clamp(0.0, 1.0);
+    if (!_volumeController.isClosed) _volumeController.add(_volume);
+  }
+
   @override
   Future<void> playNext(Song song) async {
     final current = _state.currentIndex;
@@ -274,6 +292,7 @@ class FakeAudioController implements AudioController {
     await _stateController.close();
     await _positionController.close();
     await _speedController.close();
+    await _volumeController.close();
   }
 
   // ── Simulation ────────────────────────────────────────────────────────

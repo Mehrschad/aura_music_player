@@ -280,5 +280,20 @@
   "songsHidden": "{count, plural, =1{1 Song ausgeblendet} other{{count} Songs ausgeblendet}}",
   "deleteSelectedTitle": "{count, plural, =1{1 Song löschen?} other{{count} Songs löschen?}}",
   "deleteSelectedBody": "Dadurch werden die ausgewählten Dateien dauerhaft vom Gerät entfernt.",
-  "songsDeleted": "{count, plural, =1{1 Song gelöscht} other{{count} Songs gelöscht}}"
+  "songsDeleted": "{count, plural, =1{1 Song gelöscht} other{{count} Songs gelöscht}}",
+  "sleepEndOfTrack": "Ende des Titels",
+  "sleepAfterNTracks": "Nach {n} Titeln",
+  "sleepTracksLeft": "Noch {n} Titel",
+  "sleepExtend": "+5 Min",
+  "sleepFadeOut": "Ausblenden",
+  "abRepeat": "A-B-Wiederholung",
+  "abSetA": "A setzen",
+  "abSetB": "B setzen",
+  "abClear": "Löschen",
+  "bookmarks": "Lesezeichen",
+  "addBookmark": "Lesezeichen hinzufügen",
+  "bookmarkAdded": "Lesezeichen hinzugefügt",
+  "bookmarkLabelHint": "Bezeichnung (optional)",
+  "noBookmarks": "Keine Lesezeichen",
+  "bookmarkDeleted": "Lesezeichen entfernt"
 }

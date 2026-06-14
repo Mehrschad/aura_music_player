@@ -252,5 +252,20 @@
   "songsHidden": "{count, plural, other{تم إخفاء {count} أغنية}}",
   "deleteSelectedTitle": "{count, plural, other{حذف {count} أغنية؟}}",
   "deleteSelectedBody": "هذا يزيل الملفات المحددة نهائيًا من جهازك.",
-  "songsDeleted": "{count, plural, other{تم حذف {count} أغنية}}"
+  "songsDeleted": "{count, plural, other{تم حذف {count} أغنية}}",
+  "sleepEndOfTrack": "نهاية المقطع",
+  "sleepAfterNTracks": "بعد {n} مقاطع",
+  "sleepTracksLeft": "{n} مقاطع متبقية",
+  "sleepExtend": "+٥ دقائق",
+  "sleepFadeOut": "تلاشٍ تدريجي",
+  "abRepeat": "تكرار A-B",
+  "abSetA": "نقطة A",
+  "abSetB": "نقطة B",
+  "abClear": "مسح",
+  "bookmarks": "الإشارات",
+  "addBookmark": "إضافة إشارة",
+  "bookmarkAdded": "تمت إضافة الإشارة",
+  "bookmarkLabelHint": "تسمية (اختياري)",
+  "noBookmarks": "لا توجد إشارات",
+  "bookmarkDeleted": "تمت إزالة الإشارة"
 }

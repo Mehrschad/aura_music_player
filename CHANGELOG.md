@@ -6,6 +6,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+### Added — Sleep timer, A-B repeat & bookmarks (step 17)
+- **Sleep timer, reimagined**: timed presets (5/10/15/30/45/60/90/120 min),
+  plus "End of track" and "After N tracks" modes. A configurable fade-out
+  (0–30 s) gently lowers the volume over the final seconds before pausing.
+  A live countdown chip sits in Now Playing with a one-tap **+5 min** extend.
+- **A-B repeat**: set an A point and a B point below the scrubber to loop a
+  region of the current track; "Clear" removes it. Switching tracks resets the
+  loop so it never carries over to the wrong song.
+- **Bookmarks**: long-press the scrubber to drop a labelled position bookmark;
+  bookmarks appear as tick marks on the scrubber and in a per-song list
+  (overflow → Bookmarks) where tapping one seeks straight to it. Saved on the
+  device via SharedPreferences, so they survive restarts.
+
 ### Added — Selection mode & bulk operations (step 16)
 - **Multi-select** in the Library: long-press to enter, tap to toggle,
   long-press a second row to range-select. A selection bar replaces the header

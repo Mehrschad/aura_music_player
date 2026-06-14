@@ -362,5 +362,75 @@
         "type": "int"
       }
     }
+  },
+  "sleepEndOfTrack": "End of track",
+  "@sleepEndOfTrack": {
+    "description": "Sleep timer mode: stop after current track ends."
+  },
+  "sleepAfterNTracks": "After {n} tracks",
+  "@sleepAfterNTracks": {
+    "description": "Sleep timer mode: stop after N more tracks.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "sleepTracksLeft": "{n} tracks left",
+  "@sleepTracksLeft": {
+    "description": "Sleep timer chip label showing how many tracks remain.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "sleepExtend": "+5 min",
+  "@sleepExtend": {
+    "description": "Quick-extend button on the sleep timer chip."
+  },
+  "sleepFadeOut": "Fade out",
+  "@sleepFadeOut": {
+    "description": "Label for the fade-out duration slider in the sleep timer sheet."
+  },
+  "abRepeat": "A-B repeat",
+  "@abRepeat": {
+    "description": "Label for the A-B loop feature."
+  },
+  "abSetA": "Set A",
+  "@abSetA": {
+    "description": "Button to set the A (start) point of the A-B loop."
+  },
+  "abSetB": "Set B",
+  "@abSetB": {
+    "description": "Button to set the B (end) point of the A-B loop."
+  },
+  "abClear": "Clear",
+  "@abClear": {
+    "description": "Button to clear the A-B loop region."
+  },
+  "bookmarks": "Bookmarks",
+  "@bookmarks": {
+    "description": "Title for the bookmarks list."
+  },
+  "addBookmark": "Add bookmark",
+  "@addBookmark": {
+    "description": "Menu item / dialog title for adding a position bookmark."
+  },
+  "bookmarkAdded": "Bookmark added",
+  "@bookmarkAdded": {
+    "description": "Snackbar shown after a bookmark is saved."
+  },
+  "bookmarkLabelHint": "Label (optional)",
+  "@bookmarkLabelHint": {
+    "description": "Hint text in the bookmark label text field."
+  },
+  "noBookmarks": "No bookmarks",
+  "@noBookmarks": {
+    "description": "Empty state shown when a song has no bookmarks."
+  },
+  "bookmarkDeleted": "Bookmark removed",
+  "@bookmarkDeleted": {
+    "description": "Snackbar shown after a bookmark is removed."
   }
 }
