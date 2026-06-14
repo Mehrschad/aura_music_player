@@ -72,5 +72,15 @@ abstract interface class AudioController {
   double get volume;
   Future<void> setVolume(double volume);
 
+  // Pitch shift in semitones. 0.0 = original pitch. Range: -12 to +12.
+  Stream<double> get pitchStream;
+  double get pitch;
+  Future<void> setPitch(double semitones);
+
+  // Automatically skip silent sections.
+  Stream<bool> get skipSilenceStream;
+  bool get skipSilence;
+  Future<void> setSkipSilence(bool enabled);
+
   Future<void> dispose();
 }

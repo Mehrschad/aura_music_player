@@ -32,6 +32,8 @@ class AppSettings {
     this.replayGain = ReplayGainMode.off,
     this.gapless = true,
     this.speedMemory = false,
+    this.skipSilence = false,
+    this.pitchSemitones = 0.0,
     this.interruption = InterruptionBehavior.pause,
     this.lyricsAutoFetch = true,
     this.lyricsDefaultLanguage = 'auto',
@@ -68,6 +70,10 @@ class AppSettings {
   final ReplayGainMode replayGain;
   final bool gapless;
   final bool speedMemory;
+  // Auto-skip silent sections during playback.
+  final bool skipSilence;
+  // Pitch shift in semitones; 0.0 = original.
+  final double pitchSemitones;
   final InterruptionBehavior interruption;
 
   final bool lyricsAutoFetch;
@@ -95,6 +101,8 @@ class AppSettings {
     ReplayGainMode? replayGain,
     bool? gapless,
     bool? speedMemory,
+    bool? skipSilence,
+    double? pitchSemitones,
     InterruptionBehavior? interruption,
     bool? lyricsAutoFetch,
     String? lyricsDefaultLanguage,
@@ -120,6 +128,8 @@ class AppSettings {
       replayGain: replayGain ?? this.replayGain,
       gapless: gapless ?? this.gapless,
       speedMemory: speedMemory ?? this.speedMemory,
+      skipSilence: skipSilence ?? this.skipSilence,
+      pitchSemitones: pitchSemitones ?? this.pitchSemitones,
       interruption: interruption ?? this.interruption,
       lyricsAutoFetch: lyricsAutoFetch ?? this.lyricsAutoFetch,
       lyricsDefaultLanguage: lyricsDefaultLanguage ?? this.lyricsDefaultLanguage,
@@ -148,6 +158,8 @@ class AppSettings {
         'replayGain': replayGain.name,
         'gapless': gapless,
         'speedMemory': speedMemory,
+        'skipSilence': skipSilence,
+        'pitchSemitones': pitchSemitones,
         'interruption': interruption.name,
         'lyricsAutoFetch': lyricsAutoFetch,
         'lyricsDefaultLanguage': lyricsDefaultLanguage,
@@ -188,6 +200,8 @@ class AppSettings {
       replayGain: enumOf(ReplayGainMode.values, json['replayGain'], d.replayGain),
       gapless: json['gapless'] as bool? ?? d.gapless,
       speedMemory: json['speedMemory'] as bool? ?? d.speedMemory,
+      skipSilence: json['skipSilence'] as bool? ?? d.skipSilence,
+      pitchSemitones: (json['pitchSemitones'] as num?)?.toDouble() ?? d.pitchSemitones,
       interruption: enumOf(
           InterruptionBehavior.values, json['interruption'], d.interruption),
       lyricsAutoFetch: json['lyricsAutoFetch'] as bool? ?? d.lyricsAutoFetch,

@@ -26,11 +26,15 @@ class FakeAudioController implements AudioController {
   final _positionController = StreamController<Duration>.broadcast();
   final _speedController = StreamController<double>.broadcast();
   final _volumeController = StreamController<double>.broadcast();
+  final _pitchController = StreamController<double>.broadcast();
+  final _skipSilenceController = StreamController<bool>.broadcast();
 
   PlaybackState _state = PlaybackState.empty;
   Duration _position = Duration.zero;
   double _speed = 1.0;
   double _volume = 1.0;
+  double _pitch = 0.0;
+  bool _skipSilence = false;
   Timer? _timer;
 
   /// Shuffle order: indices into [_state.queue]. When shuffle is off this is
@@ -190,6 +194,36 @@ class FakeAudioController implements AudioController {
   }
 
   @override
+  Stream<double> get pitchStream async* {
+    yield _pitch;
+    yield* _pitchController.stream;
+  }
+
+  @override
+  double get pitch => _pitch;
+
+  @override
+  Future<void> setPitch(double semitones) async {
+    _pitch = semitones.clamp(-12.0, 12.0);
+    if (!_pitchController.isClosed) _pitchController.add(_pitch);
+  }
+
+  @override
+  Stream<bool> get skipSilenceStream async* {
+    yield _skipSilence;
+    yield* _skipSilenceController.stream;
+  }
+
+  @override
+  bool get skipSilence => _skipSilence;
+
+  @override
+  Future<void> setSkipSilence(bool enabled) async {
+    _skipSilence = enabled;
+    if (!_skipSilenceController.isClosed) _skipSilenceController.add(_skipSilence);
+  }
+
+  @override
   Future<void> playNext(Song song) async {
     final current = _state.currentIndex;
     final insertAt = current == null ? 0 : current + 1;
@@ -293,6 +327,8 @@ class FakeAudioController implements AudioController {
     await _positionController.close();
     await _speedController.close();
     await _volumeController.close();
+    await _pitchController.close();
+    await _skipSilenceController.close();
   }
 
   // ── Simulation ────────────────────────────────────────────────────────
