@@ -121,11 +121,12 @@ void main() {
     test('duplicate no-ops at the cap', () {
       final c = _c();
       final reg = c.read(queueRegistryProvider.notifier);
-      NamedQueue? first;
       for (var i = 0; i < QueueRegistry.maxQueues; i++) {
-        first ??= reg.create('Q$i', ['$i']);
+        reg.create('Q$i', ['$i']);
       }
-      expect(reg.duplicate(first!.id), isNull);
+      expect(c.read(queueRegistryProvider).length, 20);
+      final first = c.read(queueRegistryProvider).first;
+      expect(reg.duplicate(first.id), isNull);
       expect(c.read(queueRegistryProvider).length, 20);
     });
   });

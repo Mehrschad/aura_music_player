@@ -134,11 +134,19 @@ class _WaveformScrubberState extends ConsumerState<WaveformScrubber>
     _lastFraction = fraction;
     final tooltipTime = Duration(milliseconds: (fraction * _totalMs).round());
 
+    // Flutter requires value/increasedValue/decreasedValue to be provided
+    // together whenever the increase/decrease actions are available.
+    final pct = (fraction * 100).round();
+    final incPct = ((fraction + 0.05).clamp(0.0, 1.0) * 100).round();
+    final decPct = ((fraction - 0.05).clamp(0.0, 1.0) * 100).round();
+
     return Semantics(
       container: true,
       slider: true,
       label: l10n.a11ySeekBar,
-      value: '${(fraction * 100).round()}%',
+      value: '$pct%',
+      increasedValue: '$incPct%',
+      decreasedValue: '$decPct%',
       onIncrease: hasDuration ? () => _seekToFraction(fraction + 0.05) : null,
       onDecrease: hasDuration ? () => _seekToFraction(fraction - 0.05) : null,
       excludeSemantics: true,

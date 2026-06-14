@@ -29,7 +29,9 @@ final musicFoldersProvider = Provider<AsyncValue<List<MusicFolder>>>((ref) {
 
 /// One level of the hierarchical browse for the current path.
 final folderListingProvider = Provider<AsyncValue<FolderListing>>((ref) {
-  final path = ref.watch(folderBrowsePathProvider) ?? ref.watch(folderRootProvider);
+  final override = ref.watch(folderBrowsePathProvider);
+  final String path =
+      (override == null) ? ref.watch(folderRootProvider) : override;
   return ref
       .watch(effectiveSongsProvider)
       .whenData((songs) => FolderLogic.browse(songs, path));

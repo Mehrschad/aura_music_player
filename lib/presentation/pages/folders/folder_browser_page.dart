@@ -35,7 +35,8 @@ class FolderBrowserPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final root = ref.watch(folderRootProvider);
-    final path = ref.watch(folderBrowsePathProvider) ?? root;
+    final override = ref.watch(folderBrowsePathProvider);
+    final String path = override ?? root;
     final listing = ref.watch(folderListingProvider);
     final miniVisible = ref.watch(hasMediaProvider);
 
