@@ -485,5 +485,36 @@
         "type": "int"
       }
     }
+  },
+  "folders": "Folders",
+  "@folders": { "description": "Title of the folder browser." },
+  "shuffleAll": "Shuffle all",
+  "@shuffleAll": { "description": "Shuffle every track in a folder." },
+  "addAsPlaylist": "Add as playlist",
+  "@addAsPlaylist": { "description": "Folder action: create a playlist from it." },
+  "excludeFromLibrary": "Exclude from library",
+  "@excludeFromLibrary": { "description": "Folder action: blacklist the folder." },
+  "hideDotFolders": "Hide folders starting with a dot",
+  "@hideDotFolders": { "description": "Hidden-rule toggle." },
+  "minTrackLength": "Minimum track length",
+  "@minTrackLength": { "description": "Slider hiding very short clips." },
+  "allowSdCardEdit": "Allow editing files on SD card",
+  "@allowSdCardEdit": { "description": "Opt-in to broad storage for SD editing." },
+  "excludedFolders": "Excluded folders",
+  "@excludedFolders": { "description": "Settings list of blacklisted folders." },
+  "noExcludedFolders": "No excluded folders",
+  "@noExcludedFolders": { "description": "Empty state for the excluded list." },
+  "bulkRename": "Bulk rename from tags",
+  "@bulkRename": { "description": "Selection action: pattern-rename files." },
+  "renamePattern": "Pattern",
+  "@renamePattern": { "description": "Label for the rename pattern field." },
+  "renamePreview": "Preview",
+  "@renamePreview": { "description": "Header above the rename preview list." },
+  "renameFailed": "Couldn't rename files",
+  "@renameFailed": { "description": "Snackbar when bulk rename fails." },
+  "filesRenamed": "{count, plural, =1{1 file renamed} other{{count} files renamed}}",
+  "@filesRenamed": {
+    "description": "Snackbar after bulk rename.",
+    "placeholders": { "count": { "type": "int" } }
   }
 }

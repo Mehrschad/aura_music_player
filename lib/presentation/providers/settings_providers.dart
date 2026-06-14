@@ -39,6 +39,21 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   void setScanOnStartup(bool v) => _update(state.copyWith(scanOnStartup: v));
   void setShowHidden(bool v) => _update(state.copyWith(showHidden: v));
 
+  void addExcludedFolder(String path) {
+    if (state.excludedFolders.contains(path)) return;
+    _update(state.copyWith(excludedFolders: [...state.excludedFolders, path]));
+  }
+
+  void removeExcludedFolder(String path) => _update(state.copyWith(
+      excludedFolders:
+          state.excludedFolders.where((p) => p != path).toList()));
+  void setHideDotFolders(bool v) =>
+      _update(state.copyWith(hideDotFolders: v));
+  void setMinTrackSeconds(int v) =>
+      _update(state.copyWith(minTrackSeconds: v));
+  void setAllowSdCardEdit(bool v) =>
+      _update(state.copyWith(allowSdCardEdit: v));
+
   void setCrossfade(double seconds) =>
       _update(state.copyWith(crossfadeSeconds: seconds));
   void setReplayGain(ReplayGainMode v) =>

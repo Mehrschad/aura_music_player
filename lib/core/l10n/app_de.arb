@@ -307,5 +307,19 @@
   "noQueues": "Keine gespeicherten Warteschlangen",
   "queueSaved": "Warteschlange gespeichert",
   "queueLimitReached": "Limit erreicht (20)",
-  "queuePlays": "{count, plural, =0{Nie gespielt} =1{1 Wiedergabe} other{{count} Wiedergaben}}"
+  "queuePlays": "{count, plural, =0{Nie gespielt} =1{1 Wiedergabe} other{{count} Wiedergaben}}",
+  "folders": "Ordner",
+  "shuffleAll": "Alle zufällig",
+  "addAsPlaylist": "Als Wiedergabeliste hinzufügen",
+  "excludeFromLibrary": "Aus Mediathek ausschließen",
+  "hideDotFolders": "Ordner mit Punkt ausblenden",
+  "minTrackLength": "Mindestlänge des Titels",
+  "allowSdCardEdit": "Bearbeiten von Dateien auf SD-Karte erlauben",
+  "excludedFolders": "Ausgeschlossene Ordner",
+  "noExcludedFolders": "Keine ausgeschlossenen Ordner",
+  "bulkRename": "Massenumbenennung aus Tags",
+  "renamePattern": "Muster",
+  "renamePreview": "Vorschau",
+  "renameFailed": "Dateien konnten nicht umbenannt werden",
+  "filesRenamed": "{count, plural, =1{1 Datei umbenannt} other{{count} Dateien umbenannt}}"
 }

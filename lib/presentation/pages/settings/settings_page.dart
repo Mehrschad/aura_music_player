@@ -121,6 +121,24 @@ class SettingsPage extends ConsumerWidget {
               label: l10n.showHidden,
               value: s.showHidden,
               onChanged: n.setShowHidden),
+          _SwitchTile(
+              label: l10n.hideDotFolders,
+              value: s.hideDotFolders,
+              onChanged: n.setHideDotFolders),
+          _SliderTile(
+            label: l10n.minTrackLength,
+            value: s.minTrackSeconds.toDouble(),
+            min: 0,
+            max: 60,
+            divisions: 12,
+            display: '${s.minTrackSeconds}s',
+            onChanged: (v) => n.setMinTrackSeconds(v.round()),
+          ),
+          _ExcludedFolderList(folders: s.excludedFolders, notifier: n),
+          _SwitchTile(
+              label: l10n.allowSdCardEdit,
+              value: s.allowSdCardEdit,
+              onChanged: n.setAllowSdCardEdit),
           _NavTile(
             label: l10n.rescanNow,
             icon: Icons.refresh,
@@ -603,5 +621,103 @@ class _FolderList extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// The blacklist of folders excluded from the library scan.
+class _ExcludedFolderList extends StatelessWidget {
+  const _ExcludedFolderList({required this.folders, required this.notifier});
+  final List<String> folders;
+  final SettingsNotifier notifier;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final l10n = AppLocalizations.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              SpacingTokens.xl, SpacingTokens.sm, SpacingTokens.sm, 0),
+          child: Row(
+            children: [
+              Text(l10n.excludedFolders,
+                  style: AppTextTheme.body.copyWith(color: colors.onSurface)),
+              const Spacer(),
+              IconButton(
+                tooltip: l10n.addFolder,
+                icon: Icon(Icons.add, color: colors.onSurface),
+                onPressed: () => _add(context),
+              ),
+            ],
+          ),
+        ),
+        if (folders.isEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+                SpacingTokens.xl, 0, SpacingTokens.xl, SpacingTokens.sm),
+            child: Text(l10n.noExcludedFolders,
+                style: AppTextTheme.caption
+                    .copyWith(color: colors.onSurfaceFaint)),
+          )
+        else
+          for (final f in folders)
+            ListTile(
+              contentPadding: const EdgeInsets.only(
+                  left: SpacingTokens.xl, right: SpacingTokens.md),
+              dense: true,
+              leading: Icon(Icons.block, color: colors.onSurfaceMuted),
+              title: Text(f,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextTheme.body.copyWith(color: colors.onSurface)),
+              trailing: IconButton(
+                icon: Icon(Icons.close, color: colors.onSurfaceFaint),
+                onPressed: () => notifier.removeExcludedFolder(f),
+              ),
+            ),
+      ],
+    );
+  }
+
+  Future<void> _add(BuildContext context) async {
+    String? path;
+    try {
+      path = await FilePicker.platform.getDirectoryPath();
+    } catch (_) {
+      path = null;
+    }
+    if (path == null && context.mounted) {
+      final l10n = AppLocalizations.of(context);
+      final colors = context.colors;
+      final controller = TextEditingController();
+      path = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: colors.surfaceElevated,
+          title: Text(l10n.excludedFolders,
+              style: AppTextTheme.title.copyWith(color: colors.onSurface)),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            style: AppTextTheme.body.copyWith(color: colors.onSurface),
+            decoration: InputDecoration(hintText: l10n.folderHint),
+            onSubmitted: (v) => Navigator.of(ctx).pop(v),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: Text(l10n.cancel)),
+            TextButton(
+                onPressed: () => Navigator.of(ctx).pop(controller.text),
+                child: Text(l10n.save)),
+          ],
+        ),
+      );
+    }
+    if (path != null && path.trim().isNotEmpty) {
+      notifier.addExcludedFolder(path.trim());
+    }
   }
 }

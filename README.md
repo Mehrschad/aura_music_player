@@ -364,6 +364,25 @@ The waveform scrubber (`CustomPainter`) replaces the slider in step 5.
 - **Tested** — registry CRUD, snapshot/position preservation, the 20-cap, JSON
   round-trip, and an end-to-end queue-swap test through the fake engine.
 
+## What step 19 delivers
+
+- **Folder browser** — a hierarchical view (`FolderBrowserPage`) with a
+  breadcrumb, recursive per-folder track counts/durations, art thumbnails,
+  Play All / Shuffle All, and long-press folder bulk actions. Driven by pure
+  `FolderLogic` (grouping, common-ancestor, one-level browse) over the song
+  index, exposed through `folderListingProvider` / `musicFoldersProvider`.
+- **Folder management** — excluded-folders blacklist plus hidden-item rules
+  (dot folders, minimum track length) on `AppSettings`, enforced centrally in
+  `effectiveSongsProvider` so excluded/hidden tracks disappear app-wide. Plus
+  an SD-card-edit opt-in that gates broad-storage access.
+- **File operations** — a `FileOpsService` (no-op default, `IoFileOpsService`
+  on device) for rename/move/copy/delete, and a tag-pattern bulk renamer
+  (`RenamePattern`) with live preview. Tokens: `{artist} {albumartist} {album}
+  {title} {genre} {year} {track[:0n]} {disc[:0n]} {ext}`, value-sanitised.
+- **Tested** — path utilities, exclusion + hidden-rule filtering, folder
+  grouping/browse across mixed internal + SD paths, and the rename renderer
+  (padding, sanitising, empty-segment collapse, album-artist fallback).
+
 ## Running it
 
 Requires Flutter 3.24+ / Dart 3.5+.

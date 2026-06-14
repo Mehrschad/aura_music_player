@@ -19,6 +19,7 @@ import '../../widgets/library/song_list_tile.dart';
 import '../../widgets/player/song_actions_sheet.dart';
 import '../../widgets/player_bar_inset.dart';
 import '../../widgets/section_header.dart';
+import '../folders/folder_browser_page.dart';
 import '../settings/settings_page.dart';
 
 class LibraryPage extends ConsumerWidget {
@@ -58,6 +59,11 @@ class LibraryPage extends ConsumerWidget {
                   mode: mode,
                   onChanged: (m) =>
                       ref.read(libraryDisplayModeProvider.notifier).state = m,
+                ),
+                IconButton(
+                  tooltip: l10n.folders,
+                  onPressed: () => openFolderBrowser(context),
+                  icon: const Icon(Icons.folder_outlined),
                 ),
                 IconButton(
                   tooltip: l10n.sortLabel,

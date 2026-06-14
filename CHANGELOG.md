@@ -6,6 +6,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+### Added — Folder browsing & file operations (step 19)
+- **Folder browser** (Library → folder icon): hierarchical navigation with a
+  tappable breadcrumb, per-folder track count + duration, album-art thumbnails,
+  Play All / Shuffle All, and long-press folder actions (play next, add to
+  queue, add as playlist, exclude from library).
+- **Folder management** (Settings → Library): excluded-folders blacklist,
+  "hide folders starting with a dot", a minimum-track-length slider (0–60 s),
+  and an "Allow editing files on SD card" opt-in. Exclusions and hidden rules
+  flow through `effectiveSongsProvider`, so filtered tracks vanish everywhere.
+- **Bulk rename from tags**: a selection action with a live preview and a
+  pattern like `{albumartist}/{album} ({year})/{track:02} - {title}.{ext}`;
+  values are sanitised so a slash in a tag can't spawn folders.
+- Pure, tested core: path utilities, folder grouping (internal + SD), exclusion
+  logic, and the rename-pattern renderer.
+
 ### Added — Multi-queue support (step 18)
 - **Up to 20 named queues**, each keeping its own track list, cursor, shuffle/
   repeat, colour (1 of 12 tokens), and audiobook/podcast kind. Persisted across

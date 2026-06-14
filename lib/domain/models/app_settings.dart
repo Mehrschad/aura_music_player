@@ -25,6 +25,9 @@ class AppSettings {
     this.excludedFolders = const [],
     this.scanOnStartup = true,
     this.showHidden = false,
+    this.hideDotFolders = true,
+    this.minTrackSeconds = 0,
+    this.allowSdCardEdit = false,
     this.crossfadeSeconds = 0,
     this.replayGain = ReplayGainMode.off,
     this.gapless = true,
@@ -51,6 +54,16 @@ class AppSettings {
   final bool scanOnStartup;
   final bool showHidden;
 
+  /// Hide folders whose name begins with a dot (e.g. `.thumbnails`).
+  final bool hideDotFolders;
+
+  /// Drop tracks shorter than this many seconds (0 = keep everything).
+  final int minTrackSeconds;
+
+  /// Opt-in to file editing on removable storage (gates the broad-storage
+  /// permission request; scoped read-only otherwise).
+  final bool allowSdCardEdit;
+
   final double crossfadeSeconds;
   final ReplayGainMode replayGain;
   final bool gapless;
@@ -75,6 +88,9 @@ class AppSettings {
     List<String>? excludedFolders,
     bool? scanOnStartup,
     bool? showHidden,
+    bool? hideDotFolders,
+    int? minTrackSeconds,
+    bool? allowSdCardEdit,
     double? crossfadeSeconds,
     ReplayGainMode? replayGain,
     bool? gapless,
@@ -97,6 +113,9 @@ class AppSettings {
       excludedFolders: excludedFolders ?? this.excludedFolders,
       scanOnStartup: scanOnStartup ?? this.scanOnStartup,
       showHidden: showHidden ?? this.showHidden,
+      hideDotFolders: hideDotFolders ?? this.hideDotFolders,
+      minTrackSeconds: minTrackSeconds ?? this.minTrackSeconds,
+      allowSdCardEdit: allowSdCardEdit ?? this.allowSdCardEdit,
       crossfadeSeconds: crossfadeSeconds ?? this.crossfadeSeconds,
       replayGain: replayGain ?? this.replayGain,
       gapless: gapless ?? this.gapless,
@@ -122,6 +141,9 @@ class AppSettings {
         'excludedFolders': excludedFolders,
         'scanOnStartup': scanOnStartup,
         'showHidden': showHidden,
+        'hideDotFolders': hideDotFolders,
+        'minTrackSeconds': minTrackSeconds,
+        'allowSdCardEdit': allowSdCardEdit,
         'crossfadeSeconds': crossfadeSeconds,
         'replayGain': replayGain.name,
         'gapless': gapless,
@@ -157,6 +179,10 @@ class AppSettings {
           d.excludedFolders,
       scanOnStartup: json['scanOnStartup'] as bool? ?? d.scanOnStartup,
       showHidden: json['showHidden'] as bool? ?? d.showHidden,
+      hideDotFolders: json['hideDotFolders'] as bool? ?? d.hideDotFolders,
+      minTrackSeconds: (json['minTrackSeconds'] as num?)?.toInt() ??
+          d.minTrackSeconds,
+      allowSdCardEdit: json['allowSdCardEdit'] as bool? ?? d.allowSdCardEdit,
       crossfadeSeconds:
           (json['crossfadeSeconds'] as num?)?.toDouble() ?? d.crossfadeSeconds,
       replayGain: enumOf(ReplayGainMode.values, json['replayGain'], d.replayGain),

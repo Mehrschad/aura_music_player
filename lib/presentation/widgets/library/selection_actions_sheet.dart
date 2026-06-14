@@ -8,10 +8,13 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/color_scheme.dart';
 import '../../../core/theme/glass_theme.dart';
 import '../../../core/theme/typography.dart';
+import '../../../domain/library/path_utils.dart';
 import '../../../domain/library/playlist_logic.dart';
+import '../../../domain/library/rename_pattern.dart';
 import '../../../domain/models/song.dart';
 import '../../pages/tag_editor/tag_editor_page.dart';
 import '../../providers/favorites_providers.dart';
+import '../../providers/file_ops_providers.dart';
 import '../../providers/hidden_songs_providers.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/media_actions_provider.dart';
@@ -138,6 +141,12 @@ class _SelectionActionsSheet extends ConsumerWidget {
                   openTagEditor(context, songs);
                   _clear(ref);
                 }),
+                _action(context, Icons.drive_file_rename_outline,
+                    l10n.bulkRename, () {
+                  Navigator.of(context).pop();
+                  _bulkRename(context, ref);
+                  _clear(ref);
+                }),
                 _action(context, Icons.visibility_off_outlined,
                     l10n.hideFromLibrary, () {
                   ref.read(hiddenSongsProvider.notifier).hideAll(_ids);
@@ -206,6 +215,16 @@ class _SelectionActionsSheet extends ConsumerWidget {
     ));
   }
 
+  /// Opens the tag-pattern rename dialog with a live preview of the first five
+  /// selected tracks. Applying renames each file's name in place via the
+  /// (overridable) file-ops service.
+  Future<void> _bulkRename(BuildContext context, WidgetRef ref) {
+    return showDialog<void>(
+      context: context,
+      builder: (ctx) => _BulkRenameDialog(songs: songs),
+    );
+  }
+
   Future<String?> _promptQueueName(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final ctrl = TextEditingController();
@@ -256,5 +275,98 @@ class _SelectionActionsSheet extends ConsumerWidget {
           Text(label, style: AppTextTheme.body.copyWith(color: color)),
       onTap: onTap,
     );
+  }
+}
+
+class _BulkRenameDialog extends ConsumerStatefulWidget {
+  const _BulkRenameDialog({required this.songs});
+  final List<Song> songs;
+
+  @override
+  ConsumerState<_BulkRenameDialog> createState() => _BulkRenameDialogState();
+}
+
+class _BulkRenameDialogState extends ConsumerState<_BulkRenameDialog> {
+  late final TextEditingController _ctrl = TextEditingController(
+    text: '{track:02} - {title}.{ext}',
+  );
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final l10n = AppLocalizations.of(context);
+    final preview = RenamePattern.preview(widget.songs, _ctrl.text);
+
+    return AlertDialog(
+      backgroundColor: colors.surface,
+      title: Text(l10n.bulkRename,
+          style: AppTextTheme.title.copyWith(color: colors.onSurface)),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _ctrl,
+              autofocus: true,
+              style: AppTextTheme.body.copyWith(color: colors.onSurface),
+              decoration: InputDecoration(labelText: l10n.renamePattern),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: SpacingTokens.md),
+            Text(l10n.renamePreview,
+                style: AppTextTheme.caption
+                    .copyWith(color: colors.onSurfaceFaint)),
+            const SizedBox(height: SpacingTokens.xs),
+            for (final row in preview)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Text(
+                  PathUtils.basename(row.result),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextTheme.caption.copyWith(color: colors.onSurface),
+                ),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(l10n.cancel),
+        ),
+        TextButton(
+          onPressed: () => _apply(context),
+          child: Text(l10n.save),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _apply(BuildContext context) async {
+    final l10n = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final ops = ref.read(fileOpsServiceProvider);
+    final pattern = _ctrl.text;
+    Navigator.of(context).pop();
+
+    var renamed = 0;
+    for (final s in widget.songs) {
+      final newName = PathUtils.basename(RenamePattern.render(pattern, s));
+      if (newName.isEmpty) continue;
+      if (await ops.rename(s.filePath, newName) != null) renamed++;
+    }
+    if (renamed > 0) await ref.read(rescanProvider)();
+    messenger.showSnackBar(SnackBar(
+      content: Text(renamed > 0 ? l10n.filesRenamed(renamed) : l10n.renameFailed),
+    ));
   }
 }

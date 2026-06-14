@@ -279,5 +279,19 @@
   "noQueues": "صف ذخیره‌شده‌ای نیست",
   "queueSaved": "صف ذخیره شد",
   "queueLimitReached": "به سقف صف‌ها رسیدید (۲۰)",
-  "queuePlays": "{count, plural, =0{پخش‌نشده} other{{count} پخش}}"
+  "queuePlays": "{count, plural, =0{پخش‌نشده} other{{count} پخش}}",
+  "folders": "پوشه‌ها",
+  "shuffleAll": "پخش درهم همه",
+  "addAsPlaylist": "افزودن به‌عنوان فهرست",
+  "excludeFromLibrary": "حذف از کتابخانه",
+  "hideDotFolders": "پنهان کردن پوشه‌های با نقطه",
+  "minTrackLength": "کمینه مدت قطعه",
+  "allowSdCardEdit": "اجازه ویرایش فایل‌ها روی کارت حافظه",
+  "excludedFolders": "پوشه‌های مستثنا",
+  "noExcludedFolders": "پوشه مستثنایی نیست",
+  "bulkRename": "تغییرنام گروهی از برچسب‌ها",
+  "renamePattern": "الگو",
+  "renamePreview": "پیش‌نمایش",
+  "renameFailed": "تغییرنام فایل‌ها ممکن نشد",
+  "filesRenamed": "{count, plural, other{{count} فایل تغییرنام یافت}}"
 }

@@ -279,5 +279,19 @@
   "noQueues": "لا قوائم محفوظة",
   "queueSaved": "تم حفظ القائمة",
   "queueLimitReached": "تم بلوغ الحد الأقصى للقوائم (٢٠)",
-  "queuePlays": "{count, plural, =0{لم تُشغّل} =1{تشغيل واحد} =2{تشغيلان} few{{count} تشغيلات} many{{count} تشغيلًا} other{{count} تشغيل}}"
+  "queuePlays": "{count, plural, =0{لم تُشغّل} =1{تشغيل واحد} =2{تشغيلان} few{{count} تشغيلات} many{{count} تشغيلًا} other{{count} تشغيل}}",
+  "folders": "المجلدات",
+  "shuffleAll": "تشغيل عشوائي للكل",
+  "addAsPlaylist": "إضافة كقائمة تشغيل",
+  "excludeFromLibrary": "استبعاد من المكتبة",
+  "hideDotFolders": "إخفاء المجلدات التي تبدأ بنقطة",
+  "minTrackLength": "أدنى مدة للمقطع",
+  "allowSdCardEdit": "السماح بتحرير الملفات على بطاقة SD",
+  "excludedFolders": "المجلدات المستبعدة",
+  "noExcludedFolders": "لا مجلدات مستبعدة",
+  "bulkRename": "إعادة تسمية جماعية من الوسوم",
+  "renamePattern": "النمط",
+  "renamePreview": "معاينة",
+  "renameFailed": "تعذّر إعادة تسمية الملفات",
+  "filesRenamed": "{count, plural, =0{لم تُعد تسمية} =1{أُعيدت تسمية ملف} =2{أُعيدت تسمية ملفين} few{أُعيدت تسمية {count} ملفات} many{أُعيدت تسمية {count} ملفًا} other{أُعيدت تسمية {count} ملف}}"
 }

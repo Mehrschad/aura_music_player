@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/local/audio_query/device_library_repository.dart';
 import '../../data/local/tag_editor/audiotagger_tag_writer.dart';
+import '../../domain/library/folder_logic.dart';
 import '../../domain/library/library_grouping.dart';
 import '../../domain/library/song_search.dart';
 import '../../domain/library/song_sorting.dart';
@@ -55,18 +56,30 @@ final tagOverridesProvider =
 /// persist to the files.
 final tagWriterProvider = Provider<TagWriter>((ref) => const NoopTagWriter());
 
-/// The song index with any tag edits applied and soft-hidden tracks removed.
-/// Everything downstream (library, albums, artists, search, playlists) reads
-/// this rather than the raw scan, so a hidden track disappears everywhere.
+/// The song index with tag edits applied, soft-hidden tracks removed, and the
+/// folder rules (excluded folders, dot-folders, min-duration) enforced.
+/// Everything downstream (library, albums, artists, search, playlists, folders)
+/// reads this rather than the raw scan, so a hidden/excluded track disappears
+/// everywhere at once.
 final effectiveSongsProvider = Provider<AsyncValue<List<Song>>>((ref) {
   final overrides = ref.watch(tagOverridesProvider);
   final hidden = ref.watch(hiddenSongsProvider);
+  final excluded = ref.watch(settingsProvider.select((s) => s.excludedFolders));
+  final hideDot = ref.watch(settingsProvider.select((s) => s.hideDotFolders));
+  final minSecs = ref.watch(settingsProvider.select((s) => s.minTrackSeconds));
   return ref.watch(songsProvider).whenData((list) {
-    if (overrides.isEmpty && hidden.isEmpty) return list;
-    return [
-      for (final s in list)
-        if (!hidden.contains(s.id)) overrides[s.id] ?? s,
-    ];
+    final base = (overrides.isEmpty && hidden.isEmpty)
+        ? list
+        : [
+            for (final s in list)
+              if (!hidden.contains(s.id)) overrides[s.id] ?? s,
+          ];
+    return FolderLogic.filter(
+      base,
+      excludedFolders: excluded,
+      hideDotFolders: hideDot,
+      minTrackSeconds: minSecs,
+    );
   });
 });
 
