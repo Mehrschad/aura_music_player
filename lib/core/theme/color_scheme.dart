@@ -20,6 +20,7 @@ class AppColors extends ThemeExtension<AppColors> {
     required this.glassTint,
     required this.glassBorder,
     required this.scrim,
+    required this.danger,
   });
 
   /// True page background. AMOLED = pure black, dark = near-black, light = white.
@@ -54,6 +55,10 @@ class AppColors extends ThemeExtension<AppColors> {
   /// Dark overlay used behind blurred album art (lyrics / now-playing).
   final Color scrim;
 
+  /// Semantic colour for destructive actions (delete, clear, remove). The only
+  /// place a "red" lives — widgets never reach for `Colors.red*`.
+  final Color danger;
+
   // ── Canonical variants ─────────────────────────────────────────────────
 
   static const Color _seed = Color(0xFF8E8E93);
@@ -73,6 +78,7 @@ class AppColors extends ThemeExtension<AppColors> {
     glassTint: Color(0x22FFFFFF), // ~13% white for richer glass
     glassBorder: Color(0x2AFFFFFF), // ~16% white inner highlight
     scrim: Color(0xB3000000), // 70% black
+    danger: Color(0xFFFF6B6B), // soft coral red, legible on black
   );
 
   static const AppColors dark = AppColors(
@@ -87,6 +93,7 @@ class AppColors extends ThemeExtension<AppColors> {
     glassTint: Color(0x22FFFFFF),
     glassBorder: Color(0x2AFFFFFF),
     scrim: Color(0xB3000000),
+    danger: Color(0xFFFF6B6B),
   );
 
   static const AppColors light = AppColors(
@@ -101,6 +108,7 @@ class AppColors extends ThemeExtension<AppColors> {
     glassTint: Color(0x0C000000), // ~8% black tint on light glass
     glassBorder: Color(0x18000000),
     scrim: Color(0x66FFFFFF),
+    danger: Color(0xFFD93A3A), // deeper red for contrast on white
   );
 
   @override
@@ -116,6 +124,7 @@ class AppColors extends ThemeExtension<AppColors> {
     Color? glassTint,
     Color? glassBorder,
     Color? scrim,
+    Color? danger,
   }) {
     return AppColors(
       background: background ?? this.background,
@@ -129,6 +138,7 @@ class AppColors extends ThemeExtension<AppColors> {
       glassTint: glassTint ?? this.glassTint,
       glassBorder: glassBorder ?? this.glassBorder,
       scrim: scrim ?? this.scrim,
+      danger: danger ?? this.danger,
     );
   }
 
@@ -147,6 +157,7 @@ class AppColors extends ThemeExtension<AppColors> {
       glassTint: Color.lerp(glassTint, other.glassTint, t)!,
       glassBorder: Color.lerp(glassBorder, other.glassBorder, t)!,
       scrim: Color.lerp(scrim, other.scrim, t)!,
+      danger: Color.lerp(danger, other.danger, t)!,
     );
   }
 }
