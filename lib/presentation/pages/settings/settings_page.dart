@@ -12,7 +12,9 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/color_scheme.dart';
 import '../../../core/theme/glass_theme.dart';
 import '../../../core/theme/typography.dart';
+import '../../../domain/backup/backup_bundle.dart';
 import '../../../domain/models/app_settings.dart';
+import '../../providers/backup_provider.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/lyrics_providers.dart';
 import '../../providers/settings_providers.dart';
@@ -261,6 +263,25 @@ class SettingsPage extends ConsumerWidget {
               value: s.androidAuto,
               onChanged: n.setAndroidAuto),
 
+          // ── Backup & restore ──
+          _Header(l10n.backupRestore),
+          _NavTile(
+            label: l10n.backupExportAll,
+            icon: Icons.cloud_upload_outlined,
+            onTap: () {
+              final bundle = ref.read(backupCoordinatorProvider).createBundle();
+              Clipboard.setData(
+                  ClipboardData(text: jsonEncode(bundle.toJson())));
+              ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(l10n.backupExportedAll)));
+            },
+          ),
+          _NavTile(
+            label: l10n.backupImportAll,
+            icon: Icons.cloud_download_outlined,
+            onTap: () => _fullRestoreDialog(context, ref),
+          ),
+
           // ── About ──
           _Header(l10n.settingsAbout),
           ListTile(
@@ -341,6 +362,45 @@ class SettingsPage extends ConsumerWidget {
     } catch (_) {
       messenger
           .showSnackBar(SnackBar(content: Text(l10n.settingsImportFailed)));
+    }
+  }
+
+  /// Prompts for a pasted full backup, validates it, then restores every
+  /// section. Any parse or format error surfaces as a single failure message.
+  Future<void> _fullRestoreDialog(BuildContext context, WidgetRef ref) async {
+    final controller = TextEditingController();
+    final l10n = AppLocalizations.of(context);
+    final colors = context.colors;
+    final text = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: colors.surfaceElevated,
+        title: Text(l10n.backupImportAll,
+            style: AppTextTheme.title.copyWith(color: colors.onSurface)),
+        content: TextField(
+          controller: controller,
+          maxLines: 4,
+          style: AppTextTheme.body.copyWith(color: colors.onSurface),
+          decoration: InputDecoration(hintText: l10n.pasteBackupHint),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(ctx).pop(), child: Text(l10n.cancel)),
+          TextButton(
+              onPressed: () => Navigator.of(ctx).pop(controller.text),
+              child: Text(l10n.save)),
+        ],
+      ),
+    );
+    if (text == null || text.trim().isEmpty) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final map = jsonDecode(text) as Map<String, dynamic>;
+      final bundle = BackupBundle.fromJson(map);
+      ref.read(backupCoordinatorProvider).restore(bundle);
+      messenger.showSnackBar(SnackBar(content: Text(l10n.backupImportedAll)));
+    } catch (_) {
+      messenger.showSnackBar(SnackBar(content: Text(l10n.backupImportFailed)));
     }
   }
 }

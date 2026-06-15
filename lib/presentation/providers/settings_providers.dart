@@ -80,6 +80,17 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
 
   /// Replaces the whole settings object (settings backup import).
   void replaceAll(AppSettings v) => _update(v);
+
+  /// Returns this notifier's state as JSON for a backup bundle.
+  Object? exportData() => state.toJson();
+
+  /// Replaces this notifier's state from a backup payload (best-effort).
+  void importData(Object? data) {
+    if (data is! Map) return;
+    try {
+      replaceAll(AppSettings.fromJson(Map<String, dynamic>.from(data)));
+    } catch (_) {/* malformed payload */}
+  }
 }
 
 final settingsProvider =

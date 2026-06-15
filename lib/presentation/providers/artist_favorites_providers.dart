@@ -33,6 +33,16 @@ class ArtistFavoritesNotifier extends StateNotifier<Set<String>> {
     state = next;
     _save();
   }
+
+  /// Returns this notifier's state as JSON for a backup bundle.
+  Object? exportData() => state.toList();
+
+  /// Replaces this notifier's state from a backup payload (best-effort).
+  void importData(Object? data) {
+    if (data is! List) return;
+    state = data.whereType<String>().toSet();
+    _save();
+  }
 }
 
 final artistFavoritesProvider =

@@ -169,6 +169,21 @@ class QueueRegistry extends StateNotifier<List<NamedQueue>> {
         ),
       );
 
+  /// Returns this notifier's state as JSON for a backup bundle.
+  Object? exportData() => state.map((q) => q.toJson()).toList();
+
+  /// Replaces this notifier's state from a backup payload (best-effort).
+  void importData(Object? data) {
+    if (data is! List) return;
+    try {
+      state = data
+          .cast<Map<String, dynamic>>()
+          .map(NamedQueue.fromJson)
+          .toList();
+      _save();
+    } catch (_) {/* malformed payload */}
+  }
+
   void _mutate(String id, NamedQueue Function(NamedQueue) f) {
     var changed = false;
     final next = <NamedQueue>[];

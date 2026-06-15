@@ -54,6 +54,21 @@ class BookmarksNotifier extends StateNotifier<List<Bookmark>> {
       );
     } catch (_) {/* tests */}
   }
+
+  /// Returns this notifier's state as JSON for a backup bundle.
+  Object? exportData() => state.map((b) => b.toJson()).toList();
+
+  /// Replaces this notifier's state from a backup payload (best-effort).
+  void importData(Object? data) {
+    if (data is! List) return;
+    try {
+      state = data
+          .cast<Map<String, dynamic>>()
+          .map(Bookmark.fromJson)
+          .toList();
+      _save();
+    } catch (_) {/* malformed payload */}
+  }
 }
 
 final bookmarksProvider =

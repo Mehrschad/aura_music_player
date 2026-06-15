@@ -51,6 +51,23 @@ class PlayHistoryNotifier extends StateNotifier<List<PlayEvent>> {
     state = const [];
     _save();
   }
+
+  /// Returns this notifier's state as JSON for a backup bundle.
+  Object? exportData() => state.map((e) => e.toJson()).toList();
+
+  /// Replaces this notifier's state from a backup payload (best-effort).
+  void importData(Object? data) {
+    if (data is! List) return;
+    try {
+      final list =
+          data.cast<Map<String, dynamic>>().map(PlayEvent.fromJson).toList();
+      if (list.length > _maxEvents) {
+        list.removeRange(0, list.length - _maxEvents);
+      }
+      state = list;
+      _save();
+    } catch (_) {/* malformed payload */}
+  }
 }
 
 final playHistoryProvider =

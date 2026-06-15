@@ -50,6 +50,20 @@ class SongRatingsNotifier extends StateNotifier<Map<String, int>> {
     state = {...state, for (final id in songIds) id: r};
     _save();
   }
+
+  /// Returns this notifier's state as JSON for a backup bundle.
+  Object? exportData() => Map<String, int>.of(state);
+
+  /// Replaces this notifier's state from a backup payload (best-effort).
+  void importData(Object? data) {
+    if (data is! Map) return;
+    final next = <String, int>{};
+    data.forEach((k, v) {
+      if (k is String && v is int) next[k] = v.clamp(1, 5);
+    });
+    state = next;
+    _save();
+  }
 }
 
 final songRatingsProvider =
