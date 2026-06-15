@@ -353,7 +353,9 @@
   "lastFmConnectedAs": "Verbunden als @{username}",
   "@lastFmConnectedAs": {
     "placeholders": {
-      "username": { "type": "String" }
+      "username": {
+        "type": "String"
+      }
     }
   },
   "lastFmDisconnect": "Verbindung trennen",
@@ -362,11 +364,17 @@
   "lastFmGetAuthUrl": "Autorisierungs-URL abrufen",
   "lastFmAuthUrlHint": "Öffne diese URL im Browser, autorisiere, dann tippe auf Fertig",
   "lastFmComplete": "Autorisierung abschließen",
+  "copyUrl": "URL kopieren",
+  "@copyUrl": {
+    "description": "Copy a URL to the clipboard."
+  },
   "lastFmScrobbling": "Scrobbling aktiv",
   "lastFmPendingScrobbles": "{count} ausstehende Scrobbles",
   "@lastFmPendingScrobbles": {
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   }
 }

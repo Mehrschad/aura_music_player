@@ -487,44 +487,82 @@
     }
   },
   "folders": "Folders",
-  "@folders": { "description": "Title of the folder browser." },
+  "@folders": {
+    "description": "Title of the folder browser."
+  },
   "shuffleAll": "Shuffle all",
-  "@shuffleAll": { "description": "Shuffle every track in a folder." },
+  "@shuffleAll": {
+    "description": "Shuffle every track in a folder."
+  },
   "addAsPlaylist": "Add as playlist",
-  "@addAsPlaylist": { "description": "Folder action: create a playlist from it." },
+  "@addAsPlaylist": {
+    "description": "Folder action: create a playlist from it."
+  },
   "excludeFromLibrary": "Exclude from library",
-  "@excludeFromLibrary": { "description": "Folder action: blacklist the folder." },
+  "@excludeFromLibrary": {
+    "description": "Folder action: blacklist the folder."
+  },
   "hideDotFolders": "Hide folders starting with a dot",
-  "@hideDotFolders": { "description": "Hidden-rule toggle." },
+  "@hideDotFolders": {
+    "description": "Hidden-rule toggle."
+  },
   "minTrackLength": "Minimum track length",
-  "@minTrackLength": { "description": "Slider hiding very short clips." },
+  "@minTrackLength": {
+    "description": "Slider hiding very short clips."
+  },
   "allowSdCardEdit": "Allow editing files on SD card",
-  "@allowSdCardEdit": { "description": "Opt-in to broad storage for SD editing." },
+  "@allowSdCardEdit": {
+    "description": "Opt-in to broad storage for SD editing."
+  },
   "excludedFolders": "Excluded folders",
-  "@excludedFolders": { "description": "Settings list of blacklisted folders." },
+  "@excludedFolders": {
+    "description": "Settings list of blacklisted folders."
+  },
   "noExcludedFolders": "No excluded folders",
-  "@noExcludedFolders": { "description": "Empty state for the excluded list." },
+  "@noExcludedFolders": {
+    "description": "Empty state for the excluded list."
+  },
   "bulkRename": "Bulk rename from tags",
-  "@bulkRename": { "description": "Selection action: pattern-rename files." },
+  "@bulkRename": {
+    "description": "Selection action: pattern-rename files."
+  },
   "renamePattern": "Pattern",
-  "@renamePattern": { "description": "Label for the rename pattern field." },
+  "@renamePattern": {
+    "description": "Label for the rename pattern field."
+  },
   "renamePreview": "Preview",
-  "@renamePreview": { "description": "Header above the rename preview list." },
+  "@renamePreview": {
+    "description": "Header above the rename preview list."
+  },
   "renameFailed": "Couldn't rename files",
-  "@renameFailed": { "description": "Snackbar when bulk rename fails." },
+  "@renameFailed": {
+    "description": "Snackbar when bulk rename fails."
+  },
   "filesRenamed": "{count, plural, =1{1 file renamed} other{{count} files renamed}}",
   "@filesRenamed": {
     "description": "Snackbar after bulk rename.",
-    "placeholders": { "count": { "type": "int" } }
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "rateSong": "Rate",
-  "@rateSong": { "description": "Star-rating action label." },
+  "@rateSong": {
+    "description": "Star-rating action label."
+  },
   "fieldRating": "Rating",
-  "@fieldRating": { "description": "Smart-playlist rule field: star rating." },
+  "@fieldRating": {
+    "description": "Smart-playlist rule field: star rating."
+  },
   "listeningStats": "Listening stats",
-  "@listeningStats": { "description": "Title of the statistics screen." },
+  "@listeningStats": {
+    "description": "Title of the statistics screen."
+  },
   "noStatsYet": "No listening yet",
-  "@noStatsYet": { "description": "Empty state for the stats screen." },
+  "@noStatsYet": {
+    "description": "Empty state for the stats screen."
+  },
   "periodToday": "Today",
   "periodWeek": "Week",
   "periodMonth": "Month",
@@ -538,60 +576,108 @@
   "streakDays": "{count, plural, =0{No streak} =1{1 day streak} other{{count} day streak}}",
   "@streakDays": {
     "description": "Consecutive-days listening streak.",
-    "placeholders": { "count": { "type": "int" } }
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "listeningHeatmap": "Activity",
-  "@listeningHeatmap": { "description": "Heatmap section heading." },
+  "@listeningHeatmap": {
+    "description": "Heatmap section heading."
+  },
   "timeOfDay": "Time of day",
-  "@timeOfDay": { "description": "Hour-of-day chart heading." },
+  "@timeOfDay": {
+    "description": "Hour-of-day chart heading."
+  },
   "topSongs": "Top songs",
   "topArtists": "Top artists",
   "topAlbums": "Top albums",
   "playsCount": "{count, plural, =1{1 play} other{{count} plays}}",
   "@playsCount": {
     "description": "Play-count suffix in top lists.",
-    "placeholders": { "count": { "type": "int" } }
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "forgottenGems": "Forgotten gems",
-  "@forgottenGems": { "description": "Section: old, rarely-played tracks." },
+  "@forgottenGems": {
+    "description": "Section: old, rarely-played tracks."
+  },
   "speedAndPitch": "Speed & Pitch",
-  "@speedAndPitch": { "description": "Title of the combined speed and pitch bottom sheet." },
+  "@speedAndPitch": {
+    "description": "Title of the combined speed and pitch bottom sheet."
+  },
   "pitchControl": "Pitch",
-  "@pitchControl": { "description": "Label for the pitch slider." },
+  "@pitchControl": {
+    "description": "Label for the pitch slider."
+  },
   "pitchOriginal": "Original",
-  "@pitchOriginal": { "description": "Pitch label shown when pitch is at 0 semitones." },
+  "@pitchOriginal": {
+    "description": "Pitch label shown when pitch is at 0 semitones."
+  },
   "pitchReset": "Reset pitch",
-  "@pitchReset": { "description": "Button to reset pitch to 0 semitones." },
+  "@pitchReset": {
+    "description": "Button to reset pitch to 0 semitones."
+  },
   "skipSilence": "Skip silence",
-  "@skipSilence": { "description": "Settings toggle to auto-skip silent sections during playback." },
+  "@skipSilence": {
+    "description": "Settings toggle to auto-skip silent sections during playback."
+  },
   "lastFmConnect": "Connect to Last.fm",
-  "@lastFmConnect": { "description": "Nav tile label to open the Last.fm auth page." },
+  "@lastFmConnect": {
+    "description": "Nav tile label to open the Last.fm auth page."
+  },
   "lastFmConnectedAs": "Connected as @{username}",
   "@lastFmConnectedAs": {
     "description": "Shows the authenticated Last.fm username.",
     "placeholders": {
-      "username": { "type": "String" }
+      "username": {
+        "type": "String"
+      }
     }
   },
   "lastFmDisconnect": "Disconnect",
-  "@lastFmDisconnect": { "description": "Button to revoke the Last.fm session." },
+  "@lastFmDisconnect": {
+    "description": "Button to revoke the Last.fm session."
+  },
   "lastFmApiKey": "API key",
-  "@lastFmApiKey": { "description": "Label for the Last.fm API key text field." },
+  "@lastFmApiKey": {
+    "description": "Label for the Last.fm API key text field."
+  },
   "lastFmApiSecret": "API secret",
-  "@lastFmApiSecret": { "description": "Label for the Last.fm API secret text field." },
+  "@lastFmApiSecret": {
+    "description": "Label for the Last.fm API secret text field."
+  },
   "lastFmGetAuthUrl": "Get authorization URL",
-  "@lastFmGetAuthUrl": { "description": "Button that fetches a Last.fm auth token and builds the browser URL." },
+  "@lastFmGetAuthUrl": {
+    "description": "Button that fetches a Last.fm auth token and builds the browser URL."
+  },
   "lastFmAuthUrlHint": "Open this URL in your browser, authorize, then tap Complete",
-  "@lastFmAuthUrlHint": { "description": "Hint shown above the Last.fm auth URL." },
+  "@lastFmAuthUrlHint": {
+    "description": "Hint shown above the Last.fm auth URL."
+  },
   "lastFmComplete": "Complete authorization",
-  "@lastFmComplete": { "description": "Button to exchange the authorized token for a session key." },
+  "copyUrl": "Copy URL",
+  "@copyUrl": {
+    "description": "Copy a URL to the clipboard."
+  },
+  "@lastFmComplete": {
+    "description": "Button to exchange the authorized token for a session key."
+  },
   "lastFmScrobbling": "Scrobbling enabled",
-  "@lastFmScrobbling": { "description": "Label for the Last.fm scrobbling toggle." },
+  "@lastFmScrobbling": {
+    "description": "Label for the Last.fm scrobbling toggle."
+  },
   "lastFmPendingScrobbles": "{count} scrobbles pending",
   "@lastFmPendingScrobbles": {
     "description": "Count of scrobbles waiting to be sent.",
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   }
 }

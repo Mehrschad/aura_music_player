@@ -115,13 +115,20 @@ final scrobblerProvider = Provider<void>((ref) {
   });
 });
 
-/// Attempts to send all queued entries, removes them on success.
+/// Last.fm caps a single track.scrobble call at 50 tracks.
+const int _scrobbleBatchSize = 50;
+
+/// Sends queued entries in batches of 50, removing only what was confirmed
+/// sent so a queue longer than one batch is never silently dropped.
 Future<void> _flush(LastFmClient client, ScrobbleQueueNotifier queue,
     String sessionKey, String apiKey, String apiSecret) async {
-  final entries = queue.state;
-  if (entries.isEmpty) return;
-  try {
-    await client.scrobble(entries, sessionKey, apiKey, apiSecret);
-    queue.removeFirst(entries.length);
-  } catch (_) {} // Retry on next play event
+  while (queue.state.isNotEmpty) {
+    final batch = queue.state.take(_scrobbleBatchSize).toList();
+    try {
+      await client.scrobble(batch, sessionKey, apiKey, apiSecret);
+      queue.removeFirst(batch.length);
+    } catch (_) {
+      return; // Retry on next play event
+    }
+  }
 }

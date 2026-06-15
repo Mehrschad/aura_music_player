@@ -325,7 +325,9 @@
   "lastFmConnectedAs": "متصل بـ @{username}",
   "@lastFmConnectedAs": {
     "placeholders": {
-      "username": { "type": "String" }
+      "username": {
+        "type": "String"
+      }
     }
   },
   "lastFmDisconnect": "قطع الاتصال",
@@ -334,11 +336,17 @@
   "lastFmGetAuthUrl": "الحصول على رابط التخويل",
   "lastFmAuthUrlHint": "افتح هذا الرابط في متصفحك، وافق، ثم اضغط إتمام",
   "lastFmComplete": "إتمام التخويل",
+  "copyUrl": "نسخ الرابط",
+  "@copyUrl": {
+    "description": "Copy a URL to the clipboard."
+  },
   "lastFmScrobbling": "التسجيل نشط",
   "lastFmPendingScrobbles": "{count} تسجيل معلق",
   "@lastFmPendingScrobbles": {
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   }
 }

@@ -325,7 +325,9 @@
   "lastFmConnectedAs": "متصل به عنوان @{username}",
   "@lastFmConnectedAs": {
     "placeholders": {
-      "username": { "type": "String" }
+      "username": {
+        "type": "String"
+      }
     }
   },
   "lastFmDisconnect": "قطع اتصال",
@@ -334,11 +336,17 @@
   "lastFmGetAuthUrl": "دریافت لینک مجوز",
   "lastFmAuthUrlHint": "این لینک را در مرورگر باز کنید، تأیید کنید، سپس کامل کنید",
   "lastFmComplete": "تکمیل مجوز",
+  "copyUrl": "کپی لینک",
+  "@copyUrl": {
+    "description": "Copy a URL to the clipboard."
+  },
   "lastFmScrobbling": "اسکروبل فعال",
   "lastFmPendingScrobbles": "{count} اسکروبل در انتظار",
   "@lastFmPendingScrobbles": {
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   }
 }

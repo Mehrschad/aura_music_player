@@ -285,7 +285,7 @@ class _UrlBox extends StatelessWidget {
               color: colors.accent,
             ),
             label: Text(
-              'Copy URL',
+              AppLocalizations.of(context).copyUrl,
               style: AppTextTheme.caption.copyWith(color: colors.accent),
             ),
           ),
