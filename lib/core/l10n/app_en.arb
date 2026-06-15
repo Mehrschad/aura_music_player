@@ -729,5 +729,13 @@
         "type": "int"
       }
     }
+  },
+  "topGenres": "Top genres",
+  "@topGenres": {
+    "description": "Statistics section: most-played genres."
+  },
+  "dayOfWeek": "Day of week",
+  "@dayOfWeek": {
+    "description": "Statistics bar-chart section: plays distributed across Mon–Sun."
   }
 }

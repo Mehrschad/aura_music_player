@@ -404,5 +404,7 @@
         "type": "int"
       }
     }
-  }
+  },
+  "topGenres": "Top-Genres",
+  "dayOfWeek": "Wochentag"
 }

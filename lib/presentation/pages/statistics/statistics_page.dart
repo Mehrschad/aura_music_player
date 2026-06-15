@@ -95,6 +95,12 @@ class StatisticsPage extends ConsumerWidget {
                         _TopList(
                             title: l10n.topAlbums,
                             entries: StatsLogic.topAlbums(plays)),
+                        _TopList(
+                            title: l10n.topGenres,
+                            entries: StatsLogic.topGenres(plays)),
+                        const SizedBox(height: SpacingTokens.lg),
+                        _Heading(l10n.dayOfWeek),
+                        _BarChart(values: StatsLogic.dayOfWeek(plays)),
                         const SizedBox(height: SpacingTokens.lg),
                         _ForgottenGems(
                           gems: StatsLogic.forgottenGems(songs, now: now)

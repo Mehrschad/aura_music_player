@@ -94,6 +94,18 @@ void main() {
       expect(top.first.label, 'A');
       expect(top.first.plays, 2);
     });
+
+    test('top genres ranked by plays', () {
+      final genrePlays = [
+        _ev(song: 's1', genre: 'Rock', at: now),
+        _ev(song: 's2', genre: 'Rock', at: now),
+        _ev(song: 's3', genre: 'Jazz', at: now),
+      ];
+      final top = StatsLogic.topGenres(genrePlays);
+      expect(top.first.label, 'Rock');
+      expect(top.first.plays, 2);
+      expect(top[1].label, 'Jazz');
+    });
   });
 
   group('heatmap', () {
