@@ -25,6 +25,7 @@ class PlaylistsPage extends ConsumerWidget {
         AutoPlaylist.mostPlayed => Icons.local_fire_department_outlined,
         AutoPlaylist.recentlyPlayed => Icons.history,
         AutoPlaylist.favorites => Icons.favorite_outline,
+        AutoPlaylist.topRated => Icons.star_outline_rounded,
       };
 
   @override
@@ -70,6 +71,7 @@ class PlaylistsPage extends ConsumerWidget {
                       AutoPlaylist.mostPlayed => l10n.autoMostPlayed,
                       AutoPlaylist.recentlyPlayed => l10n.autoRecentlyPlayed,
                       AutoPlaylist.favorites => l10n.autoFavorites,
+                      AutoPlaylist.topRated => l10n.autoTopRated,
                     },
                     icon: _autoIcon(type),
                     count: ref

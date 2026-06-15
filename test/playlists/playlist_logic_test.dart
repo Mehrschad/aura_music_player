@@ -50,5 +50,18 @@ void main() {
           favoriteIds: {'old', 'new2'}, now: now);
       expect(out.map((s) => s.id), ['old', 'new2']);
     });
+
+    test('topRated keeps rated tracks, highest rating first, plays tie-break',
+        () {
+      final rated = [
+        song(id: 'a', rating: 3, plays: 1),
+        song(id: 'b', rating: 5, plays: 1),
+        song(id: 'c'), // unrated -> excluded
+        song(id: 'd', rating: 3, plays: 9), // ties 'a' on rating, more plays
+      ];
+      final out = autoPlaylistSongs(AutoPlaylist.topRated, rated,
+          favoriteIds: const {}, now: now);
+      expect(out.map((s) => s.id), ['b', 'd', 'a']);
+    });
   });
 }

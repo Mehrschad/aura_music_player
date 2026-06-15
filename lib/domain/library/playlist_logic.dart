@@ -38,6 +38,16 @@ List<Song> autoPlaylistSongs(
         for (final s in songs)
           if (favoriteIds.contains(s.id)) s,
       ];
+    case AutoPlaylist.topRated:
+      // Rated tracks only, highest rating first; ties fall back to play count.
+      return [
+        for (final s in songs)
+          if ((s.rating ?? 0) > 0) s,
+      ]..sort((a, b) {
+          final byRating = (b.rating ?? 0).compareTo(a.rating ?? 0);
+          if (byRating != 0) return byRating;
+          return b.playCount.compareTo(a.playCount);
+        });
   }
 }
 

@@ -28,6 +28,7 @@ String autoPlaylistLabel(AutoPlaylist type, AppLocalizations l10n) =>
       AutoPlaylist.mostPlayed => l10n.autoMostPlayed,
       AutoPlaylist.recentlyPlayed => l10n.autoRecentlyPlayed,
       AutoPlaylist.favorites => l10n.autoFavorites,
+      AutoPlaylist.topRated => l10n.autoTopRated,
     };
 
 Future<void> openUserPlaylist(BuildContext context, String id) {
