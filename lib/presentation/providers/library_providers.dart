@@ -8,6 +8,7 @@ import '../../domain/library/song_search.dart';
 import '../../domain/library/song_sorting.dart';
 import '../../domain/models/album.dart';
 import '../../domain/models/artist.dart';
+import '../../domain/models/genre.dart';
 import '../../domain/models/library_sort.dart';
 import '../../domain/models/song.dart';
 import '../../domain/repositories/library_repository.dart';
@@ -127,6 +128,25 @@ final albumsProvider = Provider<AsyncValue<List<Album>>>((ref) {
 
 final artistsProvider = Provider<AsyncValue<List<Artist>>>((ref) {
   return ref.watch(effectiveSongsProvider).whenData(groupArtists);
+});
+
+final genresProvider = Provider<AsyncValue<List<Genre>>>((ref) {
+  return ref.watch(effectiveSongsProvider).whenData(groupGenres);
+});
+
+/// Songs of a given genre, sorted by artist → album → track.
+final genreSongsProvider =
+    Provider.family<AsyncValue<List<Song>>, String>((ref, genreName) {
+  return ref.watch(effectiveSongsProvider).whenData((list) {
+    return list.where((s) => (s.genre ?? '').trim() == genreName).toList()
+      ..sort((a, b) {
+        final artistCmp = a.artist.compareTo(b.artist);
+        if (artistCmp != 0) return artistCmp;
+        final albumCmp = a.album.compareTo(b.album);
+        if (albumCmp != 0) return albumCmp;
+        return (a.trackNumber ?? 0).compareTo(b.trackNumber ?? 0);
+      });
+  });
 });
 
 /// Songs of a given album, in track order — used by album detail later.

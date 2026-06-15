@@ -13,6 +13,7 @@ Song song({
   int? year,
   int plays = 0,
   DateTime? lastPlayed,
+  String? genre,
 }) {
   return Song(
     id: id,
@@ -25,6 +26,7 @@ Song song({
     filePath: '/m/$id.flac',
     dateAdded: added ?? DateTime(2024),
     year: year,
+    genre: genre,
     playCount: plays,
     lastPlayed: lastPlayed,
   );

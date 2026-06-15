@@ -366,5 +366,8 @@
         "type": "int"
       }
     }
-  }
+  },
+  "tabGenres": "ژانرها",
+  "genreUnknown": "ژانر نامشخص",
+  "genresCount": "{count, plural, =0{بدون ژانر} =1{۱ ژانر} other{{count} ژانر}}"
 }

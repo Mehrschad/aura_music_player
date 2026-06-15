@@ -1,5 +1,6 @@
 import '../models/album.dart';
 import '../models/artist.dart';
+import '../models/genre.dart';
 import '../models/song.dart';
 
 /// Derives the album list from the flat song index.
@@ -76,6 +77,33 @@ List<Artist> groupArtists(List<Song> songs) {
   return artists;
 }
 
+/// Derives the genre list from the flat song index, bucketing by the trimmed
+/// genre tag (an empty bucket holds untagged songs). Returned sorted A–Z by
+/// genre name, with the untagged bucket always last.
+List<Genre> groupGenres(List<Song> songs) {
+  final byName = <String, _GenreAcc>{};
+  for (final s in songs) {
+    final key = (s.genre ?? '').trim();
+    final acc = byName.putIfAbsent(key, () => _GenreAcc(name: key));
+    acc.songCount++;
+    acc.firstSongId ??= int.tryParse(s.id);
+  }
+  final genres = byName.values
+      .map((g) => Genre(
+            name: g.name,
+            songCount: g.songCount,
+            firstSongId: g.firstSongId,
+          ))
+      .toList()
+    ..sort((x, y) {
+      // The untagged bucket (empty name) always sorts last.
+      if (x.name.isEmpty) return y.name.isEmpty ? 0 : 1;
+      if (y.name.isEmpty) return -1;
+      return x.name.toLowerCase().compareTo(y.name.toLowerCase());
+    });
+  return genres;
+}
+
 class _AlbumAcc {
   _AlbumAcc({required this.id, required this.name, required this.artist});
   final String id;
@@ -94,5 +122,12 @@ class _ArtistAcc {
   int songCount = 0;
   final Set<String> albumIds = {};
   bool hasArtwork = false;
+  int? firstSongId;
+}
+
+class _GenreAcc {
+  _GenreAcc({required this.name});
+  final String name;
+  int songCount = 0;
   int? firstSongId;
 }

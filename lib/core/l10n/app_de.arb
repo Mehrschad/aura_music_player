@@ -394,5 +394,15 @@
         "type": "int"
       }
     }
+  },
+  "tabGenres": "Genres",
+  "genreUnknown": "Unbekanntes Genre",
+  "genresCount": "{count, plural, =0{Keine Genres} =1{1 Genre} other{{count} Genres}}",
+  "@genresCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   }
 }

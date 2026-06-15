@@ -712,5 +712,22 @@
         "type": "int"
       }
     }
+  },
+  "tabGenres": "Genres",
+  "@tabGenres": {
+    "description": "Label for the genres browse entry point."
+  },
+  "genreUnknown": "Unknown genre",
+  "@genreUnknown": {
+    "description": "Label for songs without a genre tag."
+  },
+  "genresCount": "{count, plural, =0{No genres} =1{1 genre} other{{count} genres}}",
+  "@genresCount": {
+    "description": "Pluralised genre count.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   }
 }

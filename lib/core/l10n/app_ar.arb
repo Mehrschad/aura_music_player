@@ -366,5 +366,8 @@
         "type": "int"
       }
     }
-  }
+  },
+  "tabGenres": "الأنواع",
+  "genreUnknown": "نوع غير معروف",
+  "genresCount": "{count, plural, =0{لا أنواع} =1{نوع واحد} =2{نوعان} few{{count} أنواع} many{{count} نوعًا} other{{count} نوع}}"
 }

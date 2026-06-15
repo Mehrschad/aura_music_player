@@ -11,6 +11,7 @@ import '../../widgets/async_state_view.dart';
 import '../../widgets/library/album_grid_tile.dart';
 import '../../widgets/player_bar_inset.dart';
 import '../../widgets/section_header.dart';
+import '../genres/genres_page.dart';
 import 'album_detail_page.dart';
 
 class AlbumsPage extends ConsumerWidget {
@@ -30,6 +31,15 @@ class AlbumsPage extends ConsumerWidget {
           SectionHeader(
             title: l10n.tabAlbums,
             subtitle: count > 0 ? l10n.albumsCount(count) : null,
+            actions: [
+              IconButton(
+                tooltip: l10n.tabGenres,
+                icon: const Icon(Icons.category_outlined),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const GenresPage()),
+                ),
+              ),
+            ],
           ),
           Expanded(
             child: AsyncStateView<List<Album>>(
