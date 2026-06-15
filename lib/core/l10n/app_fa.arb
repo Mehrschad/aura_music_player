@@ -26,6 +26,8 @@
   "rescan": "پویش مجدد",
   "searchHint": "جستجوی آهنگ، هنرمند، آلبوم",
   "searchPrompt": "کتابخانه خود را جستجو کنید",
+  "recentSearches": "جست‌وجوهای اخیر",
+  "clearRecentSearches": "پاک کردن",
   "searchNoResults": "نتیجه‌ای برای «{query}» یافت نشد",
   "errorGeneric": "خطایی رخ داد",
   "retry": "تلاش دوباره",

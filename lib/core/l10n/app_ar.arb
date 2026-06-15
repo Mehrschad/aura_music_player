@@ -26,6 +26,8 @@
   "rescan": "إعادة الفحص",
   "searchHint": "ابحث عن أغانٍ أو فنانين أو ألبومات",
   "searchPrompt": "ابحث في مكتبتك",
+  "recentSearches": "عمليات البحث الأخيرة",
+  "clearRecentSearches": "مسح",
   "searchNoResults": "لا نتائج لـ «{query}»",
   "errorGeneric": "حدث خطأ ما",
   "retry": "إعادة المحاولة",

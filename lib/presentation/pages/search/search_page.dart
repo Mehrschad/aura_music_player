@@ -11,6 +11,7 @@ import '../../../domain/models/artist.dart';
 import '../../../domain/models/song.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
+import '../../providers/recent_searches_provider.dart';
 import '../../widgets/artwork/aura_artwork.dart';
 import '../../widgets/library/song_list_tile.dart';
 import '../../widgets/player/song_actions_sheet.dart';
@@ -69,6 +70,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   });
                 }
               },
+              onSubmitted: (v) {
+                final t = v.trim();
+                if (t.isNotEmpty) {
+                  ref.read(recentSearchesProvider.notifier).record(t);
+                }
+              },
               style: AppTextTheme.body.copyWith(color: colors.onSurface),
               decoration: InputDecoration(
                 hintText: l10n.searchHint,
@@ -121,7 +128,20 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     String query,
   ) {
     if (query.trim().isEmpty) {
-      return _centered(context, Icons.search, l10n.searchPrompt);
+      final recents = ref.watch(recentSearchesProvider);
+      if (recents.isEmpty) {
+        return _centered(context, Icons.search, l10n.searchPrompt);
+      }
+      return _RecentSearches(
+        terms: recents,
+        onTap: (t) {
+          _controller.text = t;
+          _controller.selection = TextSelection.collapsed(offset: t.length);
+          ref.read(searchQueryProvider.notifier).state = t;
+        },
+        onRemove: (t) => ref.read(recentSearchesProvider.notifier).remove(t),
+        onClear: () => ref.read(recentSearchesProvider.notifier).clear(),
+      );
     }
 
     final q = query.trim();
@@ -242,9 +262,16 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       for (int i = 0; i < songs.length; i++)
         SongListTile(
           song: songs[i],
-          onTap: () => ref
-              .read(audioControllerProvider)
-              .playQueue(songs, startIndex: i),
+          onTap: () {
+            // A played result is the strongest signal the search mattered.
+            final q = ref.read(searchQueryProvider).trim();
+            if (q.isNotEmpty) {
+              ref.read(recentSearchesProvider.notifier).record(q);
+            }
+            ref
+                .read(audioControllerProvider)
+                .playQueue(songs, startIndex: i);
+          },
           onMore: () => showSongActions(context, songs[i]),
         ),
     ];
@@ -464,6 +491,121 @@ class _AlbumRow extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Recent searches (empty-state view)
+// ---------------------------------------------------------------------------
+
+class _RecentSearches extends StatelessWidget {
+  const _RecentSearches({
+    required this.terms,
+    required this.onTap,
+    required this.onRemove,
+    required this.onClear,
+  });
+
+  final List<String> terms;
+  final ValueChanged<String> onTap;
+  final ValueChanged<String> onRemove;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final l10n = AppLocalizations.of(context);
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(
+        SpacingTokens.lg,
+        SpacingTokens.md,
+        SpacingTokens.lg,
+        SpacingTokens.lg,
+      ),
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                l10n.recentSearches,
+                style: AppTextTheme.title.copyWith(
+                  color: colors.onSurface,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: onClear,
+              child: Text(
+                l10n.clearRecentSearches,
+                style: AppTextTheme.body.copyWith(color: colors.accent),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: SpacingTokens.sm),
+        Wrap(
+          spacing: SpacingTokens.sm,
+          runSpacing: SpacingTokens.sm,
+          children: [
+            for (final term in terms)
+              _RecentChip(
+                label: term,
+                onTap: () => onTap(term),
+                onRemove: () => onRemove(term),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _RecentChip extends StatelessWidget {
+  const _RecentChip({
+    required this.label,
+    required this.onTap,
+    required this.onRemove,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(RadiusTokens.sm),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: SpacingTokens.md,
+          vertical: SpacingTokens.xs,
+        ),
+        decoration: BoxDecoration(
+          color: colors.surfaceElevated,
+          borderRadius: BorderRadius.circular(RadiusTokens.sm),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.history, size: 16, color: colors.onSurfaceFaint),
+            const SizedBox(width: SpacingTokens.xs),
+            Text(
+              label,
+              style: AppTextTheme.body.copyWith(color: colors.onSurface),
+            ),
+            const SizedBox(width: SpacingTokens.xs),
+            // Tappable X removes just this term.
+            GestureDetector(
+              onTap: onRemove,
+              child: Icon(Icons.close, size: 16, color: colors.onSurfaceFaint),
+            ),
+          ],
         ),
       ),
     );

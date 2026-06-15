@@ -66,6 +66,8 @@
   "rescan": "Rescan",
   "searchHint": "Search songs, artists, albums",
   "searchPrompt": "Search your library",
+  "recentSearches": "Recent searches",
+  "clearRecentSearches": "Clear",
   "searchNoResults": "No matches for “{query}”",
   "@searchNoResults": {
     "description": "Shown when a search returns nothing.",
