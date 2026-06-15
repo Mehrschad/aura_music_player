@@ -100,7 +100,7 @@ class _ABBtn extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final fg = isDestructive
-        ? Colors.redAccent
+        ? colors.danger
         : active
             ? accent
             : colors.onSurfaceMuted;

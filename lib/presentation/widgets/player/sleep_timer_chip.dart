@@ -57,7 +57,6 @@ class SleepTimerChip extends ConsumerWidget {
                       style: AppTextTheme.caption.copyWith(
                         color: accent,
                         fontWeight: FontWeight.w600,
-                        fontSize: 12,
                       ),
                     ),
                     if (mode is SleepTimerCountdown) ...[
@@ -73,7 +72,6 @@ class SleepTimerChip extends ConsumerWidget {
                             style: AppTextTheme.caption.copyWith(
                               color: accent.withOpacity(0.75),
                               fontWeight: FontWeight.w500,
-                              fontSize: 12,
                             ),
                           ),
                         ),

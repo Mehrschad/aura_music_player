@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/radius_tokens.dart';
@@ -116,7 +117,10 @@ class _WaveformScrubberState extends ConsumerState<WaveformScrubber>
       setState(() => _dragFraction = (x / w).clamp(0.0, 1.0));
 
   void _onDragEnd() {
-    if (_dragFraction != null) _seekToFraction(_dragFraction!);
+    if (_dragFraction != null) {
+      HapticFeedback.selectionClick(); // confirm the seek lands
+      _seekToFraction(_dragFraction!);
+    }
     _thumbController.reverse();
     setState(() => _dragFraction = null);
   }

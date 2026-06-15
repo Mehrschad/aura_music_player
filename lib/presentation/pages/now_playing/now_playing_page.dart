@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/constants/icon_sizes.dart';
 import '../../../core/constants/radius_tokens.dart';
 import '../../../core/constants/spacing_tokens.dart';
 import '../../../core/extensions/duration_format.dart';
@@ -57,11 +58,26 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
   late final AnimationController _ambientCtrl = AnimationController(
     vsync: this,
     duration: const Duration(seconds: 28),
-  )..repeat();
+  );
 
   // Tracks skip direction for the cover art slide animation.
   // +1 = forward (skip-next), -1 = backward (skip-prev), 0 = initial / unknown.
   int _artSlideDir = 0;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncAmbient();
+  }
+
+  // Hold the orbs still under reduce-motion; loop them otherwise.
+  void _syncAmbient() {
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _ambientCtrl.stop();
+    } else if (!_ambientCtrl.isAnimating) {
+      _ambientCtrl.repeat();
+    }
+  }
 
   @override
   void dispose() {
@@ -113,8 +129,14 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
       },
       onHorizontalDragEnd: (d) {
         final v = d.primaryVelocity ?? 0;
-        if (v < -600) ctrl.skipToNext();
-        if (v > 600) ctrl.skipToPrevious();
+        if (v < -600) {
+          HapticFeedback.selectionClick();
+          ctrl.skipToNext();
+        }
+        if (v > 600) {
+          HapticFeedback.selectionClick();
+          ctrl.skipToPrevious();
+        }
       },
       child: Scaffold(
         backgroundColor: colors.background,
@@ -363,7 +385,7 @@ class _TopBar extends StatelessWidget {
             children: [
               _PressIcon(
                 icon: Icons.keyboard_arrow_down,
-                size: 28,
+                size: IconSizes.xl,
                 color: colors.onSurface,
                 onTap: () => Navigator.of(context).maybePop(),
               ),
@@ -692,7 +714,6 @@ class _DotsPlaceholder extends StatelessWidget {
       style: AppTextTheme.body.copyWith(
         color: colors.onSurfaceFaint,
         letterSpacing: 8,
-        fontSize: 14,
       ),
     );
   }
@@ -886,7 +907,7 @@ class _LikeButtonState extends ConsumerState<_LikeButton>
                   child: Icon(
                     isFav ? Icons.favorite : Icons.favorite_border,
                     color: isFav ? widget.accent : colors.onSurfaceMuted,
-                    size: 24,
+                    size: IconSizes.lg,
                   ),
                 ),
               ],
@@ -930,7 +951,7 @@ class _TransportRow extends ConsumerWidget {
         _SkipButton(
           icon: Icons.skip_previous_rounded,
           tooltip: l10n.previousTrack,
-          onTap: ctrl.skipToPrevious,
+          onTap: state.hasPrevious ? ctrl.skipToPrevious : null,
         ),
         PlayPauseButton(
           playing: state.playing,
@@ -1264,10 +1285,10 @@ class _MenuItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final color = destructive ? Colors.redAccent : colors.onSurface;
+    final color = destructive ? colors.danger : colors.onSurface;
     return ListTile(
       leading: Icon(icon,
-          color: destructive ? Colors.redAccent : colors.onSurfaceMuted),
+          color: destructive ? colors.danger : colors.onSurfaceMuted),
       title: Text(label, style: AppTextTheme.body.copyWith(color: color)),
       onTap: onTap,
     );
@@ -1370,7 +1391,7 @@ Future<void> confirmAndDeleteSong(
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+            style: TextButton.styleFrom(foregroundColor: colors.danger),
             child: Text(l10n.delete),
           ),
         ],
@@ -1379,6 +1400,7 @@ Future<void> confirmAndDeleteSong(
   );
   if (confirmed != true) return;
 
+  HapticFeedback.mediumImpact(); // weighty confirm for a destructive commit
   final deleted = await ref.read(mediaDeleteServiceProvider).deleteSong(song.id);
   if (deleted) {
     // Move off the now-missing file, then rescan the library.
@@ -1441,7 +1463,7 @@ class _SleepTimerSheetState extends ConsumerState<_SleepTimerSheet> {
               // Header
               Row(children: [
                 Icon(Icons.bedtime_outlined,
-                    size: 18, color: colors.onSurfaceMuted),
+                    size: IconSizes.sm, color: colors.onSurfaceMuted),
                 const SizedBox(width: SpacingTokens.xs),
                 Text(l10n.sleepTimer,
                     style:
@@ -1609,12 +1631,20 @@ class _TimerChip extends StatelessWidget {
         ? (accent ?? colors.accent).withOpacity(0.16)
         : colors.surfaceElevated;
     final fg = isCancel
-        ? Colors.redAccent
+        ? colors.danger
         : selected
             ? (accent ?? colors.accent)
             : colors.onSurface;
     return GestureDetector(
-      onTap: onTap,
+      onTap: () {
+        // Cancel/clear gets a weightier tap; setting a timer is a light select.
+        if (isCancel) {
+          HapticFeedback.mediumImpact();
+        } else {
+          HapticFeedback.selectionClick();
+        }
+        onTap();
+      },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -1707,13 +1737,13 @@ Future<void> showBookmarksSheet(
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: Icon(Icons.bookmark_outline_rounded,
-                          color: colors.onSurfaceMuted, size: 20),
+                          color: colors.onSurfaceMuted, size: IconSizes.md),
                       title: Text(bm.label,
                           style: AppTextTheme.body
                               .copyWith(color: colors.onSurface)),
                       trailing: IconButton(
                         icon: Icon(Icons.close_rounded,
-                            color: colors.onSurfaceMuted, size: 18),
+                            color: colors.onSurfaceMuted, size: IconSizes.sm),
                         onPressed: () async {
                           await sheetRef
                               .read(bookmarksProvider.notifier)

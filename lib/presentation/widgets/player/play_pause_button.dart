@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/constants/motion_tokens.dart';
 import '../../../core/theme/color_scheme.dart';
@@ -58,7 +59,10 @@ class _PlayPauseButtonState extends State<PlayPauseButton>
   Widget build(BuildContext context) {
     final colors = context.colors;
     return PressScale(
-      onTap: () => widget.onTap(),
+      onTap: () {
+        HapticFeedback.lightImpact();
+        widget.onTap();
+      },
       semanticLabel: widget.semanticLabel,
       child: Container(
         width: widget.size,
