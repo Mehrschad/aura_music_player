@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../domain/models/play_event.dart';
+import '../../domain/stats/history_timeline.dart';
 import '../../domain/stats/stats_logic.dart';
 
 /// The listening history: an append-only, rotated log of [PlayEvent]s persisted
@@ -83,4 +84,10 @@ final periodPlaysProvider = Provider<List<PlayEvent>>((ref) {
   final history = ref.watch(playHistoryProvider);
   final period = ref.watch(statsPeriodProvider);
   return StatsLogic.inPeriod(history, period, DateTime.now());
+});
+
+/// The full play history grouped into day buckets for the timeline page.
+final listeningHistoryProvider = Provider<List<HistoryDay>>((ref) {
+  final history = ref.watch(playHistoryProvider);
+  return HistoryTimeline.groupByDay(history);
 });

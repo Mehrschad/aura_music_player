@@ -576,6 +576,26 @@
   "@noStatsYet": {
     "description": "Empty state for the stats screen."
   },
+  "listeningHistory": "Listening history",
+  "@listeningHistory": {
+    "description": "Title of the chronological listening history screen."
+  },
+  "historyToday": "Today",
+  "@historyToday": {
+    "description": "Day header for events that happened today."
+  },
+  "historyYesterday": "Yesterday",
+  "@historyYesterday": {
+    "description": "Day header for events that happened yesterday."
+  },
+  "historySkipped": "Skipped",
+  "@historySkipped": {
+    "description": "Chip marking a history event that was skipped, not played through."
+  },
+  "noHistoryYet": "No listening history yet",
+  "@noHistoryYet": {
+    "description": "Empty state for the listening history screen."
+  },
   "periodToday": "Today",
   "periodWeek": "Week",
   "periodMonth": "Month",

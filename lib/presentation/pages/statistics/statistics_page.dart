@@ -15,6 +15,7 @@ import '../../../domain/stats/stats_logic.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/stats_providers.dart';
 import '../../widgets/section_header.dart';
+import 'listening_history_page.dart';
 
 void openStatistics(BuildContext context) {
   Navigator.of(context).push(
@@ -46,7 +47,16 @@ class StatisticsPage extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SectionHeader(title: l10n.listeningStats),
+            SectionHeader(
+              title: l10n.listeningStats,
+              actions: [
+                IconButton(
+                  icon: Icon(Icons.history, color: colors.onSurface),
+                  tooltip: l10n.listeningHistory,
+                  onPressed: () => openListeningHistory(context),
+                ),
+              ],
+            ),
             _PeriodBar(
               current: period,
               onChanged: (p) =>
