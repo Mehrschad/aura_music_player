@@ -31,6 +31,7 @@
   "sortFieldDuration": "Dauer",
   "sortFieldPlayCount": "Wiedergaben",
   "sortFieldLastPlayed": "Zuletzt gespielt",
+  "sortFieldRating": "Bewertung",
   "sortAscending": "Aufsteigend",
   "sortDescending": "Absteigend",
   "displayList": "Liste",

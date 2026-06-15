@@ -14,6 +14,7 @@ enum SortField {
   duration,
   playCount,
   lastPlayed,
+  rating,
 }
 
 enum SortDirection { ascending, descending }
@@ -43,6 +44,7 @@ class LibrarySort {
       case SortField.year:
       case SortField.playCount:
       case SortField.lastPlayed:
+      case SortField.rating:
         return SortDirection.descending;
     }
   }

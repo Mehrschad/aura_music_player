@@ -77,6 +77,7 @@ class _SortSheet extends StatelessWidget {
         SortField.duration => l.sortFieldDuration,
         SortField.playCount => l.sortFieldPlayCount,
         SortField.lastPlayed => l.sortFieldLastPlayed,
+        SortField.rating => l.sortFieldRating,
       };
 
   @override

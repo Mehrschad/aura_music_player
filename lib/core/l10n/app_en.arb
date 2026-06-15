@@ -54,6 +54,7 @@
   "sortFieldDuration": "Duration",
   "sortFieldPlayCount": "Play count",
   "sortFieldLastPlayed": "Last played",
+  "sortFieldRating": "Rating",
   "sortAscending": "Ascending",
   "sortDescending": "Descending",
   "displayList": "List",

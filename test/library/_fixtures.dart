@@ -14,6 +14,7 @@ Song song({
   int plays = 0,
   DateTime? lastPlayed,
   String? genre,
+  int? rating,
 }) {
   return Song(
     id: id,
@@ -29,5 +30,6 @@ Song song({
     genre: genre,
     playCount: plays,
     lastPlayed: lastPlayed,
+    rating: rating,
   );
 }

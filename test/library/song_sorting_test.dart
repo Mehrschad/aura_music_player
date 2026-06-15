@@ -84,6 +84,33 @@ void main() {
       expect(out.map((s) => s.id), ['2', '1']);
     });
 
+    test('rating descending: highest first, unrated last', () {
+      final songs = [
+        song(id: '1', title: 'A', rating: 3),
+        song(id: '2', title: 'B', rating: 5),
+        song(id: '3', title: 'C'), // no rating
+        song(id: '4', title: 'D', rating: 1),
+      ];
+      final out = sortSongs(
+        songs,
+        const LibrarySort(SortField.rating, SortDirection.descending),
+      );
+      expect(out.map((s) => s.id), ['2', '1', '4', '3']);
+    });
+
+    test('rating ascending: lowest first, unrated last', () {
+      final songs = [
+        song(id: '1', title: 'A', rating: 4),
+        song(id: '2', title: 'B', rating: 2),
+        song(id: '3', title: 'C'), // no rating — always last
+      ];
+      final out = sortSongs(
+        songs,
+        const LibrarySort(SortField.rating, SortDirection.ascending),
+      );
+      expect(out.map((s) => s.id), ['2', '1', '3']);
+    });
+
     test('does not mutate the input list', () {
       final songs = [song(id: '1', title: 'b'), song(id: '2', title: 'a')];
       final before = List.of(songs);
