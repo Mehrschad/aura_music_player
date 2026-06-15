@@ -10,6 +10,7 @@ import '../../../core/theme/color_scheme.dart';
 import '../../../core/theme/typography.dart';
 import '../../../core/utils/seed_color.dart';
 import '../../../domain/models/equalizer.dart';
+import '../../../domain/models/named_eq_preset.dart';
 import '../../providers/equalizer_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../widgets/equalizer/band_slider.dart';
@@ -75,17 +76,19 @@ class EqualizerPage extends ConsumerWidget {
         children: [
           _PresetChips(
             selected: selected,
-            userPresets: ref.watch(userEqPresetsProvider),
+            userPresets: ref.watch(customEqPresetsProvider),
             onPreset: controller.applyPreset,
-            onUserPreset: (gains) => controller.setGains(gains),
-            onSave: () {
-              final slots = List<List<double>?>.of(
-                  ref.read(userEqPresetsProvider));
-              final i = slots.indexWhere((s) => s == null);
-              final target = i == -1 ? slots.length - 1 : i;
-              slots[target] = List<double>.of(settings.gains);
-              ref.read(userEqPresetsProvider.notifier).state = slots;
+            onUserPreset: (preset) {
+              // Fully restore the saved curve, bass boost and stereo width.
+              controller.setGains(preset.gains);
+              controller.setBassBoost(preset.bassBoost);
+              controller.setStereoWidth(preset.stereoWidth);
             },
+            onSave: () => _saveDialog(context, ref, settings),
+            onRename: (id, name) =>
+                ref.read(customEqPresetsProvider.notifier).rename(id, name),
+            onDelete: (id) =>
+                ref.read(customEqPresetsProvider.notifier).remove(id),
             accent: accent,
           ),
           Opacity(
@@ -114,6 +117,58 @@ class EqualizerPage extends ConsumerWidget {
       ),
     );
   }
+
+  /// Prompts for a name, then saves the current curve as a custom preset.
+  Future<void> _saveDialog(
+      BuildContext context, WidgetRef ref, EqualizerSettings settings) async {
+    final l10n = AppLocalizations.of(context);
+    final name = await _nameDialog(
+      context,
+      title: l10n.eqSavePreset,
+      initial: l10n.eqCustom,
+    );
+    if (name == null || name.trim().isEmpty) return;
+    final preset = NamedEqPreset(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      name: name.trim(),
+      gains: List<double>.of(settings.gains),
+      bassBoost: settings.bassBoost,
+      stereoWidth: settings.stereoWidth,
+    );
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = ref.read(customEqPresetsProvider.notifier).add(preset);
+    messenger.showSnackBar(SnackBar(
+        content: Text(ok ? l10n.eqPresetSaved : l10n.eqPresetLimit)));
+  }
+}
+
+/// Shared name-entry dialog for saving and renaming presets.
+Future<String?> _nameDialog(BuildContext context,
+    {required String title, required String initial}) {
+  final controller = TextEditingController(text: initial);
+  final l10n = AppLocalizations.of(context);
+  final colors = context.colors;
+  return showDialog<String>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: colors.surfaceElevated,
+      title: Text(title,
+          style: AppTextTheme.title.copyWith(color: colors.onSurface)),
+      content: TextField(
+        controller: controller,
+        autofocus: true,
+        style: AppTextTheme.body.copyWith(color: colors.onSurface),
+        decoration: InputDecoration(hintText: l10n.eqPresetName),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.of(ctx).pop(), child: Text(l10n.cancel)),
+        TextButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text),
+            child: Text(l10n.save)),
+      ],
+    ),
+  );
 }
 
 class _EqGraph extends StatelessWidget {
@@ -180,14 +235,18 @@ class _PresetChips extends StatelessWidget {
     required this.onPreset,
     required this.onUserPreset,
     required this.onSave,
+    required this.onRename,
+    required this.onDelete,
     required this.accent,
   });
 
   final EqPreset? selected;
-  final List<List<double>?> userPresets;
+  final List<NamedEqPreset> userPresets;
   final ValueChanged<EqPreset> onPreset;
-  final ValueChanged<List<double>> onUserPreset;
+  final ValueChanged<NamedEqPreset> onUserPreset;
   final VoidCallback onSave;
+  final void Function(String id, String name) onRename;
+  final ValueChanged<String> onDelete;
   final Color accent;
 
   @override
@@ -210,17 +269,17 @@ class _PresetChips extends StatelessWidget {
                 onTap: () => onPreset(preset),
               ),
             ),
-          for (var i = 0; i < userPresets.length; i++)
-            if (userPresets[i] != null)
-              Padding(
-                padding: const EdgeInsets.only(right: SpacingTokens.sm),
-                child: _Chip(
-                  label: '${l10n.eqCustom} ${i + 1}',
-                  selected: false,
-                  accent: accent,
-                  onTap: () => onUserPreset(userPresets[i]!),
-                ),
+          for (final preset in userPresets)
+            Padding(
+              padding: const EdgeInsets.only(right: SpacingTokens.sm),
+              child: _Chip(
+                label: preset.name,
+                selected: false,
+                accent: accent,
+                onTap: () => onUserPreset(preset),
+                onLongPress: () => _presetMenu(context, preset),
               ),
+            ),
           ActionChip(
             avatar: Icon(Icons.add, size: 16, color: colors.onSurface),
             label: Text(l10n.eqSavePreset),
@@ -231,6 +290,44 @@ class _PresetChips extends StatelessWidget {
       ),
     );
   }
+
+  /// Long-press menu offering rename and delete for a custom preset.
+  Future<void> _presetMenu(BuildContext context, NamedEqPreset preset) async {
+    final l10n = AppLocalizations.of(context);
+    final colors = context.colors;
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: colors.surfaceElevated,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(Icons.edit, color: colors.onSurface),
+              title: Text(l10n.eqRenamePreset,
+                  style: AppTextTheme.body.copyWith(color: colors.onSurface)),
+              onTap: () => Navigator.of(ctx).pop('rename'),
+            ),
+            ListTile(
+              leading: Icon(Icons.delete, color: colors.onSurface),
+              title: Text(l10n.eqDeletePreset,
+                  style: AppTextTheme.body.copyWith(color: colors.onSurface)),
+              onTap: () => Navigator.of(ctx).pop('delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (action == 'delete') {
+      onDelete(preset.id);
+    } else if (action == 'rename' && context.mounted) {
+      final name = await _nameDialog(context,
+          title: l10n.eqRenamePreset, initial: preset.name);
+      if (name != null && name.trim().isNotEmpty) {
+        onRename(preset.id, name.trim());
+      }
+    }
+  }
 }
 
 class _Chip extends StatelessWidget {
@@ -239,18 +336,21 @@ class _Chip extends StatelessWidget {
     required this.selected,
     required this.accent,
     required this.onTap,
+    this.onLongPress,
   });
 
   final String label;
   final bool selected;
   final Color accent;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: Container(
         alignment: Alignment.center,
         padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.md),

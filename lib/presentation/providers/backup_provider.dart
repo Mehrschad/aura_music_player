@@ -4,6 +4,7 @@ import '../../core/constants/app_info.dart';
 import '../../domain/backup/backup_bundle.dart';
 import 'artist_favorites_providers.dart';
 import 'bookmarks_provider.dart';
+import 'equalizer_providers.dart';
 import 'hidden_songs_providers.dart';
 import 'queue_registry_provider.dart';
 import 'settings_providers.dart';
@@ -31,6 +32,8 @@ class BackupCoordinator {
           _ref.read(queueRegistryProvider.notifier).exportData(),
       BackupSections.playHistory:
           _ref.read(playHistoryProvider.notifier).exportData(),
+      BackupSections.customEqPresets:
+          _ref.read(customEqPresetsProvider.notifier).exportData(),
     };
     return BackupBundle(
       formatVersion: BackupBundle.currentFormatVersion,
@@ -77,6 +80,11 @@ class BackupCoordinator {
       _ref
           .read(playHistoryProvider.notifier)
           .importData(s[BackupSections.playHistory]);
+    }
+    if (s.containsKey(BackupSections.customEqPresets)) {
+      _ref
+          .read(customEqPresetsProvider.notifier)
+          .importData(s[BackupSections.customEqPresets]);
     }
   }
 }

@@ -64,4 +64,5 @@ class BackupSections {
   static const hiddenSongs = 'hiddenSongs';
   static const namedQueues = 'namedQueues';
   static const playHistory = 'playHistory';
+  static const customEqPresets = 'customEqPresets';
 }
