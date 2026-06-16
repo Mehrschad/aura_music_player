@@ -6,6 +6,51 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-06-16
+
+### Added — Pro audio, scrobbling & backup (steps 21–23)
+- **Audio Engine Pro**: ReplayGain (track/album), configurable crossfade, pitch
+  shift (±12 semitones), skip-silence, and per-track speed memory — all wired
+  through the `AudioController` seam with pure-Dart gain/crossfade logic.
+- **Last.fm scrobbling**: full auth flow (token → session), a from-scratch
+  pure-Dart MD5 signer (no `crypto` dependency), a persisted scrobble queue with
+  batched flushing, and now-playing updates.
+- **Full backup & restore**: a versioned bundle covering settings, ratings,
+  bookmarks, favorite artists, hidden songs, named queues, play history, and
+  custom EQ presets — export/import from Settings.
+
+### Added — Library & discovery (steps 24–30)
+- **Search Pro**: subsequence fuzzy matching as a ranked fallback, plus
+  persisted recent searches.
+- **Named custom EQ presets**: save / rename / delete your own curves
+  (persisted and included in backup).
+- **Listening history timeline**: every play and skip grouped by day, with
+  tap-to-play and skip chips.
+- **Genres**: a full genre browse surface (list + detail) alongside
+  Albums/Artists.
+- **Top Genres** and **Day-of-week** charts on the Statistics screen.
+- **Sort by rating** in the library sort sheet, and a **Top Rated** auto-playlist
+  in "Made for you".
+
+### Changed — UI/UX polish pass
+- **Haptics everywhere**: play/pause, tab changes, swipe-to-skip, waveform
+  seek-commit, EQ band detents and preset chips, the sleep timer, Settings
+  switches/chips, and destructive confirmations now give tactile feedback.
+- **Design-system hardening**: a semantic `danger` colour token (no more raw
+  red), a floating SnackBar theme that clears the glass nav bar, a unified
+  Dialog theme, an `IconSizes` scale, and a shared glass-sheet helper.
+- **Genres** brought to full parity with Albums/Artists — artwork thumbnails,
+  count subtitles, and a premium `SliverAppBar` detail header.
+- **Settings** restyled into iOS-style grouped sections.
+- Statistics, History, and Settings now clear the mini player; Album/Artist
+  detail show calm loading/error states instead of raw exceptions.
+
+### Fixed
+- **Search** strings are fully localized (fixing a hardcoded-English regression
+  in the section header and "See all" buttons).
+- Now Playing "Previous" is no longer a dead tap at the start of the queue.
+- The ambient/shimmer loops on Now Playing and Lyrics now honour reduced-motion.
+
 ### Added — Ratings, play count & listening stats (step 20)
 - **Star ratings** (1–5): inline in the song menu, in the Now Playing overflow,
   and as a bulk selection action. Persisted and merged onto the library like tag
