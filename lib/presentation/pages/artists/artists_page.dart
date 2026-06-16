@@ -20,13 +20,18 @@ class ArtistsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final artistsAsync = ref.watch(artistsProvider);
+    final count =
+        artistsAsync.maybeWhen(data: (a) => a.length, orElse: () => 0);
 
     return SafeArea(
       bottom: false,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SectionHeader(title: l10n.tabArtists),
+          SectionHeader(
+            title: l10n.tabArtists,
+            subtitle: count > 0 ? l10n.artistsCount(count) : null,
+          ),
           Expanded(
             child: AsyncStateView<List<Artist>>(
               value: artistsAsync.like,

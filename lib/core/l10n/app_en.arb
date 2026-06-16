@@ -42,6 +42,15 @@
       }
     }
   },
+  "artistsCount": "{count, plural, =0{No artists} =1{1 artist} other{{count} artists}}",
+  "@artistsCount": {
+    "description": "Pluralised artist count.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "sortLabel": "Sort",
   "@sortLabel": {
     "description": "Header for the sort selector."

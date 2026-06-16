@@ -86,12 +86,18 @@ List<Genre> groupGenres(List<Song> songs) {
     final key = (s.genre ?? '').trim();
     final acc = byName.putIfAbsent(key, () => _GenreAcc(name: key));
     acc.songCount++;
+    // Prefer a song with artwork as the representative for the genre thumbnail.
     acc.firstSongId ??= int.tryParse(s.id);
+    if (s.hasArtwork) {
+      acc.hasArtwork = true;
+      acc.firstSongId = int.tryParse(s.id);
+    }
   }
   final genres = byName.values
       .map((g) => Genre(
             name: g.name,
             songCount: g.songCount,
+            hasArtwork: g.hasArtwork,
             firstSongId: g.firstSongId,
           ))
       .toList()
@@ -129,5 +135,6 @@ class _GenreAcc {
   _GenreAcc({required this.name});
   final String name;
   int songCount = 0;
+  bool hasArtwork = false;
   int? firstSongId;
 }

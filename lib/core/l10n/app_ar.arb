@@ -8,6 +8,7 @@
   "tabSearch": "بحث",
   "songsCount": "{count, plural, =0{لا أغانٍ} =1{أغنية واحدة} =2{أغنيتان} few{{count} أغانٍ} many{{count} أغنية} other{{count} أغنية}}",
   "albumsCount": "{count, plural, =0{لا ألبومات} =1{ألبوم واحد} =2{ألبومان} few{{count} ألبومات} many{{count} ألبومًا} other{{count} ألبوم}}",
+  "artistsCount": "{count, plural, =0{لا فنانين} =1{فنان واحد} =2{فنانان} few{{count} فنانين} many{{count} فنانًا} other{{count} فنان}}",
   "sortLabel": "ترتيب",
   "sortFieldTitle": "العنوان",
   "sortFieldArtist": "الفنان",

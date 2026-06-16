@@ -8,6 +8,7 @@
   "tabSearch": "جستجو",
   "songsCount": "{count, plural, =0{بدون آهنگ} =1{۱ آهنگ} other{{count} آهنگ}}",
   "albumsCount": "{count, plural, =0{بدون آلبوم} =1{۱ آلبوم} other{{count} آلبوم}}",
+  "artistsCount": "{count, plural, =0{بدون هنرمند} =1{۱ هنرمند} other{{count} هنرمند}}",
   "sortLabel": "مرتب‌سازی",
   "sortFieldTitle": "عنوان",
   "sortFieldArtist": "هنرمند",

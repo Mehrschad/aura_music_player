@@ -22,6 +22,14 @@
       }
     }
   },
+  "artistsCount": "{count, plural, =0{Keine Künstler} =1{1 Künstler} other{{count} Künstler}}",
+  "@artistsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "sortLabel": "Sortieren",
   "sortFieldTitle": "Titel",
   "sortFieldArtist": "Künstler",
