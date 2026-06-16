@@ -427,10 +427,10 @@ class _Tile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final color = destructive ? Colors.redAccent : colors.onSurface;
+    final color = destructive ? colors.danger : colors.onSurface;
     return ListTile(
       leading: Icon(icon,
-          color: destructive ? Colors.redAccent : colors.onSurfaceMuted),
+          color: destructive ? colors.danger : colors.onSurfaceMuted),
       title: Text(label, style: AppTextTheme.body.copyWith(color: color)),
       trailing: trailing
           ? Icon(Icons.check_rounded, color: colors.accent, size: 20)

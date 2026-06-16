@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/constants/icon_sizes.dart';
 import '../../../core/constants/radius_tokens.dart';
 import '../../../core/constants/spacing_tokens.dart';
 import '../../../core/l10n/app_localizations.dart';
@@ -85,6 +86,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                 suffixIcon: query.isEmpty
                     ? null
                     : IconButton(
+                        tooltip: l10n.searchClear,
                         icon: Icon(Icons.close, color: colors.onSurfaceFaint),
                         onPressed: () {
                           _controller.clear();
@@ -98,15 +100,15 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                 filled: true,
                 fillColor: colors.surfaceElevated,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(32),
+                  borderRadius: RadiusTokens.brPill,
                   borderSide: BorderSide.none,
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(32),
+                  borderRadius: RadiusTokens.brPill,
                   borderSide: BorderSide.none,
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(32),
+                  borderRadius: RadiusTokens.brPill,
                   borderSide: BorderSide.none,
                 ),
                 contentPadding: const EdgeInsets.symmetric(
@@ -196,7 +198,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               ..._buildAlbumRows(context, matchedAlbums),
             ],
             if (hasSongs) ...[
-              const _SectionHeader(title: 'Songs'),
+              _SectionHeader(title: l10n.tabSongs),
               ..._buildSongRows(context, songs),
             ],
           ],
@@ -225,7 +227,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         ),
       if (hasMore && !showAll)
         _SeeAllButton(
-          label: 'See all ${artists.length} artists',
+          label: AppLocalizations.of(context).searchSeeAllArtists(artists.length),
           onTap: () => setState(() => _showAllArtists = true),
         ),
     ];
@@ -251,7 +253,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         ),
       if (hasMore && !showAll)
         _SeeAllButton(
-          label: 'See all ${albums.length} albums',
+          label: AppLocalizations.of(context).searchSeeAllAlbums(albums.length),
           onTap: () => setState(() => _showAllAlbums = true),
         ),
     ];
@@ -578,9 +580,10 @@ class _RecentChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l10n = AppLocalizations.of(context);
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(RadiusTokens.sm),
+      borderRadius: RadiusTokens.brSm,
       child: Container(
         padding: const EdgeInsets.symmetric(
           horizontal: SpacingTokens.md,
@@ -588,12 +591,12 @@ class _RecentChip extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           color: colors.surfaceElevated,
-          borderRadius: BorderRadius.circular(RadiusTokens.sm),
+          borderRadius: RadiusTokens.brSm,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.history, size: 16, color: colors.onSurfaceFaint),
+            Icon(Icons.history, size: IconSizes.xs, color: colors.onSurfaceFaint),
             const SizedBox(width: SpacingTokens.xs),
             Text(
               label,
@@ -601,9 +604,14 @@ class _RecentChip extends StatelessWidget {
             ),
             const SizedBox(width: SpacingTokens.xs),
             // Tappable X removes just this term.
-            GestureDetector(
-              onTap: onRemove,
-              child: Icon(Icons.close, size: 16, color: colors.onSurfaceFaint),
+            Semantics(
+              button: true,
+              label: l10n.delete,
+              child: GestureDetector(
+                onTap: onRemove,
+                child: Icon(Icons.close,
+                    size: IconSizes.xs, color: colors.onSurfaceFaint),
+              ),
             ),
           ],
         ),

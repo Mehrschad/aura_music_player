@@ -78,6 +78,24 @@
   "searchPrompt": "Search your library",
   "recentSearches": "Recent searches",
   "clearRecentSearches": "Clear",
+  "tabSongs": "Songs",
+  "searchClear": "Clear search",
+  "searchSeeAllArtists": "{count, plural, =1{See all 1 artist} other{See all {count} artists}}",
+  "@searchSeeAllArtists": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "searchSeeAllAlbums": "{count, plural, =1{See all 1 album} other{See all {count} albums}}",
+  "@searchSeeAllAlbums": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "searchNoResults": "No matches for “{query}”",
   "@searchNoResults": {
     "description": "Shown when a search returns nothing.",

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart' as intl;
 
+import '../../../core/constants/icon_sizes.dart';
 import '../../../core/constants/radius_tokens.dart';
 import '../../../core/constants/spacing_tokens.dart';
 import '../../../core/l10n/app_localizations.dart';
@@ -14,6 +15,7 @@ import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../providers/stats_providers.dart';
 import '../../widgets/artwork/aura_artwork.dart';
+import '../../widgets/player_bar_inset.dart';
 
 void openListeningHistory(BuildContext context) {
   Navigator.of(context).push(
@@ -48,14 +50,28 @@ class ListeningHistoryPage extends ConsumerWidget {
       ),
       body: days.isEmpty
           ? Center(
-              child: Text(
-                l10n.noHistoryYet,
-                style: AppTextTheme.body.copyWith(color: colors.onSurfaceMuted),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.history,
+                      size: IconSizes.huge, color: colors.onSurfaceFaint),
+                  const SizedBox(height: SpacingTokens.md),
+                  Text(
+                    l10n.noHistoryYet,
+                    textAlign: TextAlign.center,
+                    style: AppTextTheme.body
+                        .copyWith(color: colors.onSurfaceMuted),
+                  ),
+                ],
               ),
             )
           : ListView.builder(
-              padding: const EdgeInsets.fromLTRB(
-                  SpacingTokens.lg, 0, SpacingTokens.lg, SpacingTokens.xxl),
+              padding: EdgeInsets.fromLTRB(
+                  SpacingTokens.lg,
+                  0,
+                  SpacingTokens.lg,
+                  playerBarInset(context,
+                      miniPlayerVisible: ref.watch(hasMediaProvider))),
               itemCount: days.length,
               itemBuilder: (context, i) {
                 final day = days[i];

@@ -51,6 +51,10 @@
   "searchPrompt": "Mediathek durchsuchen",
   "recentSearches": "Letzte Suchen",
   "clearRecentSearches": "Löschen",
+  "tabSongs": "Titel",
+  "searchClear": "Suche löschen",
+  "searchSeeAllArtists": "{count, plural, =1{Alle 1 Künstler anzeigen} other{Alle {count} Künstler anzeigen}}",
+  "searchSeeAllAlbums": "{count, plural, =1{Alle 1 Album anzeigen} other{Alle {count} Alben anzeigen}}",
   "searchNoResults": "Keine Ergebnisse für \"{query}\"",
   "@searchNoResults": {
     "placeholders": {

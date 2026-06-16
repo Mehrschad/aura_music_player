@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/constants/icon_sizes.dart';
 import '../../../core/constants/radius_tokens.dart';
 import '../../../core/constants/spacing_tokens.dart';
 import '../../../core/extensions/duration_format.dart';
@@ -13,7 +14,9 @@ import '../../../domain/models/play_event.dart';
 import '../../../domain/models/song.dart';
 import '../../../domain/stats/stats_logic.dart';
 import '../../providers/library_providers.dart';
+import '../../providers/playback_providers.dart';
 import '../../providers/stats_providers.dart';
+import '../../widgets/player_bar_inset.dart';
 import '../../widgets/section_header.dart';
 import 'listening_history_page.dart';
 
@@ -65,12 +68,27 @@ class StatisticsPage extends ConsumerWidget {
             Expanded(
               child: plays.isEmpty
                   ? Center(
-                      child: Text(l10n.noStatsYet,
-                          style: AppTextTheme.body
-                              .copyWith(color: colors.onSurfaceMuted)))
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.bar_chart_rounded,
+                              size: IconSizes.huge,
+                              color: colors.onSurfaceFaint),
+                          const SizedBox(height: SpacingTokens.md),
+                          Text(l10n.noStatsYet,
+                              textAlign: TextAlign.center,
+                              style: AppTextTheme.body
+                                  .copyWith(color: colors.onSurfaceMuted)),
+                        ],
+                      ))
                   : ListView(
-                      padding: const EdgeInsets.fromLTRB(SpacingTokens.lg, 0,
-                          SpacingTokens.lg, SpacingTokens.xxl),
+                      padding: EdgeInsets.fromLTRB(
+                          SpacingTokens.lg,
+                          0,
+                          SpacingTokens.lg,
+                          playerBarInset(context,
+                              miniPlayerVisible:
+                                  ref.watch(hasMediaProvider))),
                       children: [
                         _Overview(overview: overview),
                         const SizedBox(height: SpacingTokens.md),

@@ -203,7 +203,7 @@ class _SelectionActionsSheet extends ConsumerWidget {
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+            style: TextButton.styleFrom(foregroundColor: colors.danger),
             child: Text(l10n.delete),
           ),
         ],
@@ -304,10 +304,10 @@ class _SelectionActionsSheet extends ConsumerWidget {
     bool destructive = false,
   }) {
     final colors = context.colors;
-    final color = destructive ? Colors.redAccent : colors.onSurface;
+    final color = destructive ? colors.danger : colors.onSurface;
     return ListTile(
       leading: Icon(icon,
-          color: destructive ? Colors.redAccent : colors.onSurfaceMuted),
+          color: destructive ? colors.danger : colors.onSurfaceMuted),
       title:
           Text(label, style: AppTextTheme.body.copyWith(color: color)),
       onTap: onTap,
