@@ -17,7 +17,9 @@ import '../../../domain/models/app_settings.dart';
 import '../../providers/backup_provider.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/lyrics_providers.dart';
+import '../../providers/playback_providers.dart';
 import '../../providers/settings_providers.dart';
+import '../../widgets/player_bar_inset.dart';
 import '../equalizer/equalizer_page.dart';
 import '../statistics/statistics_page.dart';
 import 'lastfm_connect_page.dart';
@@ -47,7 +49,9 @@ class SettingsPage extends ConsumerWidget {
             style: AppTextTheme.title.copyWith(color: colors.onSurface)),
       ),
       body: ListView(
-        padding: const EdgeInsets.only(bottom: SpacingTokens.xxl),
+        padding: EdgeInsets.only(
+            bottom: playerBarInset(context,
+                miniPlayerVisible: ref.watch(hasMediaProvider))),
         children: [
           // ── Appearance ──
           _Header(l10n.settingsAppearance),
@@ -412,11 +416,17 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    // iOS-style grouped-list section header: uppercase, muted, with generous
+    // top rhythm so sections read as distinct groups rather than a flat wall.
     return Padding(
-      padding: const EdgeInsets.fromLTRB(SpacingTokens.xl, SpacingTokens.lg,
+      padding: const EdgeInsets.fromLTRB(SpacingTokens.xl, SpacingTokens.xxl,
           SpacingTokens.xl, SpacingTokens.sm),
-      child: Text(title,
-          style: AppTextTheme.title.copyWith(color: colors.accent)),
+      child: Text(title.toUpperCase(),
+          style: AppTextTheme.caption.copyWith(
+            color: colors.onSurfaceMuted,
+            letterSpacing: 0.8,
+            fontWeight: FontWeight.w600,
+          )),
     );
   }
 }
@@ -454,7 +464,10 @@ class _Chips<T> extends StatelessWidget {
             children: [
               for (final v in values)
                 GestureDetector(
-                  onTap: () => onSelect(v),
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    onSelect(v);
+                  },
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: SpacingTokens.md,
@@ -496,7 +509,10 @@ class _SwitchTile extends StatelessWidget {
       title: Text(label,
           style: AppTextTheme.body.copyWith(color: colors.onSurface)),
       value: value,
-      onChanged: onChanged,
+      onChanged: (v) {
+        HapticFeedback.selectionClick();
+        onChanged(v);
+      },
     );
   }
 }
@@ -657,6 +673,7 @@ class _FolderList extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: AppTextTheme.body.copyWith(color: colors.onSurface)),
               trailing: IconButton(
+                tooltip: l10n.delete,
                 icon: Icon(Icons.close, color: colors.onSurfaceFaint),
                 onPressed: () => notifier.removeSourceFolder(f),
               ),
@@ -763,6 +780,7 @@ class _ExcludedFolderList extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: AppTextTheme.body.copyWith(color: colors.onSurface)),
               trailing: IconButton(
+                tooltip: l10n.delete,
                 icon: Icon(Icons.close, color: colors.onSurfaceFaint),
                 onPressed: () => notifier.removeExcludedFolder(f),
               ),
