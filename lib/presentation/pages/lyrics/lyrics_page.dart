@@ -72,13 +72,31 @@ class _LyricsPageState extends ConsumerState<LyricsPage>
   late final AnimationController _ambientCtrl = AnimationController(
     vsync: this,
     duration: const Duration(seconds: 24),
-  )..repeat();
+  );
 
   // Fast pulse for the frosted-glass light shimmer (~2.4s loop, ≈25 BPM)
   late final AnimationController _pulseCtrl = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 2400),
-  )..repeat();
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncAmbient();
+  }
+
+  // Hold the ambient loops still under reduce-motion; run them otherwise.
+  void _syncAmbient() {
+    final reduce = MediaQuery.disableAnimationsOf(context);
+    for (final c in [_ambientCtrl, _pulseCtrl]) {
+      if (reduce) {
+        c.stop();
+      } else if (!c.isAnimating) {
+        c.repeat();
+      }
+    }
+  }
 
   @override
   void dispose() {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/constants/spacing_tokens.dart';
 import '../../../core/theme/color_scheme.dart';
@@ -26,7 +27,11 @@ class BandSlider extends StatelessWidget {
 
   void _setFromDy(double dy, double height) {
     final fraction = (1 - dy / height).clamp(0.0, 1.0);
-    onChanged(kEqMinGain + fraction * _range);
+    final next = kEqMinGain + fraction * _range;
+    // A light tick each time the gain crosses a whole-dB detent — the drag
+    // feels notched rather than slippery.
+    if (next.round() != gain.round()) HapticFeedback.selectionClick();
+    onChanged(next);
   }
 
   @override

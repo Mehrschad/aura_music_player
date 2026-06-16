@@ -131,12 +131,21 @@ class AlbumDetailPage extends ConsumerWidget {
           // Song list — split into disc sections when the album spans
           // multiple discs.
           songsAsync.when(
-            loading: () => const SliverFillRemaining(
-              child: Center(child: CircularProgressIndicator()),
-            ),
-            error: (e, _) => SliverFillRemaining(
+            loading: () => SliverFillRemaining(
+              hasScrollBody: false,
               child: Center(
-                child: Text('$e',
+                child: SizedBox(
+                  width: SpacingTokens.xxl,
+                  height: SpacingTokens.xxl,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: colors.onSurfaceFaint),
+                ),
+              ),
+            ),
+            error: (_, __) => SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(
+                child: Text(l10n.errorGeneric,
                     style: AppTextTheme.body
                         .copyWith(color: colors.onSurfaceMuted)),
               ),
