@@ -44,6 +44,7 @@ class AppSettings {
     this.lastFmSessionKey = '',
     this.lastFmUsername = '',
     this.androidAuto = true,
+    this.onboardingSeen = false,
   });
 
   static const AppSettings defaults = AppSettings();
@@ -90,6 +91,7 @@ class AppSettings {
   final String lastFmSessionKey;
   final String lastFmUsername;
   final bool androidAuto;
+  final bool onboardingSeen;
 
   AppSettings copyWith({
     ThemePref? themePref,
@@ -121,6 +123,7 @@ class AppSettings {
     String? lastFmSessionKey,
     String? lastFmUsername,
     bool? androidAuto,
+    bool? onboardingSeen,
   }) {
     return AppSettings(
       themePref: themePref ?? this.themePref,
@@ -152,6 +155,7 @@ class AppSettings {
       lastFmSessionKey: lastFmSessionKey ?? this.lastFmSessionKey,
       lastFmUsername: lastFmUsername ?? this.lastFmUsername,
       androidAuto: androidAuto ?? this.androidAuto,
+      onboardingSeen: onboardingSeen ?? this.onboardingSeen,
     );
   }
 
@@ -186,6 +190,7 @@ class AppSettings {
         'lastFmSessionKey': lastFmSessionKey,
         'lastFmUsername': lastFmUsername,
         'androidAuto': androidAuto,
+        'onboardingSeen': onboardingSeen,
       };
 
   static AppSettings fromJson(Map<String, dynamic> json) {
@@ -234,6 +239,7 @@ class AppSettings {
       lastFmSessionKey: json['lastFmSessionKey'] as String? ?? d.lastFmSessionKey,
       lastFmUsername: json['lastFmUsername'] as String? ?? d.lastFmUsername,
       androidAuto: json['androidAuto'] as bool? ?? d.androidAuto,
+      onboardingSeen: json['onboardingSeen'] as bool? ?? d.onboardingSeen,
     );
   }
 }

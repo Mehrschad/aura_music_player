@@ -78,6 +78,10 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   void setLastFmUsername(String v) => _update(state.copyWith(lastFmUsername: v));
   void setAndroidAuto(bool v) => _update(state.copyWith(androidAuto: v));
 
+  Future<void> setOnboardingSeen() async {
+    _update(state.copyWith(onboardingSeen: true));
+  }
+
   /// Replaces the whole settings object (settings backup import).
   void replaceAll(AppSettings v) => _update(v);
 

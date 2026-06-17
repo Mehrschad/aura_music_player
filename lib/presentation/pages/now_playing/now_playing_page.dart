@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/constants/aurora_colors.dart';
 import '../../../core/constants/icon_sizes.dart';
 import '../../../core/constants/radius_tokens.dart';
 import '../../../core/constants/spacing_tokens.dart';
@@ -685,18 +686,36 @@ class _CarouselLine extends StatelessWidget {
       opacity: opacity,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.lg),
-        child: Text(
-          text!,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
-          style: AppTextTheme.body.copyWith(
-            color: color,
-            fontSize: fontSize,
-            fontWeight: weight,
-            letterSpacing: -0.2,
-          ),
-        ),
+        child: distance.abs() < 0.05
+            ? ShaderMask(
+                shaderCallback: (bounds) =>
+                    AuroraColors.gradient.createShader(bounds),
+                blendMode: BlendMode.srcIn,
+                child: Text(
+                  text!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: AppTextTheme.body.copyWith(
+                    color: Colors.white,
+                    fontSize: fontSize,
+                    fontWeight: weight,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              )
+            : Text(
+                text!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: AppTextTheme.body.copyWith(
+                  color: color,
+                  fontSize: fontSize,
+                  fontWeight: weight,
+                  letterSpacing: -0.2,
+                ),
+              ),
       ),
     );
   }

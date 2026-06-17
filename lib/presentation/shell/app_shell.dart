@@ -5,12 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../pages/albums/albums_page.dart';
 import '../pages/artists/artists_page.dart';
 import '../pages/library/library_page.dart';
+import '../pages/onboarding/onboarding_page.dart';
 import '../pages/playlists/playlists_page.dart';
 import '../pages/search/search_page.dart';
 import '../providers/engine_bridge_provider.dart';
 import '../providers/home_widget_providers.dart';
 import '../providers/scrobbler_provider.dart';
 import '../providers/selection_providers.dart';
+import '../providers/settings_providers.dart';
 import '../widgets/library/offline_prefetcher.dart';
 import '../widgets/player/listening_recorder.dart';
 import '../widgets/player/mini_player.dart';
@@ -47,6 +49,11 @@ class _AppShellState extends ConsumerState<AppShell>
       duration: const Duration(milliseconds: 280),
     )..value = 1.0; // start "done" — no enter animation on first load
     _tabProgress = CurvedAnimation(parent: _tabCtrl, curve: Curves.easeInOutCubic);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!ref.read(settingsProvider).onboardingSeen) {
+        openOnboarding(context);
+      }
+    });
   }
 
   @override
