@@ -305,11 +305,11 @@ class _MarkPainter120 extends CustomPainter {
       ..strokeWidth = 3.5;
     canvas.drawCircle(Offset(cx, cy), 6, fill);
     canvas.drawCircle(
-        Offset(cx, cy), 17, ring..color = Colors.white.withValues(alpha: 0.92));
+        Offset(cx, cy), 17, ring..color = Colors.white.withOpacity(0.92));
     canvas.drawCircle(
-        Offset(cx, cy), 29, ring..color = Colors.white.withValues(alpha: 0.55));
+        Offset(cx, cy), 29, ring..color = Colors.white.withOpacity(0.55));
     canvas.drawCircle(
-        Offset(cx, cy), 41, ring..color = Colors.white.withValues(alpha: 0.24));
+        Offset(cx, cy), 41, ring..color = Colors.white.withOpacity(0.24));
   }
 
   @override

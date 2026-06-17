@@ -47,7 +47,7 @@ class _MarkPainter extends CustomPainter {
       canvas.drawCircle(
         Offset(cx, cy),
         r * factor,
-        ring..color = Colors.white.withValues(alpha: opacity),
+        ring..color = Colors.white.withOpacity(opacity),
       );
     }
   }

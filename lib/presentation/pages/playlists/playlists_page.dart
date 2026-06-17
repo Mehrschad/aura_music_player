@@ -181,7 +181,7 @@ class _AutoCard extends StatelessWidget {
     final colors = context.colors;
     final l10n = AppLocalizations.of(context);
     final iconBg = isFavorites
-        ? colors.favorite.withValues(alpha: 0.16)
+        ? colors.favorite.withOpacity(0.16)
         : colors.surfaceElevated;
     final iconColor = isFavorites ? colors.favorite : colors.onSurface;
     final iconData = isFavorites ? Icons.favorite : icon;
@@ -194,7 +194,7 @@ class _AutoCard extends StatelessWidget {
           color: colors.surfaceElevated,
           borderRadius: RadiusTokens.brMd,
           border: Border.all(
-            color: colors.onSurface.withValues(alpha: 0.06),
+            color: colors.onSurface.withOpacity(0.06),
             width: 0.8,
           ),
         ),
