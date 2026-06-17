@@ -6,7 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
-## [1.1.0] - 2026-06-16
+### Changed — Design-system alignment
+- **Light theme reworked** to the canonical Aura spec: an airy paper background
+  (`#F4F4F7`) with white cards above it, a true near-black text ladder for AA+
+  contrast, a visible hairline divider, and white frosted glass (62% tint with a
+  dark hairline border) replacing the old black-tint glass.
+- **Motion timing** brought onto the canonical scale (press 160ms, micro 220ms,
+  screen 380ms, album 500ms) with exact `standard`/`emphasized` easing curves and
+  a new `softSpring` curve.
 
 ### Added — Pro audio, scrobbling & backup (steps 21–23)
 - **Audio Engine Pro**: ReplayGain (track/album), configurable crossfade, pitch

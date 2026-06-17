@@ -96,18 +96,21 @@ class AppColors extends ThemeExtension<AppColors> {
     danger: Color(0xFFFF6B6B),
   );
 
+  // Reworked airy paper-white system: page steps DOWN from white cards, glass
+  // uses a white frost tint with a hairline dark border, text is a true
+  // near-black ladder for AA+ contrast.
   static const AppColors light = AppColors(
-    background: Color(0xFFFBFBFD),
-    surface: Color(0xFFFFFFFF),
-    surfaceElevated: Color(0xFFF1F1F4),
-    onSurface: Color(0xFF111114),
-    onSurfaceMuted: Color(0xFF5A5A60),
-    onSurfaceFaint: Color(0xFF8A8A90),
-    accent: Color(0xFF1C1C1E),
-    divider: Color(0xFFE6E6EA),
-    glassTint: Color(0x0C000000), // ~8% black tint on light glass
-    glassBorder: Color(0x18000000),
-    scrim: Color(0x66FFFFFF),
+    background: Color(0xFFF4F4F7), // soft paper, never pure white
+    surface: Color(0xFFFFFFFF), // cards / rows sit above the page
+    surfaceElevated: Color(0xFFFFFFFF),
+    onSurface: Color(0xFF15151A),
+    onSurfaceMuted: Color(0xFF5A5A66),
+    onSurfaceFaint: Color(0xFF9494A0),
+    accent: Color(0xFF16161B),
+    divider: Color(0xFFE7E7ED), // visible hairline
+    glassTint: Color(0x9EFFFFFF), // 62% white frost
+    glassBorder: Color(0x1414141C), // dark hairline, shows on white
+    scrim: Color(0x73FFFFFF), // 45% white over blurred art
     danger: Color(0xFFD93A3A), // deeper red for contrast on white
   );
 
