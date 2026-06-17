@@ -53,17 +53,44 @@ class BandSlider extends StatelessWidget {
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    // Track.
-                    Container(width: 3, color: colors.divider),
-                    // Thumb.
+                    // Track background — pill-shaped, surface-elevated.
+                    Container(
+                      width: 6,
+                      decoration: BoxDecoration(
+                        color: colors.surfaceElevated,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                    // Fill — accent colour from bottom up to the gain position.
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: FractionallySizedBox(
+                        heightFactor: fraction,
+                        child: Container(
+                          width: 6,
+                          decoration: BoxDecoration(
+                            color: accent,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Thumb — accent circle at the gain position.
                     Align(
                       alignment: Alignment(0, 1 - 2 * fraction),
                       child: Container(
-                        width: 16,
-                        height: 16,
+                        width: 14,
+                        height: 14,
                         decoration: BoxDecoration(
                           color: accent,
                           shape: BoxShape.circle,
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x80000000),
+                              blurRadius: 3,
+                              offset: Offset(0, 1),
+                            ),
+                          ],
                         ),
                       ),
                     ),

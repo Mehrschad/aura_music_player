@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/spacing_tokens.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/theme/color_scheme.dart';
+import '../../../core/theme/typography.dart';
 import '../../../domain/models/library_sort.dart';
 import '../../../domain/models/song.dart';
 import '../../providers/async_value_x.dart';
@@ -11,6 +13,7 @@ import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../providers/selection_providers.dart';
 import '../../widgets/async_state_view.dart';
+import '../../widgets/aurora_mark.dart';
 import '../../widgets/library/library_controls.dart';
 import '../../widgets/library/selection_bar.dart';
 import '../../widgets/library/song_compact_tile.dart';
@@ -34,6 +37,7 @@ class LibraryPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    final colors = context.colors;
     final songsAsync = ref.watch(sortedSongsProvider);
     final sort = ref.watch(librarySortProvider);
     final mode = ref.watch(libraryDisplayModeProvider);
@@ -51,36 +55,48 @@ class LibraryPage extends ConsumerWidget {
           if (selecting)
             SelectionBar(listId: _listId, allSongs: allSongs)
           else
-            SectionHeader(
-              title: l10n.tabLibrary,
-              subtitle: count > 0 ? l10n.songsCount(count) : null,
-              actions: [
-                DisplayModeButton(
-                  mode: mode,
-                  onChanged: (m) =>
-                      ref.read(libraryDisplayModeProvider.notifier).state = m,
-                ),
-                IconButton(
-                  tooltip: l10n.folders,
-                  onPressed: () => openFolderBrowser(context),
-                  icon: const Icon(Icons.folder_outlined),
-                ),
-                IconButton(
-                  tooltip: l10n.sortLabel,
-                  onPressed: () => showSortSheet(
-                    context,
-                    current: sort,
-                    onChanged: (s) =>
-                        ref.read(librarySortProvider.notifier).state = s,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(SpacingTokens.lg, SpacingTokens.sm, SpacingTokens.sm, 0),
+              child: Row(
+                children: [
+                  const AuraMark(size: 26),
+                  const SizedBox(width: SpacingTokens.sm + 1),
+                  Text(
+                    'Aura',
+                    style: AppTextTheme.display.copyWith(
+                      color: colors.onSurface,
+                      fontSize: 24,
+                      letterSpacing: -0.8,
+                    ),
                   ),
-                  icon: const Icon(Icons.sort),
-                ),
-                IconButton(
-                  tooltip: l10n.settings,
-                  onPressed: () => openSettings(context),
-                  icon: const Icon(Icons.settings_outlined),
-                ),
-              ],
+                  const Spacer(),
+                  DisplayModeButton(
+                    mode: mode,
+                    onChanged: (m) =>
+                        ref.read(libraryDisplayModeProvider.notifier).state = m,
+                  ),
+                  IconButton(
+                    tooltip: l10n.folders,
+                    onPressed: () => openFolderBrowser(context),
+                    icon: const Icon(Icons.folder_outlined),
+                  ),
+                  IconButton(
+                    tooltip: l10n.sortLabel,
+                    onPressed: () => showSortSheet(
+                      context,
+                      current: sort,
+                      onChanged: (s) =>
+                          ref.read(librarySortProvider.notifier).state = s,
+                    ),
+                    icon: const Icon(Icons.sort),
+                  ),
+                  IconButton(
+                    tooltip: l10n.settings,
+                    onPressed: () => openSettings(context),
+                    icon: const Icon(Icons.settings_outlined),
+                  ),
+                ],
+              ),
             ),
           Expanded(
             child: AsyncStateView<List<Song>>(

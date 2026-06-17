@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/constants/aurora_colors.dart';
 import '../../../core/constants/radius_tokens.dart';
 import '../../../core/constants/spacing_tokens.dart';
 import '../../../core/l10n/app_localizations.dart';
@@ -80,6 +81,7 @@ class PlaylistsPage extends ConsumerWidget {
                             ?.length ??
                         0,
                     onTap: () => openAutoPlaylist(context, type),
+                    isFavorites: type == AutoPlaylist.favorites,
                   ),
               ],
             ),
@@ -165,17 +167,25 @@ class _AutoCard extends StatelessWidget {
     required this.icon,
     required this.count,
     required this.onTap,
+    this.isFavorites = false,
   });
 
   final String label;
   final IconData icon;
   final int count;
   final VoidCallback onTap;
+  final bool isFavorites;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final l10n = AppLocalizations.of(context);
+    final iconBg = isFavorites
+        ? colors.favorite.withValues(alpha: 0.16)
+        : colors.surfaceElevated;
+    final iconColor = isFavorites ? colors.favorite : colors.onSurface;
+    final iconData = isFavorites ? Icons.favorite : icon;
+
     return PressScale(
       onTap: onTap,
       pressedScale: 0.95,
@@ -184,14 +194,22 @@ class _AutoCard extends StatelessWidget {
           color: colors.surfaceElevated,
           borderRadius: RadiusTokens.brMd,
           border: Border.all(
-            color: colors.onSurface.withOpacity(0.06),
+            color: colors.onSurface.withValues(alpha: 0.06),
             width: 0.8,
           ),
         ),
         padding: const EdgeInsets.all(SpacingTokens.md),
         child: Row(
           children: [
-            Icon(icon, color: colors.onSurface, size: 22),
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: iconBg,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(iconData, color: iconColor, size: 20),
+            ),
             const SizedBox(width: SpacingTokens.sm),
             Expanded(
               child: Column(
@@ -201,8 +219,7 @@ class _AutoCard extends StatelessWidget {
                   Text(label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style:
-                          AppTextTheme.title.copyWith(color: colors.onSurface)),
+                      style: AppTextTheme.title.copyWith(color: colors.onSurface)),
                   Text(l10n.songsCount(count),
                       style: AppTextTheme.caption
                           .copyWith(color: colors.onSurfaceFaint)),
@@ -233,10 +250,10 @@ class _SmartRow extends StatelessWidget {
         width: 48,
         height: 48,
         decoration: BoxDecoration(
-          color: colors.surfaceElevated,
+          gradient: AuroraColors.gradientSoft,
           borderRadius: RadiusTokens.brXs,
         ),
-        child: Icon(Icons.auto_awesome, color: colors.onSurfaceMuted),
+        child: const Icon(Icons.auto_awesome, color: Colors.white),
       ),
       title: Text(name,
           maxLines: 1,
