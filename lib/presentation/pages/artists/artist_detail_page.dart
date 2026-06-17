@@ -56,7 +56,7 @@ class ArtistDetailPage extends ConsumerWidget {
                 },
                 icon: Icon(
                   isFav ? Icons.favorite : Icons.favorite_border,
-                  color: isFav ? accent : Colors.white,
+                  color: isFav ? colors.favorite : Colors.white,
                 ),
               ),
             ],

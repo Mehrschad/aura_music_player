@@ -773,7 +773,7 @@ class _TrackInfoRow extends ConsumerWidget {
           ),
         ),
         const SizedBox(width: SpacingTokens.sm),
-        _LikeButton(songId: song.id, accent: accent),
+        _LikeButton(songId: song.id),
       ],
     );
   }
@@ -820,9 +820,8 @@ class _LinkTextState extends State<_LinkText> {
 // ── Like button — spring bounce + expanding ripple ────────────────────────────
 
 class _LikeButton extends ConsumerStatefulWidget {
-  const _LikeButton({required this.songId, required this.accent});
+  const _LikeButton({required this.songId});
   final String songId;
-  final Color accent;
 
   @override
   ConsumerState<_LikeButton> createState() => _LikeButtonState();
@@ -896,7 +895,7 @@ class _LikeButtonState extends ConsumerState<_LikeButton>
                       height: 32,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: isFav ? widget.accent : colors.onSurfaceMuted,
+                        color: isFav ? colors.favorite : colors.onSurfaceMuted,
                       ),
                     ),
                   ),
@@ -906,7 +905,7 @@ class _LikeButtonState extends ConsumerState<_LikeButton>
                   scale: _scale.value,
                   child: Icon(
                     isFav ? Icons.favorite : Icons.favorite_border,
-                    color: isFav ? widget.accent : colors.onSurfaceMuted,
+                    color: isFav ? colors.favorite : colors.onSurfaceMuted,
                     size: IconSizes.lg,
                   ),
                 ),

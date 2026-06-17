@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/constants/aurora_colors.dart';
 import '../../core/constants/spacing_tokens.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/color_scheme.dart';
@@ -104,7 +105,13 @@ class _Centered extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 40, color: colors.onSurfaceFaint),
+          // Aurora gradient mask — the one moment of colour in an empty state.
+          ShaderMask(
+            shaderCallback: (bounds) =>
+                AuroraColors.gradientSoft.createShader(bounds),
+            blendMode: BlendMode.srcIn,
+            child: Icon(icon, size: 40, color: Colors.white),
+          ),
           const SizedBox(height: SpacingTokens.md),
           Text(
             message,

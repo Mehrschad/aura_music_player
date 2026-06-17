@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../core/constants/aurora_colors.dart';
 import '../../../core/constants/motion_tokens.dart';
 import '../../../core/theme/color_scheme.dart';
 import '../press_scale.dart';
 
-/// The primary play/pause control: a filled circle with an [AnimatedIcon] that
-/// morphs between play and pause. This is the one place the design allows a
-/// bold, high-weight primary action, so it's a solid `onSurface` disc.
-///
-/// Honours `MediaQuery.disableAnimations` by jumping the morph instantly.
+/// The primary play/pause control: a filled disc with an [AnimatedIcon] that
+/// morphs between play and pause. When playing the disc wears the aurora
+/// gradient — the brand's one moment of bottled colour. Honours
+/// `MediaQuery.disableAnimations` by jumping the morph instantly.
 class PlayPauseButton extends StatefulWidget {
   const PlayPauseButton({
     super.key,
@@ -64,20 +64,42 @@ class _PlayPauseButtonState extends State<PlayPauseButton>
         widget.onTap();
       },
       semanticLabel: widget.semanticLabel,
-      child: Container(
+      child: SizedBox(
         width: widget.size,
         height: widget.size,
-        decoration: BoxDecoration(
-          color: colors.onSurface,
-          shape: BoxShape.circle,
-        ),
-        child: Center(
-          child: AnimatedIcon(
-            icon: AnimatedIcons.play_pause,
-            progress: _controller,
-            size: widget.size * 0.44,
-            color: colors.background,
-          ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Base solid disc — always visible.
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: colors.onSurface,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+            // Aurora overlay — fades in while playing (the moment of delight).
+            Positioned.fill(
+              child: AnimatedOpacity(
+                opacity: widget.playing ? 1.0 : 0.0,
+                duration: MotionTokens.micro,
+                curve: MotionTokens.standard,
+                child: Container(
+                  decoration: const BoxDecoration(
+                    gradient: AuroraColors.gradient,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            ),
+            AnimatedIcon(
+              icon: AnimatedIcons.play_pause,
+              progress: _controller,
+              size: widget.size * 0.44,
+              color: colors.background,
+            ),
+          ],
         ),
       ),
     );
