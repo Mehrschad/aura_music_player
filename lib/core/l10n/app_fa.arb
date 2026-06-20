@@ -381,5 +381,6 @@
   "dayOfWeek": "روز هفته",
   "playingFrom": "پخش از",
   "npEq": "اکولایزر",
-  "npSleep": "خواب"
+  "npSleep": "خواب",
+  "badgeSynced": "همگام"
 }

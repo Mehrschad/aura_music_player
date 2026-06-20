@@ -381,5 +381,6 @@
   "dayOfWeek": "يوم الأسبوع",
   "playingFrom": "يُشغّل من",
   "npEq": "موازن",
-  "npSleep": "نوم"
+  "npSleep": "نوم",
+  "badgeSynced": "متزامن"
 }

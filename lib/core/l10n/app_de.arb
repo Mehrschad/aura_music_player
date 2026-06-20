@@ -423,5 +423,6 @@
   "dayOfWeek": "Wochentag",
   "playingFrom": "Wiedergabe von",
   "npEq": "EQ",
-  "npSleep": "Schlaf"
+  "npSleep": "Schlaf",
+  "badgeSynced": "Synchron"
 }

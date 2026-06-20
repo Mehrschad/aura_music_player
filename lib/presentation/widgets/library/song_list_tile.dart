@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/radius_tokens.dart';
 import '../../../core/constants/spacing_tokens.dart';
 import '../../../core/extensions/duration_format.dart';
+import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/color_scheme.dart';
 import '../../../core/theme/typography.dart';
 import '../../../core/utils/seed_color.dart';
@@ -107,13 +108,23 @@ class SongListTile extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      song.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTextTheme.title.copyWith(
-                        color: isCurrent ? accent : colors.onSurface,
-                      ),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            song.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextTheme.title.copyWith(
+                              color: isCurrent ? accent : colors.onSurface,
+                            ),
+                          ),
+                        ),
+                        if (song.hasLyrics) ...[
+                          const SizedBox(width: SpacingTokens.sm),
+                          const _SyncedBadge(),
+                        ],
+                      ],
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -145,6 +156,35 @@ class SongListTile extends ConsumerWidget {
                 ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A small uppercase pill marking a track that ships with time-synced lyrics
+/// (Aura DS "Synced" badge).
+class _SyncedBadge extends StatelessWidget {
+  const _SyncedBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: colors.surfaceElevated,
+        borderRadius: RadiusTokens.brPill,
+        border: Border.all(color: colors.glassBorder),
+      ),
+      child: Text(
+        AppLocalizations.of(context).badgeSynced.toUpperCase(),
+        style: AppTextTheme.caption.copyWith(
+          color: colors.onSurface,
+          fontSize: 10,
+          height: 1,
+          fontWeight: FontWeight.w500,
+          letterSpacing: 0.2,
         ),
       ),
     );
