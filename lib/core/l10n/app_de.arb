@@ -420,5 +420,8 @@
     }
   },
   "topGenres": "Top-Genres",
-  "dayOfWeek": "Wochentag"
+  "dayOfWeek": "Wochentag",
+  "playingFrom": "Wiedergabe von",
+  "npEq": "EQ",
+  "npSleep": "Schlaf"
 }

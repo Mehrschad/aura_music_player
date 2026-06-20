@@ -766,5 +766,17 @@
   "dayOfWeek": "Day of week",
   "@dayOfWeek": {
     "description": "Statistics bar-chart section: plays distributed across Mon–Sun."
+  },
+  "playingFrom": "Playing from",
+  "@playingFrom": {
+    "description": "Uppercase label above the source name in the Now Playing top bar."
+  },
+  "npEq": "EQ",
+  "@npEq": {
+    "description": "Short label for the Equalizer tile in the Now Playing utility row."
+  },
+  "npSleep": "Sleep",
+  "@npSleep": {
+    "description": "Short label for the Sleep-timer tile in the Now Playing utility row."
   }
 }

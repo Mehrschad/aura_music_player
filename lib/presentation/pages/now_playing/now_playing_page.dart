@@ -260,7 +260,11 @@ class _PortraitBody extends ConsumerWidget {
 
           // ── Transport: shuffle · prev · play/pause · next · repeat ──────
           _TransportRow(state: state, accent: accent),
-          const SizedBox(height: SpacingTokens.md),
+          const SizedBox(height: SpacingTokens.sm),
+
+          // ── Utility row: EQ · Lyrics · Queue · Sleep ────────────────────
+          _UtilityRow(song: song),
+          const SizedBox(height: SpacingTokens.sm),
         ],
       ),
     );
@@ -368,19 +372,45 @@ class _TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final l10n = AppLocalizations.of(context);
-    // Stack keeps the title perfectly centered regardless of trailing icons.
+    // Stack keeps the centred source label perfectly centred regardless of the
+    // leading / trailing icons. Two lines: an uppercase "Playing from" eyebrow
+    // over the album name — Aura's Now Playing top bar (DS Player).
     return SizedBox(
       height: 48,
       child: Stack(
         alignment: Alignment.center,
         children: [
-          Text(
-            l10n.nowPlaying,
-            textAlign: TextAlign.center,
-            style: AppTextTheme.caption.copyWith(
-                color: colors.onSurfaceMuted,
-                letterSpacing: 0.8,
-                fontWeight: FontWeight.w500),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 56),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  l10n.playingFrom.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: AppTextTheme.caption.copyWith(
+                    color: colors.onSurfaceMuted,
+                    fontSize: 10.5,
+                    letterSpacing: 0.7,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  song.album,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: AppTextTheme.body.copyWith(
+                    color: colors.onSurface,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
           ),
           Row(
             children: [
@@ -391,24 +421,6 @@ class _TopBar extends StatelessWidget {
                 onTap: () => Navigator.of(context).maybePop(),
               ),
               const Spacer(),
-              _PressIcon(
-                icon: Icons.dynamic_feed_rounded,
-                tooltip: l10n.queues,
-                color: colors.onSurfaceMuted,
-                onTap: () => showQueueDrawer(context),
-              ),
-              _PressIcon(
-                icon: Icons.queue_music_rounded,
-                tooltip: l10n.queueTitle,
-                color: colors.onSurfaceMuted,
-                onTap: () => showQueueSheet(context),
-              ),
-              _PressIcon(
-                icon: Icons.graphic_eq_rounded,
-                tooltip: l10n.equalizer,
-                color: colors.onSurfaceMuted,
-                onTap: () => openEqualizer(context),
-              ),
               _PressIcon(
                 icon: Icons.more_vert_rounded,
                 tooltip: l10n.moreActions,
@@ -1141,6 +1153,116 @@ class _PlayerToggleState extends State<_PlayerToggle>
   }
 }
 
+// ── Utility row: EQ · Lyrics · Queue · Sleep (DS Player footer) ───────────────
+
+class _UtilityRow extends ConsumerWidget {
+  const _UtilityRow({required this.song});
+  final Song song;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final hasLyrics = song.hasLyrics;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        _UtilTile(
+          icon: Icons.graphic_eq_rounded,
+          label: l10n.npEq,
+          onTap: () => openEqualizer(context),
+        ),
+        _UtilTile(
+          icon: Icons.lyrics_outlined,
+          label: l10n.lyrics,
+          highlight: hasLyrics,
+          onTap: () => openLyrics(context),
+        ),
+        _UtilTile(
+          icon: Icons.queue_music_rounded,
+          label: l10n.queueTitle,
+          onTap: () => showQueueSheet(context),
+        ),
+        _UtilTile(
+          icon: Icons.bedtime_outlined,
+          label: l10n.npSleep,
+          onTap: () => showSleepTimerSheet(context, ref),
+        ),
+      ],
+    );
+  }
+}
+
+/// A single icon-over-label tile in the Now Playing utility row. Springs on
+/// press like the other Now Playing controls.
+class _UtilTile extends StatefulWidget {
+  const _UtilTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.highlight = false,
+  });
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool highlight;
+
+  @override
+  State<_UtilTile> createState() => _UtilTileState();
+}
+
+class _UtilTileState extends State<_UtilTile> {
+  bool _down = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final reduce = MediaQuery.disableAnimationsOf(context);
+    final color =
+        widget.highlight ? colors.onSurface : colors.onSurfaceMuted;
+    return Semantics(
+      button: true,
+      label: widget.label,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (_) => setState(() => _down = true),
+        onTapCancel: () => setState(() => _down = false),
+        onTapUp: (_) => setState(() => _down = false),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          widget.onTap();
+        },
+        child: AnimatedScale(
+          scale: (_down && !reduce) ? 0.86 : 1.0,
+          duration: const Duration(milliseconds: 140),
+          curve: Curves.easeOut,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+                horizontal: SpacingTokens.sm, vertical: 4),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(widget.icon, size: 21, color: color),
+                const SizedBox(height: 3),
+                Text(
+                  widget.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextTheme.caption.copyWith(
+                    color: colors.onSurfaceFaint,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ── Now Playing overflow menu + navigation + sheets ──────────────────────────
 
 /// Resolves the [Album] for [song] and pushes its detail page.
@@ -1260,6 +1382,14 @@ class _NowPlayingMenu extends ConsumerWidget {
                 onTap: () {
                   Navigator.of(context).pop();
                   showPitchSpeedSheet(context, ref, accent);
+                },
+              ),
+              _MenuItem(
+                icon: Icons.dynamic_feed_rounded,
+                label: l10n.queues,
+                onTap: () {
+                  Navigator.of(context).pop();
+                  showQueueDrawer(context);
                 },
               ),
               _MenuItem(
