@@ -75,7 +75,7 @@ class BandSlider extends StatelessWidget {
                         ),
                       ),
                     ),
-                    // Thumb — accent circle at the gain position.
+                    // Thumb — 14px accent circle with a soft shadow.
                     Align(
                       alignment: Alignment(0, 1 - 2 * fraction),
                       child: Container(
@@ -84,11 +84,11 @@ class BandSlider extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: accent,
                           shape: BoxShape.circle,
-                          boxShadow: const [
+                          boxShadow: [
                             BoxShadow(
-                              color: Color(0x80000000),
+                              color: Colors.black.withOpacity(0.5),
                               blurRadius: 3,
-                              offset: Offset(0, 1),
+                              offset: const Offset(0, 1),
                             ),
                           ],
                         ),
@@ -101,8 +101,14 @@ class BandSlider extends StatelessWidget {
           ),
         ),
         const SizedBox(height: SpacingTokens.xs),
-        Text(label,
-            style: AppTextTheme.navLabel.copyWith(color: colors.onSurfaceFaint)),
+        // Frequency label — tabular caption so digits stay aligned.
+        Text(
+          label,
+          style: AppTextTheme.caption.copyWith(
+            color: colors.onSurfaceFaint,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
       ],
     );
   }

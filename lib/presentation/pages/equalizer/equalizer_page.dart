@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/constants/icon_sizes.dart';
 import '../../../core/constants/motion_tokens.dart';
 import '../../../core/utils/motion.dart';
 import '../../../core/constants/radius_tokens.dart';
@@ -63,11 +64,22 @@ class EqualizerPage extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () => controller.applyPreset(EqPreset.flat),
+            style: TextButton.styleFrom(
+              foregroundColor: colors.onSurfaceMuted,
+              textStyle: AppTextTheme.body,
+            ),
             child: Text(l10n.eqReset),
           ),
+          // Master enable — accent-coloured iOS-style switch.
           Switch(
             value: settings.enabled,
             onChanged: controller.setEnabled,
+            activeColor: colors.onAccent,
+            activeTrackColor: accent,
+            inactiveThumbColor: colors.onSurface,
+            inactiveTrackColor: colors.surfaceElevated,
+            trackOutlineColor:
+                WidgetStateProperty.all(colors.divider),
           ),
           const SizedBox(width: SpacingTokens.sm),
         ],
@@ -92,27 +104,34 @@ class EqualizerPage extends ConsumerWidget {
                 ref.read(customEqPresetsProvider.notifier).remove(id),
             accent: accent,
           ),
-          Opacity(
+          // Master off → dim the body and disable interaction.
+          AnimatedOpacity(
             opacity: settings.enabled ? 1 : 0.4,
+            duration: context.motion(MotionTokens.micro),
+            curve: MotionTokens.standard,
             child: IgnorePointer(
               ignoring: !settings.enabled,
-              child: _EqGraph(
-                gains: settings.gains,
-                accent: accent,
-                onBandChanged: controller.setBandGain,
+              child: Column(
+                children: [
+                  _EqGraph(
+                    gains: settings.gains,
+                    accent: accent,
+                    onBandChanged: controller.setBandGain,
+                  ),
+                  const SizedBox(height: SpacingTokens.lg),
+                  _BassBoost(
+                    value: settings.bassBoost,
+                    accent: accent,
+                    onChanged: (v) => controller.setBassBoost(v),
+                  ),
+                  _StereoWidener(
+                    value: settings.stereoWidth,
+                    accent: accent,
+                    onChanged: controller.setStereoWidth,
+                  ),
+                ],
               ),
             ),
-          ),
-          const SizedBox(height: SpacingTokens.lg),
-          _BassBoost(
-            value: settings.bassBoost,
-            accent: accent,
-            onChanged: (v) => controller.setBassBoost(v),
-          ),
-          _StereoWidener(
-            value: settings.stereoWidth,
-            accent: accent,
-            onChanged: controller.setStereoWidth,
           ),
         ],
       ),
@@ -282,9 +301,12 @@ class _PresetChips extends StatelessWidget {
               ),
             ),
           ActionChip(
-            avatar: Icon(Icons.add, size: 16, color: colors.onSurface),
+            avatar: Icon(Icons.add, size: IconSizes.xs, color: colors.onSurface),
             label: Text(l10n.eqSavePreset),
+            labelStyle:
+                AppTextTheme.body.copyWith(color: colors.onSurfaceMuted),
             backgroundColor: colors.surfaceElevated,
+            side: BorderSide(color: colors.divider),
             onPressed: onSave,
           ),
         ],
@@ -361,11 +383,15 @@ class _Chip extends StatelessWidget {
         decoration: BoxDecoration(
           color: selected ? accent : colors.surfaceElevated,
           borderRadius: RadiusTokens.brPill,
+          border: Border.all(
+            color: selected ? Colors.transparent : colors.divider,
+          ),
         ),
         child: Text(
           label,
           style: AppTextTheme.body.copyWith(
-            color: selected ? colors.background : colors.onSurfaceMuted,
+            color: selected ? colors.onAccent : colors.onSurfaceMuted,
+            fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
           ),
         ),
       ),
@@ -426,23 +452,19 @@ class _StereoWidener extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
           SpacingTokens.lg, SpacingTokens.sm, SpacingTokens.lg, 0),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Text(l10n.eqStereoWidener,
-                style: AppTextTheme.body.copyWith(color: colors.onSurface)),
-          ),
-          SizedBox(
-            width: 160,
-            child: SliderTheme(
-              data: SliderThemeData(
-                activeTrackColor: accent,
-                inactiveTrackColor: colors.divider,
-                thumbColor: accent,
-                overlayColor: accent.withOpacity(0.16),
-              ),
-              child: Slider(value: value, onChanged: onChanged),
+          Text(l10n.eqStereoWidener,
+              style: AppTextTheme.body.copyWith(color: colors.onSurface)),
+          SliderTheme(
+            data: SliderThemeData(
+              activeTrackColor: accent,
+              inactiveTrackColor: colors.divider,
+              thumbColor: accent,
+              overlayColor: accent.withOpacity(0.16),
             ),
+            child: Slider(value: value, onChanged: onChanged),
           ),
         ],
       ),
