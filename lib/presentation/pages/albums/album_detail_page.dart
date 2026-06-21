@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/constants/radius_tokens.dart';
 import '../../../core/constants/spacing_tokens.dart';
+import '../../../core/extensions/duration_format.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/color_scheme.dart';
 import '../../../core/theme/typography.dart';
+import '../../../core/utils/seed_color.dart';
 import '../../../domain/models/album.dart';
 import '../../../domain/models/song.dart';
 import '../../providers/library_providers.dart';
@@ -19,12 +22,22 @@ class AlbumDetailPage extends ConsumerWidget {
   const AlbumDetailPage({super.key, required this.album});
   final Album album;
 
+  /// Start the album as a fresh queue, optionally shuffled, from [startIndex].
+  void _play(WidgetRef ref, List<Song> songs,
+      {bool shuffle = false, int startIndex = 0}) {
+    if (songs.isEmpty) return;
+    final ctrl = ref.read(audioControllerProvider);
+    ctrl.setShuffle(shuffle);
+    ctrl.playQueue(songs, startIndex: startIndex);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
     final l10n = AppLocalizations.of(context);
     final songsAsync = ref.watch(albumSongsProvider(album.id));
     final miniPlayerVisible = ref.watch(hasMediaProvider);
+    final accent = SeedPalette.accent(album.artworkSeed);
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -32,8 +45,23 @@ class AlbumDetailPage extends ConsumerWidget {
         slivers: [
           SliverAppBar(
             backgroundColor: colors.background,
-            expandedHeight: 260,
+            expandedHeight: 300,
             pinned: true,
+            // Soft dark circle behind the back arrow so it reads on artwork.
+            leading: Padding(
+              padding: const EdgeInsets.all(SpacingTokens.sm),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.3),
+                  shape: BoxShape.circle,
+                ),
+                child: IconButton(
+                  tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+                  onPressed: () => Navigator.of(context).maybePop(),
+                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                ),
+              ),
+            ),
             actions: [
               // Edit the album's tags / artwork — applies to all its tracks.
               songsAsync.maybeWhen(
@@ -49,82 +77,54 @@ class AlbumDetailPage extends ConsumerWidget {
               ),
             ],
             flexibleSpace: FlexibleSpaceBar(
-              titlePadding: const EdgeInsetsDirectional.fromSTEB(
-                SpacingTokens.xl, 0, SpacingTokens.xl, SpacingTokens.md),
-              title: Text(
-                album.name,
-                style: AppTextTheme.title.copyWith(color: colors.onSurface),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              background: Stack(
-                fit: StackFit.expand,
-                children: [
-                  AuraArtwork(
-                    seed: album.artworkSeed,
-                    size: double.maxFinite,
-                    borderRadius: BorderRadius.zero,
-                    hasArtwork: album.hasArtwork,
-                    artworkId: album.firstSongId,
-                  ),
-                  const DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [Colors.transparent, Colors.black87],
-                      ),
-                    ),
-                  ),
-                ],
+              background: _Hero(
+                album: album,
+                background: colors.background,
+                meta: songsAsync.maybeWhen(
+                  data: (songs) => _metaLine(l10n, songs),
+                  orElse: () => null,
+                ),
               ),
             ),
           ),
 
-          // Artist + song count + Play button row
+          // Action row: Play (accent fill) + Shuffle (surface outline).
           SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                SpacingTokens.xl,
-                SpacingTokens.sm,
-                SpacingTokens.xl,
-                SpacingTokens.xs,
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          album.artist,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTextTheme.body
-                              .copyWith(color: colors.onSurfaceMuted),
-                        ),
-                        Text(
-                          l10n.songsCount(album.songCount),
-                          style: AppTextTheme.caption
-                              .copyWith(color: colors.onSurfaceFaint),
-                        ),
-                      ],
-                    ),
-                  ),
-                  songsAsync.maybeWhen(
-                    data: (songs) => songs.isEmpty
-                        ? const SizedBox.shrink()
-                        : FilledButton.icon(
-                            onPressed: () => ref
-                                .read(audioControllerProvider)
-                                .playQueue(songs),
-                            icon: const Icon(Icons.play_arrow),
-                            label: Text(l10n.playAll),
+            child: songsAsync.maybeWhen(
+              data: (songs) => songs.isEmpty
+                  ? const SizedBox.shrink()
+                  : Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        SpacingTokens.xl,
+                        SpacingTokens.xs,
+                        SpacingTokens.xl,
+                        SpacingTokens.md,
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _ActionButton(
+                              icon: Icons.play_arrow,
+                              label: l10n.play,
+                              filled: true,
+                              accent: accent,
+                              onTap: () => _play(ref, songs),
+                            ),
                           ),
-                    orElse: () => const SizedBox.shrink(),
-                  ),
-                ],
-              ),
+                          const SizedBox(width: SpacingTokens.sm),
+                          Expanded(
+                            child: _ActionButton(
+                              icon: Icons.shuffle,
+                              label: l10n.shuffle,
+                              filled: false,
+                              accent: accent,
+                              onTap: () => _play(ref, songs, shuffle: true),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+              orElse: () => const SizedBox.shrink(),
             ),
           ),
 
@@ -184,6 +184,19 @@ class AlbumDetailPage extends ConsumerWidget {
     );
   }
 
+  /// `artist · year · N songs · total duration` (year omitted when unknown).
+  String _metaLine(AppLocalizations l10n, List<Song> songs) {
+    final total = songs.fold<Duration>(
+        Duration.zero, (sum, s) => sum + s.duration);
+    final parts = <String>[
+      album.artist,
+      if (album.year != null) album.year!.toString(),
+      l10n.songsCount(album.songCount),
+      total.humanized,
+    ];
+    return parts.join(' · ');
+  }
+
   /// Flattens the album into list rows. When more than one disc number is
   /// present, a disc header row precedes each disc's tracks; the queue (and
   /// therefore [Song] start indices) stays the full album in original order.
@@ -207,6 +220,133 @@ class AlbumDetailPage extends ConsumerWidget {
       }
     }
     return rows;
+  }
+}
+
+/// The album hero: artwork fills the backdrop under a top→bottom scrim that
+/// fades to the page background, with the album name + meta line bottom-left.
+class _Hero extends StatelessWidget {
+  const _Hero({
+    required this.album,
+    required this.background,
+    required this.meta,
+  });
+
+  final Album album;
+  final Color background;
+  final String? meta;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        AuraArtwork(
+          seed: album.artworkSeed,
+          size: double.maxFinite,
+          borderRadius: BorderRadius.zero,
+          hasArtwork: album.hasArtwork,
+          artworkId: album.firstSongId,
+        ),
+        // Subtle dark at the very top (for the back button), transparent
+        // middle, fading to the page background at the bottom.
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              stops: const [0, 0.3, 1],
+              colors: [
+                Colors.black.withOpacity(0.25),
+                Colors.transparent,
+                background,
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          left: SpacingTokens.xl,
+          right: SpacingTokens.xl,
+          bottom: SpacingTokens.lg,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                album.name,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextTheme.display.copyWith(
+                  color: Colors.white,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              if (meta != null) ...[
+                const SizedBox(height: SpacingTokens.xs),
+                Text(
+                  meta!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextTheme.body
+                      .copyWith(color: Colors.white.withOpacity(0.82)),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A pill action button matching the DS Button: accent fill for the primary
+/// action, elevated surface with a hairline border for the secondary.
+class _ActionButton extends StatelessWidget {
+  const _ActionButton({
+    required this.icon,
+    required this.label,
+    required this.filled,
+    required this.accent,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool filled;
+  final Color accent;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final fg = filled ? Colors.white : colors.onSurface;
+    return Material(
+      color: filled ? accent : colors.surfaceElevated,
+      borderRadius: RadiusTokens.brPill,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: RadiusTokens.brPill,
+        child: Container(
+          height: 44,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: RadiusTokens.brPill,
+            border: filled
+                ? null
+                : Border.all(color: colors.divider),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 20, color: fg),
+              const SizedBox(width: SpacingTokens.sm),
+              Text(label, style: AppTextTheme.action.copyWith(color: fg)),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
