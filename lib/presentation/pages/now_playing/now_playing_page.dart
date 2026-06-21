@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -22,9 +23,9 @@ import '../../../domain/models/bookmark.dart';
 import '../../../domain/models/lyrics.dart';
 import '../../../domain/models/playback.dart';
 import '../../../domain/models/song.dart';
-import '../../../domain/audio/waveform.dart';
 import '../../providers/ab_repeat_provider.dart';
 import '../../providers/bookmarks_provider.dart';
+import '../../providers/cover_palette_provider.dart';
 import '../../providers/favorites_providers.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/lyrics_providers.dart';
@@ -70,15 +71,29 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
     duration: const Duration(milliseconds: 900),
   );
 
-  // Smoothly animated to the amplitude at the current playback position,
-  // sampled from a real PCM waveform extracted by WaveformAnalysisService.
-  // Falls back to a deterministic synthetic waveform until analysis completes.
-  late final AnimationController _energyCtrl = AnimationController(vsync: this);
+  // Fires a sharp swell on every detected beat: forward(from:0) restarts the
+  // 0→1 ramp, and the painter renders a throb = (1 - value) so each orb hits
+  // hardest the instant the beat lands, then eases back before the next one.
+  late final AnimationController _pulseCtrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 360),
+    value: 1.0, // rest at 1 → throb = (1 - value)^1.6 = 0 (no swell between beats)
+  );
 
-  // Per-song synthetic waveform cache: populated once on first position tick,
-  // discarded when the song changes. Real waveform data from WaveformAnalysis-
-  // Service takes over once extraction finishes (< 1 s on most devices).
-  final Map<String, List<double>> _synthCache = {};
+  // ── Beat scheduler ─────────────────────────────────────────────────────────
+  // The position stream only ticks a few times a second, far too coarse to fire
+  // beats on time. So a Ticker advances an *estimated* position between stream
+  // updates (last reported position + wall-clock elapsed × speed) and triggers
+  // the pulse whenever that estimate crosses the next beat timestamp.
+  Ticker? _beatTicker;
+  List<int> _beatsMs = const [];
+  String? _beatsSongId;
+  int _nextBeat = 0;
+  int _lastPosMs = 0;
+  int _lastPosWallMs = 0;
+  double _speed = 1.0;
+  bool _playing = false;
+  bool _reduceMotion = false;
 
   // Tracks which song we last kicked off analysis for (dedup guard).
   Song? _analyzedSong;
@@ -88,35 +103,89 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
   int _artSlideDir = 0;
 
   @override
+  void initState() {
+    super.initState();
+    _beatTicker = createTicker(_onBeatTick)..start();
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _reduceMotion = MediaQuery.disableAnimationsOf(context);
     _syncAmbient();
     final isPlaying = ref.read(playbackStateProvider).valueOrNull?.playing ?? true;
+    _playing = isPlaying;
     _pauseCtrl.value = isPlaying ? 0.0 : 1.0;
     _kickAnalysis(ref.read(currentSongProvider));
   }
 
   void _syncAmbient() {
-    if (MediaQuery.disableAnimationsOf(context)) {
+    if (_reduceMotion) {
       _ambientCtrl.stop();
     } else if (!_ambientCtrl.isAnimating) {
       _ambientCtrl.repeat();
     }
   }
 
-  /// Starts background waveform extraction for [song] if not already done.
+  /// Starts background beat analysis for [song] if not already done.
   void _kickAnalysis(Song? song) {
     if (song == null || song.id == _analyzedSong?.id) return;
     _analyzedSong = song;
-    _synthCache.remove(song.id); // clear stale synthetic entry for new song
-    ref.read(waveformAnalysisServiceProvider).getAmplitudes(song.id, song.filePath);
+    ref.read(waveformAnalysisServiceProvider).analyze(song.id, song.filePath);
+  }
+
+  /// Records a fresh position sample and re-aligns the beat cursor. Called on
+  /// every position-stream tick (and after seeks), so [_onBeatTick] can
+  /// interpolate accurately between samples.
+  void _syncBeatCursor(String songId, int posMs) {
+    final beats = ref.read(waveformAnalysisServiceProvider).getCachedBeats(songId);
+    if (beats != null && _beatsSongId != songId) {
+      _beatsMs = beats;
+      _beatsSongId = songId;
+    } else if (beats == null && _beatsSongId != songId) {
+      // Analysis still running for a freshly-changed track — keep the old grid
+      // cleared so we don't pulse to the previous song's beats.
+      _beatsMs = const [];
+      _beatsSongId = null;
+    }
+    _lastPosMs = posMs;
+    _lastPosWallMs = DateTime.now().millisecondsSinceEpoch;
+    _nextBeat = _lowerBound(_beatsMs, posMs);
+  }
+
+  /// First index in ascending [list] whose value is > [target].
+  int _lowerBound(List<int> list, int target) {
+    var lo = 0, hi = list.length;
+    while (lo < hi) {
+      final mid = (lo + hi) >> 1;
+      if (list[mid] <= target) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+    return lo;
+  }
+
+  void _onBeatTick(Duration _) {
+    if (!_playing || _reduceMotion || _beatsMs.isEmpty) return;
+    final estMs = _lastPosMs +
+        ((DateTime.now().millisecondsSinceEpoch - _lastPosWallMs) * _speed)
+            .round();
+    var fired = false;
+    while (_nextBeat < _beatsMs.length && _beatsMs[_nextBeat] <= estMs) {
+      fired = true;
+      _nextBeat++;
+    }
+    if (fired) _pulseCtrl.forward(from: 0);
   }
 
   @override
   void dispose() {
+    _beatTicker?.dispose();
     _ambientCtrl.dispose();
     _pauseCtrl.dispose();
-    _energyCtrl.dispose();
+    _pulseCtrl.dispose();
     super.dispose();
   }
 
@@ -134,11 +203,12 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
       }
     });
 
-    // Drive orb convergence on play/pause; kick waveform analysis on song change.
+    // Drive orb convergence on play/pause; kick beat analysis on song change.
     ref.listen<AsyncValue<PlaybackState>>(playbackStateProvider,
         (prev, next) {
       final wasPlaying = prev?.valueOrNull?.playing ?? true;
       final isPlaying = next.valueOrNull?.playing ?? true;
+      _playing = isPlaying;
       if (wasPlaying && !isPlaying) {
         _pauseCtrl.forward();
       } else if (!wasPlaying && isPlaying) {
@@ -147,8 +217,15 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
       _kickAnalysis(next.valueOrNull?.currentSong);
     });
 
-    // A-B repeat loop enforcement + audio-energy sampling (drives orb movement).
-    // Uses ref.read(currentSongProvider) rather than the local `song` variable
+    // Keep the beat estimator's playback speed in sync so pulses stay on-time
+    // when the user changes tempo.
+    ref.listen(speedProvider, (_, next) {
+      final v = next.valueOrNull;
+      if (v != null && v > 0) _speed = v;
+    });
+
+    // A-B repeat loop enforcement + beat-cursor re-alignment. Uses
+    // ref.read(currentSongProvider) rather than the local `song` variable
     // because `song` is declared further down in build() — closures registered
     // with ref.listen execute after build() returns, so we always re-read.
     ref.listen(positionProvider, (_, next) {
@@ -156,31 +233,16 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
       if (pos == null) return;
 
       final s = ref.read(currentSongProvider);
+      if (s == null) return;
 
       // A-B loop enforcement.
-      if (s != null) {
-        final ab = ref.read(abRepeatProvider);
-        if (ref.read(abRepeatProvider.notifier).shouldLoop(s.id, pos)) {
-          ref.read(audioControllerProvider).seek(ab.pointA!);
-        }
+      final ab = ref.read(abRepeatProvider);
+      if (ref.read(abRepeatProvider.notifier).shouldLoop(s.id, pos)) {
+        ref.read(audioControllerProvider).seek(ab.pointA!);
       }
 
-      // Energy sampling: real waveform when ready, synthetic envelope fallback.
-      if (!mounted || s == null) return;
-      final service = ref.read(waveformAnalysisServiceProvider);
-      final amps = service.getCachedAmplitudes(s.id)
-          ?? (_synthCache[s.id] ??= generateWaveform(s.artworkSeed).amplitudes);
-      if (amps.isEmpty) return;
-      final totalMs = s.duration.inMilliseconds;
-      final fraction = totalMs > 0 ? pos.inMilliseconds / totalMs : 0.0;
-      final idx = (fraction.clamp(0.0, 1.0) * (amps.length - 1))
-          .round()
-          .clamp(0, amps.length - 1);
-      _energyCtrl.animateTo(
-        amps[idx],
-        duration: const Duration(milliseconds: 120),
-        curve: Curves.easeOut,
-      );
+      // Re-anchor the beat scheduler to the freshly reported position.
+      _syncBeatCursor(s.id, pos.inMilliseconds);
     });
 
     final song = state.currentSong;
@@ -190,9 +252,21 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
     }
 
     final ctrl = ref.read(audioControllerProvider);
-    final accent = SeedPalette.accent(song.artworkSeed);
     final dynamicColor = ref.watch(settingsProvider.select((s) => s.dynamicColor));
-    final wash = dynamicColor ? SeedPalette.wash(song.artworkSeed) : colors.background;
+
+    // Real colours pulled from the album cover (Material Color Utilities),
+    // falling back to the deterministic seed palette until extraction completes
+    // or when there is no embedded artwork.
+    final palette = ref
+            .watch(coverPaletteProvider((
+              seed: song.artworkSeed,
+              hasArtwork: song.hasArtwork,
+              artworkId: int.tryParse(song.id),
+            )))
+            .valueOrNull ??
+        CoverPalette.fromSeed(song.artworkSeed);
+    final accent = palette.accent;
+    final wash = dynamicColor ? palette.wash : colors.background;
     final isLandscape = MediaQuery.orientationOf(context) == Orientation.landscape;
 
     // The liquid-glass intensity from Settings drives both how heavily the
@@ -226,18 +300,18 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
             Positioned.fill(
               child: ColoredBox(color: colors.background),
             ),
-            // ── Layer 2: album-color light sources (dance with audio energy) ─
+            // ── Layer 2: album-color light sources (pulse on every beat) ─────
             Positioned.fill(
               child: AnimatedBuilder(
                 animation: Listenable.merge(
-                    [_ambientCtrl, _pauseCtrl, _energyCtrl]),
+                    [_ambientCtrl, _pauseCtrl, _pulseCtrl]),
                 builder: (_, __) => CustomPaint(
                   painter: _AmbientPainter(
                     t: _ambientCtrl.value,
                     accent: _orbAccent(accent, isDark),
                     wash: _orbWash(wash, isDark),
                     convergence: _pauseCtrl.value,
-                    energy: _energyCtrl.value,
+                    pulse: _pulseCtrl.value,
                     isDark: isDark,
                   ),
                 ),
@@ -671,19 +745,21 @@ class _ArtworkWithGlow extends StatelessWidget {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // Glow shadow
-          Container(
-            width: size * 0.88,
-            height: size * 0.22,
-            margin: EdgeInsets.only(top: size * 0.82),
+          // Halo: a soft accent glow that wraps evenly *around* the whole cover
+          // (not a bar beneath it). It swells when paused — the lights gathering
+          // around the resting artwork.
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.easeInOut,
+            width: size * 0.94,
+            height: size * 0.94,
             decoration: BoxDecoration(
-              shape: BoxShape.rectangle,
-              borderRadius: BorderRadius.circular(size * 0.44),
+              borderRadius: RadiusTokens.brLg,
               boxShadow: [
                 BoxShadow(
-                  color: accent.withOpacity(0.38),
-                  blurRadius: size * 0.20,
-                  spreadRadius: 0,
+                  color: accent.withOpacity(state.playing ? 0.30 : 0.46),
+                  blurRadius: size * (state.playing ? 0.22 : 0.30),
+                  spreadRadius: size * (state.playing ? 0.005 : 0.025),
                 ),
               ],
             ),
@@ -2195,21 +2271,19 @@ Future<void> _showAddBookmarkDialog(
   }
 }
 
-// ── Ambient painter — three drifting light sources driven by audio energy ────
+// ── Ambient painter — three light sources that throb on every beat ───────────
 
 /// Three radial-gradient orbs that orbit slowly under the frosted glass and
-/// MOVE outward from the artwork centre in proportion to the current audio
-/// energy — loud passages scatter the orbs, quiet passages pull them back.
-///
-/// [energy] is the normalised amplitude at the playback position (0.0–1.0),
-/// sampled from a real PCM waveform analysis. While that analysis is pending
-/// a synthetic waveform is used as a fallback.
+/// THROB on each detected beat: [pulse] runs 0→1 after every beat, and the
+/// painter renders `throb = (1 - pulse)^1.6` so each orb swells and brightens
+/// the instant the beat lands, then eases back before the next one — a fast
+/// track pulses fast, a slow one slow, driven by real onset detection.
 ///
 /// [isDark] controls the base opacity multiplier: light-mode backgrounds need
 /// ~2.5× the opacity to achieve equivalent visual contrast.
 ///
 /// When [convergence] → 1 (paused), the orbs gather toward the artwork
-/// centre and fade — the lights "collecting" under the cover.
+/// centre and fade, and the throb is suppressed so a paused track sits still.
 class _AmbientPainter extends CustomPainter {
   const _AmbientPainter({
     required this.t,
@@ -2217,7 +2291,7 @@ class _AmbientPainter extends CustomPainter {
     required this.wash,
     required this.isDark,
     this.convergence = 0.0,
-    this.energy = 0.0,
+    this.pulse = 1.0,
   });
 
   final double t;
@@ -2225,7 +2299,7 @@ class _AmbientPainter extends CustomPainter {
   final Color wash;
   final bool isDark;
   final double convergence;
-  final double energy;
+  final double pulse;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -2238,12 +2312,12 @@ class _AmbientPainter extends CustomPainter {
     // read with equivalent visual weight across all three themes.
     final boost = isDark ? 1.0 : 2.5;
 
-    // Soft power curve so even quiet passages register gentle scatter, not zero.
-    final e = math.pow(energy.clamp(0.0, 1.0), 0.55).toDouble();
+    // Beat throb: 1.0 the instant a beat lands, decaying to 0 before the next.
+    // Suppressed by `fade` so a paused track holds perfectly still.
+    final throb = math.pow(1.0 - pulse.clamp(0.0, 1.0), 1.6).toDouble() * fade;
 
-    // Orbs are pushed radially away from the artwork centre proportionally to
-    // the energy — loud moments scatter them outward, silence pulls them back.
-    final scatter = e * size.width * 0.14;
+    // On each beat the orbs jump outward from the artwork centre, then settle.
+    final scatter = throb * size.width * 0.10;
 
     // ── Orb 1: main accent, upper area ────────────────────────────────────────
     final base1 = Offset(
@@ -2253,22 +2327,25 @@ class _AmbientPainter extends CustomPainter {
     _drawOrb(
       canvas,
       _converge(_push(base1, artCentre, scatter), artCentre),
-      size.width * 0.72 * (1.0 - convergence * 0.45),
+      size.width * 0.72 * (1.0 - convergence * 0.45) * (1.0 + 0.20 * throb),
       accent.withOpacity(
-          (0.30 * boost * fade * (0.65 + 0.35 * e)).clamp(0.0, 0.88).toDouble()),
+          (0.30 * boost * fade * (1.0 + 0.65 * throb)).clamp(0.0, 0.92).toDouble()),
     );
 
-    // ── Orb 2: complementary wash/tint, lower-right ───────────────────────────
+    // ── Orb 2: complementary wash/tint, lower-right (offset throb) ─────────────
+    final throb2 = math.pow(1.0 - ((pulse + 0.4).clamp(0.0, 1.0)), 1.6)
+            .toDouble() *
+        fade;
     final base2 = Offset(
       size.width * (0.66 + 0.28 * _n(math.sin(t * 2 * math.pi * 0.22 + 2.1))),
       size.height * (0.50 + 0.34 * _n(math.cos(t * 2 * math.pi * 0.33 + 1.5))),
     );
     _drawOrb(
       canvas,
-      _converge(_push(base2, artCentre, scatter * 0.85), artCentre),
-      size.width * 0.60 * (1.0 - convergence * 0.55),
+      _converge(_push(base2, artCentre, throb2 * size.width * 0.09), artCentre),
+      size.width * 0.60 * (1.0 - convergence * 0.55) * (1.0 + 0.16 * throb2),
       Color.lerp(accent, wash, isDark ? 0.45 : 0.2)!.withOpacity(
-          (0.28 * boost * fade * (0.65 + 0.35 * e)).clamp(0.0, 0.88).toDouble()),
+          (0.28 * boost * fade * (1.0 + 0.55 * throb2)).clamp(0.0, 0.92).toDouble()),
     );
 
     // ── Orb 3: accent, lower-left ─────────────────────────────────────────────
@@ -2278,10 +2355,10 @@ class _AmbientPainter extends CustomPainter {
     );
     _drawOrb(
       canvas,
-      _converge(_push(base3, artCentre, scatter * 1.1), artCentre),
-      size.width * 0.48 * (1.0 - convergence * 0.65),
+      _converge(_push(base3, artCentre, scatter * 1.2), artCentre),
+      size.width * 0.48 * (1.0 - convergence * 0.65) * (1.0 + 0.24 * throb),
       accent.withOpacity(
-          (0.24 * boost * fade * (0.65 + 0.35 * e)).clamp(0.0, 0.88).toDouble()),
+          (0.24 * boost * fade * (1.0 + 0.70 * throb)).clamp(0.0, 0.92).toDouble()),
     );
   }
 
@@ -2320,5 +2397,5 @@ class _AmbientPainter extends CustomPainter {
       o.wash != wash ||
       o.isDark != isDark ||
       o.convergence != convergence ||
-      o.energy != energy;
+      o.pulse != pulse;
 }
