@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/constants/icon_sizes.dart';
 import '../../../core/constants/radius_tokens.dart';
 import '../../../core/constants/spacing_tokens.dart';
 import '../../../core/theme/color_scheme.dart';
@@ -31,19 +32,18 @@ class ArtistListTile extends StatelessWidget {
       semanticLabel: artist.name,
       child: Padding(
         padding: const EdgeInsets.symmetric(
-          horizontal: SpacingTokens.xs,
+          horizontal: SpacingTokens.sm,
           vertical: SpacingTokens.sm,
         ),
         child: Row(
           children: [
-            ClipOval(
-              child: AuraArtwork(
-                seed: artist.artworkSeed,
-                size: 48,
-                borderRadius: RadiusTokens.brXs,
-                hasArtwork: artist.hasArtwork,
-                artworkId: artist.firstSongId,
-              ),
+            // Round artist avatar (DS: 56px · pill radius).
+            AuraArtwork(
+              seed: artist.artworkSeed,
+              size: 56,
+              borderRadius: RadiusTokens.brPill,
+              hasArtwork: artist.hasArtwork,
+              artworkId: artist.firstSongId,
             ),
             const SizedBox(width: SpacingTokens.md),
             Expanded(
@@ -57,15 +57,19 @@ class ArtistListTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: AppTextTheme.title.copyWith(color: colors.onSurface),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: SpacingTokens.xxs),
                   Text(
                     subtitle,
-                    style: AppTextTheme.caption.copyWith(color: colors.onSurfaceMuted),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style:
+                        AppTextTheme.body.copyWith(color: colors.onSurfaceMuted),
                   ),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right, size: 20, color: colors.onSurfaceFaint),
+            Icon(Icons.chevron_right,
+                size: IconSizes.md, color: colors.onSurfaceFaint),
           ],
         ),
       ),

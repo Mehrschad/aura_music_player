@@ -65,7 +65,7 @@ class ArtistDetailPage extends ConsumerWidget {
                 SpacingTokens.xl, 0, SpacingTokens.xl, SpacingTokens.md),
               title: Text(
                 artist.name,
-                style: AppTextTheme.title.copyWith(color: Colors.white),
+                style: AppTextTheme.display.copyWith(color: Colors.white),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -81,12 +81,18 @@ class ArtistDetailPage extends ConsumerWidget {
                       artworkId: artist.firstSongId,
                     ),
                   ),
-                  const DecoratedBox(
+                  // DS hero scrim: faint top darkening fading into the page bg.
+                  DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [Colors.transparent, Colors.black87],
+                        stops: const [0, 0.3, 1],
+                        colors: [
+                          Colors.black.withOpacity(0.25),
+                          Colors.transparent,
+                          colors.background,
+                        ],
                       ),
                     ),
                   ),
