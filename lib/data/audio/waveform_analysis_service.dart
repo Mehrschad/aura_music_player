@@ -33,22 +33,15 @@ class WaveformAnalysisService {
 
     try {
       final tmpDir = await getTemporaryDirectory();
-      final waveFile = File('${tmpDir.path}/aura_wave_$songId.dat');
+      final waveFile = File('${tmpDir.path}/aura_wave_$songId.wave');
 
-      // Re-use a previously written waveform file if it exists.
-      if (await waveFile.exists()) {
-        final waveform = await Waveform.parse(waveOutFile: waveFile);
-        _cache[songId] = _normalise(waveform);
-        return _cache[songId];
-      }
-
-      // One sample per ~186 ms at 44 100 Hz (8 192 samples/pixel).
-      // A 3-min track yields ~970 points — enough rhythmic detail while keeping
-      // extraction fast (< 1 s on a mid-range device).
+      // 5 samples/second → one amplitude point every 200 ms: enough rhythmic
+      // detail to drive the ambient orbs while keeping extraction fast and the
+      // amplitude list compact (~900 points for a 3-min track).
       final stream = JustWaveform.extract(
         audioInFile: File(filePath),
         waveOutFile: waveFile,
-        zoom: const WaveformZoom.pixelsPerStep(8192),
+        zoom: const WaveformZoom.pixelsPerSecond(5),
       );
 
       Waveform? result;
