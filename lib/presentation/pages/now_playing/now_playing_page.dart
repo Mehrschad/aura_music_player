@@ -71,13 +71,14 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
     duration: const Duration(milliseconds: 900),
   );
 
-  // Fires a sharp swell on every detected beat: forward(from:0) restarts the
-  // 0→1 ramp, and the painter renders a throb = (1 - value) so each orb hits
-  // hardest the instant the beat lands, then eases back before the next one.
+  // Pulses on every detected beat: forward(from:0) restarts the 0→1 ramp, and
+  // the painter turns it into a gentle flow = (1 - value)^1.8 that nudges the
+  // orbs further along their swirl and breathes their size a touch — the rhythm
+  // shaping the dance, not a hard throb.
   late final AnimationController _pulseCtrl = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 360),
-    value: 1.0, // rest at 1 → throb = (1 - value)^1.6 = 0 (no swell between beats)
+    duration: const Duration(milliseconds: 480),
+    value: 1.0, // rest at 1 → flow = (1 - value)^1.8 = 0 (calm between beats)
   );
 
   // ── Beat scheduler ─────────────────────────────────────────────────────────
@@ -116,7 +117,9 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
     final isPlaying = ref.read(playbackStateProvider).valueOrNull?.playing ?? true;
     _playing = isPlaying;
     _pauseCtrl.value = isPlaying ? 0.0 : 1.0;
-    _kickAnalysis(ref.read(currentSongProvider));
+    if (ref.read(settingsProvider).lightDance) {
+      _kickAnalysis(ref.read(currentSongProvider));
+    }
   }
 
   void _syncAmbient() {
@@ -214,7 +217,9 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
       } else if (!wasPlaying && isPlaying) {
         _pauseCtrl.reverse();
       }
-      _kickAnalysis(next.valueOrNull?.currentSong);
+      if (ref.read(settingsProvider).lightDance) {
+        _kickAnalysis(next.valueOrNull?.currentSong);
+      }
     });
 
     // Keep the beat estimator's playback speed in sync so pulses stay on-time
@@ -277,6 +282,12 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
     final frost = _glassFrost(glass);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    // The ambient light-dance (swirling colour orbs) can be switched off in
+    // Settings; when off, only the soft halo around the cover remains. Beat
+    // analysis is only worth running while the dance is visible.
+    final lightDance = ref.watch(settingsProvider.select((s) => s.lightDance));
+    if (lightDance) _kickAnalysis(song);
+
     return GestureDetector(
       onVerticalDragEnd: (d) {
         if ((d.primaryVelocity ?? 0) > 600) Navigator.of(context).maybePop();
@@ -300,23 +311,25 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
             Positioned.fill(
               child: ColoredBox(color: colors.background),
             ),
-            // ── Layer 2: album-color light sources (pulse on every beat) ─────
-            Positioned.fill(
-              child: AnimatedBuilder(
-                animation: Listenable.merge(
-                    [_ambientCtrl, _pauseCtrl, _pulseCtrl]),
-                builder: (_, __) => CustomPaint(
-                  painter: _AmbientPainter(
-                    t: _ambientCtrl.value,
-                    accent: _orbAccent(accent, isDark),
-                    wash: _orbWash(wash, isDark),
-                    convergence: _pauseCtrl.value,
-                    pulse: _pulseCtrl.value,
-                    isDark: isDark,
+            // ── Layer 2: album-color light orbs swirling like bubbles in oil,
+            //    their flow gently shaped by the beat (toggle in Settings) ─────
+            if (lightDance)
+              Positioned.fill(
+                child: AnimatedBuilder(
+                  animation: Listenable.merge(
+                      [_ambientCtrl, _pauseCtrl, _pulseCtrl]),
+                  builder: (_, __) => CustomPaint(
+                    painter: _AmbientPainter(
+                      t: _ambientCtrl.value,
+                      accent: _orbAccent(accent, isDark),
+                      wash: _orbWash(wash, isDark),
+                      convergence: _pauseCtrl.value,
+                      pulse: _pulseCtrl.value,
+                      isDark: isDark,
+                    ),
                   ),
                 ),
               ),
-            ),
             // ── Layer 3: frosted glass (intensity-driven) ────────────────────
             Positioned.fill(
               child: blurSigma > 0
@@ -721,7 +734,7 @@ class _PressIconState extends State<_PressIcon> {
   }
 }
 
-class _ArtworkWithGlow extends StatelessWidget {
+class _ArtworkWithGlow extends StatefulWidget {
   const _ArtworkWithGlow({
     required this.song,
     required this.size,
@@ -737,8 +750,50 @@ class _ArtworkWithGlow extends StatelessWidget {
   final int slideDirection;
 
   @override
+  State<_ArtworkWithGlow> createState() => _ArtworkWithGlowState();
+}
+
+class _ArtworkWithGlowState extends State<_ArtworkWithGlow>
+    with SingleTickerProviderStateMixin {
+  // A slow halo "breath": while playing the glow drifts very gently in and out
+  // (the soft motion the user asked for); on pause it eases back to rest so the
+  // halo settles inward around the cover.
+  late final AnimationController _halo =
+      AnimationController(vsync: this, duration: const Duration(seconds: 5));
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncHalo();
+  }
+
+  @override
+  void didUpdateWidget(_ArtworkWithGlow old) {
+    super.didUpdateWidget(old);
+    if (old.state.playing != widget.state.playing) _syncHalo();
+  }
+
+  void _syncHalo() {
+    final reduce = MediaQuery.disableAnimationsOf(context);
+    if (widget.state.playing && !reduce) {
+      if (!_halo.isAnimating) _halo.repeat(reverse: true);
+    } else {
+      _halo.stop();
+      _halo.animateTo(0, duration: const Duration(milliseconds: 700));
+    }
+  }
+
+  @override
+  void dispose() {
+    _halo.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final size = widget.size;
+    final accent = widget.accent;
     return Semantics(
       image: true,
       label: l10n.a11yAlbumArt,
@@ -746,32 +801,35 @@ class _ArtworkWithGlow extends StatelessWidget {
         alignment: Alignment.center,
         children: [
           // Halo: a soft accent glow that wraps evenly *around* the whole cover
-          // (not a bar beneath it). It swells when paused — the lights gathering
-          // around the resting artwork.
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 600),
-            curve: Curves.easeInOut,
-            width: size * 0.94,
-            height: size * 0.94,
-            decoration: BoxDecoration(
-              borderRadius: RadiusTokens.brLg,
-              boxShadow: [
-                BoxShadow(
-                  color: accent.withOpacity(state.playing ? 0.30 : 0.46),
-                  blurRadius: size * (state.playing ? 0.22 : 0.30),
-                  spreadRadius: size * (state.playing ? 0.005 : 0.025),
+          // (not a bar beneath it), breathing subtly while playing.
+          AnimatedBuilder(
+            animation: _halo,
+            builder: (_, __) {
+              final b = _halo.value; // 0 at rest → ~1 at the top of the breath
+              return Container(
+                width: size * 0.94,
+                height: size * 0.94,
+                decoration: BoxDecoration(
+                  borderRadius: RadiusTokens.brLg,
+                  boxShadow: [
+                    BoxShadow(
+                      color: accent.withOpacity(0.28 + 0.10 * b),
+                      blurRadius: size * (0.20 + 0.05 * b),
+                      spreadRadius: size * (0.004 + 0.012 * b),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              );
+            },
           ),
           // Artwork
           BreathingArtwork(
-            seed: song.artworkSeed,
+            seed: widget.song.artworkSeed,
             size: size,
-            playing: state.playing,
-            hasArtwork: song.hasArtwork,
-            artworkId: int.tryParse(song.id),
-            slideDirection: slideDirection,
+            playing: widget.state.playing,
+            hasArtwork: widget.song.hasArtwork,
+            artworkId: int.tryParse(widget.song.id),
+            slideDirection: widget.slideDirection,
           ),
         ],
       ),
@@ -2271,19 +2329,21 @@ Future<void> _showAddBookmarkDialog(
   }
 }
 
-// ── Ambient painter — three light sources that throb on every beat ───────────
+// ── Ambient painter — colour orbs swirling like bubbles in oil ───────────────
 
-/// Three radial-gradient orbs that orbit slowly under the frosted glass and
-/// THROB on each detected beat: [pulse] runs 0→1 after every beat, and the
-/// painter renders `throb = (1 - pulse)^1.6` so each orb swells and brightens
-/// the instant the beat lands, then eases back before the next one — a fast
-/// track pulses fast, a slow one slow, driven by real onset detection.
+/// Three soft radial-gradient orbs that slowly orbit a shared centre on
+/// different elliptical paths and directions — like coloured bubbles drifting
+/// through oil. The motion is continuous (driven by [t]) so it is alive the
+/// instant the screen opens, with no wait for analysis.
 ///
-/// [isDark] controls the base opacity multiplier: light-mode backgrounds need
-/// ~2.5× the opacity to achieve equivalent visual contrast.
+/// [pulse] runs 0→1 after every detected beat; the painter turns it into a
+/// gentle `flow = (1 - pulse)^1.8` that *nudges* each orb a little further
+/// along its orbit and breathes its size a touch — the rhythm shaping the
+/// swirl rather than a hard, in-your-face throb.
 ///
-/// When [convergence] → 1 (paused), the orbs gather toward the artwork
-/// centre and fade, and the throb is suppressed so a paused track sits still.
+/// [isDark] sets the opacity multiplier (light mode needs ~2.4× to read against
+/// a near-white canvas). When [convergence] → 1 (paused) the orbs gather toward
+/// the artwork centre, slow, and fade.
 class _AmbientPainter extends CustomPainter {
   const _AmbientPainter({
     required this.t,
@@ -2303,77 +2363,74 @@ class _AmbientPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Artwork centre lives at ~38 % from the top in portrait mode.
-    final artCentre = Offset(size.width * 0.5, size.height * 0.38);
+    // Orbs orbit a shared centre near the artwork.
+    final centre = Offset(size.width * 0.5, size.height * 0.40);
     final fade = (1.0 - convergence).clamp(0.0, 1.0).toDouble();
+    final boost = isDark ? 1.0 : 2.4;
 
-    // In light mode, the accent colours are pale against the near-white
-    // background. We therefore apply a ~2.5× opacity boost so the orbs
-    // read with equivalent visual weight across all three themes.
-    final boost = isDark ? 1.0 : 2.5;
+    // Soft, gentle beat flow — deliberately understated so the dance reads as a
+    // sway, not a strobe. Suppressed by `fade` so a paused track drifts to rest.
+    final flow = math.pow(1.0 - pulse.clamp(0.0, 1.0), 1.8).toDouble() * fade;
 
-    // Beat throb: 1.0 the instant a beat lands, decaying to 0 before the next.
-    // Suppressed by `fade` so a paused track holds perfectly still.
-    final throb = math.pow(1.0 - pulse.clamp(0.0, 1.0), 1.6).toDouble() * fade;
+    final tau = t * 2 * math.pi;
 
-    // On each beat the orbs jump outward from the artwork centre, then settle.
-    final scatter = throb * size.width * 0.10;
-
-    // ── Orb 1: main accent, upper area ────────────────────────────────────────
-    final base1 = Offset(
-      size.width * (0.10 + 0.68 * _n(math.sin(t * 2 * math.pi * 0.38))),
-      size.height * (0.06 + 0.38 * _n(math.cos(t * 2 * math.pi * 0.27))),
+    // Each orb: orbital radii (rx, ry), angular speed & phase, a slow size
+    // wobble, and a colour. Opposing speeds make them weave around one another.
+    _drawBubble(
+      canvas, centre, fade, boost, flow,
+      rx: size.width * 0.26, ry: size.height * 0.16,
+      angle: tau * 0.09 + flow * 0.5, // forward drift + tiny beat nudge
+      wobble: 0.06 * math.sin(tau * 0.13),
+      radius: size.width * 0.66,
+      baseOpacity: 0.26,
+      color: accent,
     );
-    _drawOrb(
-      canvas,
-      _converge(_push(base1, artCentre, scatter), artCentre),
-      size.width * 0.72 * (1.0 - convergence * 0.45) * (1.0 + 0.20 * throb),
-      accent.withOpacity(
-          (0.30 * boost * fade * (1.0 + 0.65 * throb)).clamp(0.0, 0.92).toDouble()),
+    _drawBubble(
+      canvas, centre, fade, boost, flow,
+      rx: size.width * 0.22, ry: size.height * 0.21,
+      angle: -tau * 0.07 + 2.1 - flow * 0.4, // counter-rotating
+      wobble: 0.07 * math.sin(tau * 0.11 + 1.5),
+      radius: size.width * 0.58,
+      baseOpacity: 0.24,
+      color: Color.lerp(accent, wash, isDark ? 0.45 : 0.2)!,
     );
-
-    // ── Orb 2: complementary wash/tint, lower-right (offset throb) ─────────────
-    final throb2 = math.pow(1.0 - ((pulse + 0.4).clamp(0.0, 1.0)), 1.6)
-            .toDouble() *
-        fade;
-    final base2 = Offset(
-      size.width * (0.66 + 0.28 * _n(math.sin(t * 2 * math.pi * 0.22 + 2.1))),
-      size.height * (0.50 + 0.34 * _n(math.cos(t * 2 * math.pi * 0.33 + 1.5))),
-    );
-    _drawOrb(
-      canvas,
-      _converge(_push(base2, artCentre, throb2 * size.width * 0.09), artCentre),
-      size.width * 0.60 * (1.0 - convergence * 0.55) * (1.0 + 0.16 * throb2),
-      Color.lerp(accent, wash, isDark ? 0.45 : 0.2)!.withOpacity(
-          (0.28 * boost * fade * (1.0 + 0.55 * throb2)).clamp(0.0, 0.92).toDouble()),
-    );
-
-    // ── Orb 3: accent, lower-left ─────────────────────────────────────────────
-    final base3 = Offset(
-      size.width * (0.14 + 0.34 * _n(math.cos(t * 2 * math.pi * 0.19 + 4.2))),
-      size.height * (0.68 + 0.20 * _n(math.sin(t * 2 * math.pi * 0.44 + 0.9))),
-    );
-    _drawOrb(
-      canvas,
-      _converge(_push(base3, artCentre, scatter * 1.2), artCentre),
-      size.width * 0.48 * (1.0 - convergence * 0.65) * (1.0 + 0.24 * throb),
-      accent.withOpacity(
-          (0.24 * boost * fade * (1.0 + 0.70 * throb)).clamp(0.0, 0.92).toDouble()),
+    _drawBubble(
+      canvas, centre, fade, boost, flow,
+      rx: size.width * 0.30, ry: size.height * 0.13,
+      angle: tau * 0.06 + 4.0 + flow * 0.55,
+      wobble: 0.05 * math.sin(tau * 0.17 + 0.8),
+      radius: size.width * 0.48,
+      baseOpacity: 0.22,
+      color: accent,
     );
   }
 
-  /// Pushes [orb] radially away from [centre] by [radius] pixels.
-  Offset _push(Offset orb, Offset centre, double radius) {
-    if (radius < 1) return orb;
-    final dx = orb.dx - centre.dx;
-    final dy = orb.dy - centre.dy;
-    final dist = math.sqrt(dx * dx + dy * dy);
-    if (dist < 1) return orb;
-    return Offset(orb.dx + dx / dist * radius, orb.dy + dy / dist * radius);
+  void _drawBubble(
+    Canvas canvas,
+    Offset centre,
+    double fade,
+    double boost,
+    double flow, {
+    required double rx,
+    required double ry,
+    required double angle,
+    required double wobble,
+    required double radius,
+    required double baseOpacity,
+    required Color color,
+  }) {
+    // Orbit position, pulled toward the centre as the track pauses (convergence
+    // shrinks rx/ry to 0). A small beat breath (flow) widens the orbit a touch.
+    final orbit = (1.0 + wobble + 0.05 * flow) * fade;
+    final pos = Offset(
+      centre.dx + math.cos(angle) * rx * orbit,
+      centre.dy + math.sin(angle) * ry * orbit,
+    );
+    final r = radius * (1.0 - (1.0 - fade) * 0.5) * (1.0 + 0.06 * flow);
+    final opacity =
+        (baseOpacity * boost * fade * (1.0 + 0.22 * flow)).clamp(0.0, 0.85).toDouble();
+    _drawOrb(canvas, pos, r, color.withOpacity(opacity));
   }
-
-  Offset _converge(Offset orb, Offset centre) =>
-      Offset.lerp(orb, centre, Curves.easeInOut.transform(convergence))!;
 
   void _drawOrb(Canvas canvas, Offset pos, double radius, Color color) {
     if (radius <= 0 || color.alpha < 2) return;
@@ -2387,8 +2444,6 @@ class _AmbientPainter extends CustomPainter {
         ).createShader(rect),
     );
   }
-
-  double _n(double x) => (x + 1.0) / 2.0;
 
   @override
   bool shouldRepaint(_AmbientPainter o) =>

@@ -27,6 +27,7 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   void setGlassIntensity(GlassIntensity v) =>
       _update(state.copyWith(glassIntensity: v));
   void setDynamicColor(bool v) => _update(state.copyWith(dynamicColor: v));
+  void setLightDance(bool v) => _update(state.copyWith(lightDance: v));
   void setTextScale(double v) => _update(state.copyWith(textScale: v));
   void setDensity(DisplayDensity v) => _update(state.copyWith(density: v));
   void setLocale(LocalePref v) => _update(state.copyWith(locale: v));

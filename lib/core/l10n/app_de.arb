@@ -220,6 +220,7 @@
   "glassStrong": "Stark",
   "glassUltra": "Ultra",
   "dynamicColor": "Dynamische Farbe",
+  "lightDance": "Lichttanz",
   "textScale": "Textgröße",
   "density": "Anzeigedichte",
   "densityComfortable": "Komfortabel",
@@ -427,6 +428,7 @@
   "badgeSynced": "Synchron",
   "browseGenres": "Genres durchsuchen",
   "dynamicColorSub": "Färbung aus Albumcover",
+  "lightDanceSub": "Farbkugeln wiegen sich hinter dem Cover zum Beat",
   "androidAutoSub": "Aura im Auto anzeigen",
   "lyricsAutoFetchSub": "Von Genius, wenn nicht vorhanden",
   "smartPlaylistAutoCount": "{count, plural, =0{Automatisch · Keine Titel} =1{Automatisch · 1 Titel} other{Automatisch · {count} Titel}}"

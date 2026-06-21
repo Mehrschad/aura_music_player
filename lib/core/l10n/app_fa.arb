@@ -185,6 +185,7 @@
   "glassStrong": "قوی",
   "glassUltra": "فوق‌العاده",
   "dynamicColor": "رنگ پویا",
+  "lightDance": "رقص نور",
   "textScale": "اندازه متن",
   "density": "تراکم نمایش",
   "densityComfortable": "راحت",
@@ -385,6 +386,7 @@
   "badgeSynced": "همگام",
   "browseGenres": "مرور ژانرها",
   "dynamicColorSub": "رنگ‌آمیزی از کاور آلبوم",
+  "lightDanceSub": "گوی‌های رنگی پشت کاور با ریتم می‌رقصند",
   "androidAutoSub": "نمایش Aura در خودرو",
   "lyricsAutoFetchSub": "از Genius در صورت نبود",
   "smartPlaylistAutoCount": "{count, plural, other{خودکار · {count} آهنگ}}"

@@ -271,6 +271,7 @@
   "glassStrong": "Strong",
   "glassUltra": "Ultra",
   "dynamicColor": "Dynamic colour",
+  "lightDance": "Light dance",
   "textScale": "Text size",
   "density": "Display density",
   "densityComfortable": "Comfortable",
@@ -790,6 +791,10 @@
   "dynamicColorSub": "Tint from album art",
   "@dynamicColorSub": {
     "description": "Subtitle under the Dynamic colour setting."
+  },
+  "lightDanceSub": "Colour orbs sway to the beat behind the cover",
+  "@lightDanceSub": {
+    "description": "Subtitle under the Light dance setting on the Now Playing screen."
   },
   "androidAutoSub": "Show Aura in your car",
   "@androidAutoSub": {

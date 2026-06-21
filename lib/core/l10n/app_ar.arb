@@ -185,6 +185,7 @@
   "glassStrong": "قوي",
   "glassUltra": "فائق",
   "dynamicColor": "لون ديناميكي",
+  "lightDance": "رقص الضوء",
   "textScale": "حجم النص",
   "density": "كثافة العرض",
   "densityComfortable": "مريح",
@@ -385,6 +386,7 @@
   "badgeSynced": "متزامن",
   "browseGenres": "تصفّح الأنواع",
   "dynamicColorSub": "تلوين من صورة الألبوم",
+  "lightDanceSub": "كرات ملوّنة تتمايل مع الإيقاع خلف الغلاف",
   "androidAutoSub": "إظهار Aura في سيارتك",
   "lyricsAutoFetchSub": "من Genius عند عدم التوفر",
   "smartPlaylistAutoCount": "{count, plural, zero{تلقائي · لا أغانٍ} one{تلقائي · أغنية واحدة} two{تلقائي · أغنيتان} few{تلقائي · {count} أغانٍ} many{تلقائي · {count} أغنية} other{تلقائي · {count} أغنية}}"

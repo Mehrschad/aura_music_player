@@ -89,6 +89,11 @@ class SettingsPage extends ConsumerWidget {
                 sub: l10n.dynamicColorSub,
                 value: s.dynamicColor,
                 onChanged: n.setDynamicColor),
+            _SwitchTile(
+                label: l10n.lightDance,
+                sub: l10n.lightDanceSub,
+                value: s.lightDance,
+                onChanged: n.setLightDance),
             _SliderTile(
               label: l10n.textScale,
               value: s.textScale,
