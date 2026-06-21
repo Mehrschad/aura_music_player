@@ -298,6 +298,7 @@ class _TapPhase extends ConsumerWidget {
               duration: song.duration,
               accent: accent,
               seed: song.artworkSeed,
+              isPlaying: playing,
             ),
           ),
         Padding(
