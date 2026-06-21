@@ -105,6 +105,13 @@ final librarySortProvider =
 final libraryDisplayModeProvider =
     StateProvider<DisplayMode>((ref) => DisplayMode.list);
 
+/// Selected segment in the Library screen (Songs / Albums / Artists / Genres).
+enum LibrarySegment { songs, albums, artists, genres }
+
+/// Currently selected Library segment. Defaults to Songs.
+final librarySegmentProvider =
+    StateProvider<LibrarySegment>((ref) => LibrarySegment.songs);
+
 /// Display mode for the Albums section (grid by default — it's artwork-forward).
 final albumsDisplayModeProvider =
     StateProvider<DisplayMode>((ref) => DisplayMode.grid);

@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/constants/radius_tokens.dart';
 import '../../../core/constants/spacing_tokens.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/color_scheme.dart';
 import '../../../core/theme/typography.dart';
+import '../../../domain/models/album.dart';
+import '../../../domain/models/artist.dart';
+import '../../../domain/models/genre.dart';
 import '../../../domain/models/library_sort.dart';
 import '../../../domain/models/song.dart';
 import '../../providers/async_value_x.dart';
@@ -14,6 +18,9 @@ import '../../providers/playback_providers.dart';
 import '../../providers/selection_providers.dart';
 import '../../widgets/async_state_view.dart';
 import '../../widgets/aurora_mark.dart';
+import '../../widgets/library/album_grid_tile.dart';
+import '../../widgets/library/artist_list_tile.dart';
+import '../../widgets/library/genre_list_tile.dart';
 import '../../widgets/library/library_controls.dart';
 import '../../widgets/library/selection_bar.dart';
 import '../../widgets/library/song_compact_tile.dart';
@@ -21,8 +28,11 @@ import '../../widgets/library/song_grid_tile.dart';
 import '../../widgets/library/song_list_tile.dart';
 import '../../widgets/player/song_actions_sheet.dart';
 import '../../widgets/player_bar_inset.dart';
-import '../../widgets/section_header.dart';
+import '../../widgets/press_scale.dart';
+import '../albums/album_detail_page.dart';
+import '../artists/artist_detail_page.dart';
 import '../folders/folder_browser_page.dart';
+import '../genres/genre_detail_page.dart';
 import '../settings/settings_page.dart';
 
 class LibraryPage extends ConsumerWidget {
@@ -38,13 +48,13 @@ class LibraryPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final colors = context.colors;
+    final segment = ref.watch(librarySegmentProvider);
     final songsAsync = ref.watch(sortedSongsProvider);
     final sort = ref.watch(librarySortProvider);
     final mode = ref.watch(libraryDisplayModeProvider);
     final miniPlayerVisible = ref.watch(hasMediaProvider);
     final selecting = ref.watch(
         selectionProvider(_listId).select((s) => s.active));
-    final count = songsAsync.maybeWhen(data: (s) => s.length, orElse: () => 0);
     final allSongs = songsAsync.valueOrNull ?? const <Song>[];
 
     return SafeArea(
@@ -98,21 +108,108 @@ class LibraryPage extends ConsumerWidget {
                 ],
               ),
             ),
+          if (!selecting) _SegmentRow(selected: segment),
           Expanded(
-            child: AsyncStateView<List<Song>>(
-              value: songsAsync.like,
-              isEmpty: (s) => s.isEmpty,
-              emptyMessage: l10n.libraryEmpty,
-              onRetry: () => ref.invalidate(songsProvider),
-              data: (songs) => _SongsBody(
-                songs: songs,
-                mode: mode,
-                miniPlayerVisible: miniPlayerVisible,
-                onPlayAt: (i) => _play(ref, songs, i),
-              ),
-            ),
+            child: switch (segment) {
+              LibrarySegment.songs => AsyncStateView<List<Song>>(
+                  value: songsAsync.like,
+                  isEmpty: (s) => s.isEmpty,
+                  emptyMessage: l10n.libraryEmpty,
+                  onRetry: () => ref.invalidate(songsProvider),
+                  data: (songs) => _SongsBody(
+                    songs: songs,
+                    mode: mode,
+                    miniPlayerVisible: miniPlayerVisible,
+                    onPlayAt: (i) => _play(ref, songs, i),
+                  ),
+                ),
+              LibrarySegment.albums =>
+                _AlbumsBody(miniPlayerVisible: miniPlayerVisible),
+              LibrarySegment.artists =>
+                _ArtistsBody(miniPlayerVisible: miniPlayerVisible),
+              LibrarySegment.genres =>
+                _GenresBody(miniPlayerVisible: miniPlayerVisible),
+            },
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Horizontally-scrollable pill segment: Songs / Albums / Artists / Genres.
+class _SegmentRow extends ConsumerWidget {
+  const _SegmentRow({required this.selected});
+
+  final LibrarySegment selected;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final items = <(LibrarySegment, String)>[
+      (LibrarySegment.songs, l10n.tabSongs),
+      (LibrarySegment.albums, l10n.tabAlbums),
+      (LibrarySegment.artists, l10n.tabArtists),
+      (LibrarySegment.genres, l10n.tabGenres),
+    ];
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(
+          SpacingTokens.lg, SpacingTokens.sm, SpacingTokens.lg, SpacingTokens.sm + 2),
+      child: Row(
+        children: [
+          for (final (seg, label) in items) ...[
+            _SegChip(
+              label: label,
+              selected: seg == selected,
+              onTap: () =>
+                  ref.read(librarySegmentProvider.notifier).state = seg,
+            ),
+            if (seg != items.last.$1) const SizedBox(width: SpacingTokens.sm),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// A single pill chip in the Library segment row, styled per the DS Chip.
+class _SegChip extends StatelessWidget {
+  const _SegChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return PressScale(
+      onTap: onTap,
+      pressedScale: 0.95,
+      semanticLabel: label,
+      child: Container(
+        height: 34,
+        padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.lg - 2),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected ? colors.accent : colors.surfaceElevated,
+          borderRadius: RadiusTokens.brPill,
+          border: selected
+              ? null
+              : Border.all(color: colors.divider),
+        ),
+        child: Text(
+          label,
+          style: AppTextTheme.body.copyWith(
+            color: selected ? colors.onAccent : colors.onSurfaceMuted,
+            fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
+          ),
+        ),
       ),
     );
   }
@@ -205,5 +302,126 @@ class _SongsBody extends ConsumerWidget {
           ),
         );
     }
+  }
+}
+
+/// Albums grid — mirrors the Albums page body.
+class _AlbumsBody extends ConsumerWidget {
+  const _AlbumsBody({required this.miniPlayerVisible});
+
+  final bool miniPlayerVisible;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final albumsAsync = ref.watch(albumsProvider);
+    final bottom =
+        playerBarInset(context, miniPlayerVisible: miniPlayerVisible);
+    return AsyncStateView<List<Album>>(
+      value: albumsAsync.like,
+      isEmpty: (a) => a.isEmpty,
+      emptyMessage: l10n.libraryEmpty,
+      emptyIcon: Icons.album_outlined,
+      onRetry: () => ref.invalidate(songsProvider),
+      data: (albums) => GridView.builder(
+        padding:
+            EdgeInsets.fromLTRB(SpacingTokens.lg, 0, SpacingTokens.lg, bottom),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          mainAxisSpacing: SpacingTokens.xl,
+          crossAxisSpacing: SpacingTokens.lg,
+          childAspectRatio: 0.76,
+        ),
+        itemCount: albums.length,
+        itemBuilder: (_, i) => AlbumGridTile(
+          album: albums[i],
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => AlbumDetailPage(album: albums[i]),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Artists list — mirrors the Artists page body.
+class _ArtistsBody extends ConsumerWidget {
+  const _ArtistsBody({required this.miniPlayerVisible});
+
+  final bool miniPlayerVisible;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final artistsAsync = ref.watch(artistsProvider);
+    final bottom =
+        playerBarInset(context, miniPlayerVisible: miniPlayerVisible);
+    return AsyncStateView<List<Artist>>(
+      value: artistsAsync.like,
+      isEmpty: (a) => a.isEmpty,
+      emptyMessage: l10n.libraryEmpty,
+      emptyIcon: Icons.person_outline,
+      onRetry: () => ref.invalidate(songsProvider),
+      data: (artists) => ListView.builder(
+        padding:
+            EdgeInsets.fromLTRB(SpacingTokens.md, 0, SpacingTokens.md, bottom),
+        itemCount: artists.length,
+        itemBuilder: (_, i) {
+          final a = artists[i];
+          final subtitle =
+              '${l10n.albumsCount(a.albumCount)} · ${l10n.songsCount(a.songCount)}';
+          return ArtistListTile(
+            artist: a,
+            subtitle: subtitle,
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => ArtistDetailPage(artist: a),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Genres list — mirrors the Genres page body.
+class _GenresBody extends ConsumerWidget {
+  const _GenresBody({required this.miniPlayerVisible});
+
+  final bool miniPlayerVisible;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final genresAsync = ref.watch(genresProvider);
+    final bottom =
+        playerBarInset(context, miniPlayerVisible: miniPlayerVisible);
+    return AsyncStateView<List<Genre>>(
+      value: genresAsync.like,
+      isEmpty: (g) => g.isEmpty,
+      emptyMessage: l10n.libraryEmpty,
+      emptyIcon: Icons.category_outlined,
+      onRetry: () => ref.invalidate(songsProvider),
+      data: (genres) => ListView.builder(
+        padding:
+            EdgeInsets.fromLTRB(SpacingTokens.md, 0, SpacingTokens.md, bottom),
+        itemCount: genres.length,
+        itemBuilder: (_, i) {
+          final g = genres[i];
+          return GenreListTile(
+            genre: g,
+            subtitle: l10n.songsCount(g.songCount),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => GenreDetailPage(genre: g),
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 }
