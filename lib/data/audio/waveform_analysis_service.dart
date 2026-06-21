@@ -86,7 +86,7 @@ class WaveformAnalysisService {
     final n = amps.length;
     if (n < 4) return const [];
 
-    final flux = List<double>.filled(n, 0);
+    final flux = List<double>.filled(n, 0.0);
     for (var i = 1; i < n; i++) {
       final d = amps[i] - amps[i - 1];
       flux[i] = d > 0 ? d : 0.0;
