@@ -62,7 +62,16 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
     with TickerProviderStateMixin {
   late final AnimationController _ambientCtrl = AnimationController(
     vsync: this,
-    duration: const Duration(seconds: 28),
+    duration: const Duration(seconds: 70),
+  );
+
+  // Second drift controller with a period incommensurate with _ambientCtrl
+  // (70 and 113 are coprime → combined period ≈ 7910 s, well beyond perception).
+  // It slowly modulates orbital radii and adds angular precession so consecutive
+  // loops of _ambientCtrl feel visually distinct — the dance never quite repeats.
+  late final AnimationController _driftCtrl = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 113),
   );
 
   // 0 = orbs expanded (playing), 1 = orbs converged & faded (paused).
@@ -125,8 +134,10 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
   void _syncAmbient() {
     if (_reduceMotion) {
       _ambientCtrl.stop();
-    } else if (!_ambientCtrl.isAnimating) {
-      _ambientCtrl.repeat();
+      _driftCtrl.stop();
+    } else {
+      if (!_ambientCtrl.isAnimating) _ambientCtrl.repeat();
+      if (!_driftCtrl.isAnimating) _driftCtrl.repeat();
     }
   }
 
@@ -187,6 +198,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
   void dispose() {
     _beatTicker?.dispose();
     _ambientCtrl.dispose();
+    _driftCtrl.dispose();
     _pauseCtrl.dispose();
     _pulseCtrl.dispose();
     super.dispose();
@@ -317,10 +329,11 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
               Positioned.fill(
                 child: AnimatedBuilder(
                   animation: Listenable.merge(
-                      [_ambientCtrl, _pauseCtrl, _pulseCtrl]),
+                      [_ambientCtrl, _driftCtrl, _pauseCtrl, _pulseCtrl]),
                   builder: (_, __) => CustomPaint(
                     painter: _AmbientPainter(
                       t: _ambientCtrl.value,
+                      t2: _driftCtrl.value,
                       accent: _orbAccent(accent, isDark),
                       wash: _orbWash(wash, isDark),
                       convergence: _pauseCtrl.value,
@@ -366,24 +379,24 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
 // ── Glass intensity → full-screen blur / frost mapping ───────────────────────
 
 /// Backdrop blur sigma for the Now Playing glass at each [GlassIntensity].
-/// Larger than the panel-level [GlassIntensity.sigma] because this blurs the
-/// whole screen behind the controls — the orbs should melt into soft colour.
+/// Kept moderate so the orbs bleed through as soft light rather than being
+/// buried behind a heavy frost — lighter blur lets the colour read more vividly.
 double _glassBlur(GlassIntensity g) => switch (g) {
       GlassIntensity.off => 0.0,
-      GlassIntensity.subtle => 20.0,
-      GlassIntensity.medium => 34.0,
-      GlassIntensity.strong => 48.0,
-      GlassIntensity.ultra => 66.0,
+      GlassIntensity.subtle => 14.0,
+      GlassIntensity.medium => 24.0,
+      GlassIntensity.strong => 36.0,
+      GlassIntensity.ultra => 52.0,
     };
 
-/// How matte (frosted) the glass reads. Deliberately translucent so the
-/// album-colour light orbs stay clearly visible through the frost.
+/// How matte (frosted) the glass reads. Kept translucent so the colour orbs
+/// show through clearly — the glass is a sheer veil, not an opaque panel.
 double _glassFrost(GlassIntensity g) => switch (g) {
-      GlassIntensity.off => 0.10,
-      GlassIntensity.subtle => 0.16,
-      GlassIntensity.medium => 0.22,
-      GlassIntensity.strong => 0.28,
-      GlassIntensity.ultra => 0.34,
+      GlassIntensity.off => 0.06,
+      GlassIntensity.subtle => 0.09,
+      GlassIntensity.medium => 0.13,
+      GlassIntensity.strong => 0.17,
+      GlassIntensity.ultra => 0.22,
     };
 
 // ── Orb colour helpers — light-mode contrast fix ─────────────────────────────
@@ -2333,20 +2346,22 @@ Future<void> _showAddBookmarkDialog(
 
 /// Three soft radial-gradient orbs that slowly orbit a shared centre on
 /// different elliptical paths and directions — like coloured bubbles drifting
-/// through oil. The motion is continuous (driven by [t]) so it is alive the
-/// instant the screen opens, with no wait for analysis.
+/// through oil.
+///
+/// **Two-controller design to prevent looping feel:**
+/// [t] drives the primary orbital speed (70 s loop); [t2] drives a secondary
+/// drift on a 113 s loop. Because 70 and 113 are coprime, the combined motion
+/// has a theoretical period of 7 910 s — far beyond what a listener perceives as
+/// repeating. Each revolution of [t] starts at a slightly different phase thanks
+/// to [t2] slowly precessing the ellipse shape and angular offset.
 ///
 /// [pulse] runs 0→1 after every detected beat; the painter turns it into a
-/// gentle `flow = (1 - pulse)^1.8` that *nudges* each orb a little further
-/// along its orbit and breathes its size a touch — the rhythm shaping the
-/// swirl rather than a hard, in-your-face throb.
-///
-/// [isDark] sets the opacity multiplier (light mode needs ~2.4× to read against
-/// a near-white canvas). When [convergence] → 1 (paused) the orbs gather toward
-/// the artwork centre, slow, and fade.
+/// gentle `flow = (1 - pulse)^1.8` that nudges each orb a little further along
+/// its orbit and breathes its size a touch — the rhythm shaping the swirl.
 class _AmbientPainter extends CustomPainter {
   const _AmbientPainter({
     required this.t,
+    required this.t2,
     required this.accent,
     required this.wash,
     required this.isDark,
@@ -2355,6 +2370,7 @@ class _AmbientPainter extends CustomPainter {
   });
 
   final double t;
+  final double t2; // secondary drift, 113 s loop (incommensurate with 70 s primary)
   final Color accent;
   final Color wash;
   final bool isDark;
@@ -2363,41 +2379,48 @@ class _AmbientPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Orbs orbit a shared centre near the artwork.
-    final centre = Offset(size.width * 0.5, size.height * 0.40);
     final fade = (1.0 - convergence).clamp(0.0, 1.0).toDouble();
     final boost = isDark ? 1.0 : 2.4;
-
-    // Soft, gentle beat flow — deliberately understated so the dance reads as a
-    // sway, not a strobe. Suppressed by `fade` so a paused track drifts to rest.
     final flow = math.pow(1.0 - pulse.clamp(0.0, 1.0), 1.8).toDouble() * fade;
 
-    final tau = t * 2 * math.pi;
+    final tau = t * 2 * math.pi;   // primary orbit phase  (0 → 2π over 70 s)
+    final tau2 = t2 * 2 * math.pi; // secondary drift phase (0 → 2π over 113 s)
 
-    // Each orb: orbital radii (rx, ry), angular speed & phase, a slow size
-    // wobble, and a colour. Opposing speeds make them weave around one another.
+    // Centre wanders gently so the whole dance drifts around the artwork rather
+    // than orbiting a fixed point — adds organic life at near-zero cost.
+    final centre = Offset(
+      size.width * (0.50 + 0.04 * math.sin(tau2 * 0.67)),
+      size.height * (0.40 + 0.03 * math.cos(tau2 * 0.43)),
+    );
+
+    // Orb 1 — forward primary orbit; ellipse breathes on the secondary cycle.
     _drawBubble(
       canvas, centre, fade, boost, flow,
-      rx: size.width * 0.26, ry: size.height * 0.16,
-      angle: tau * 0.09 + flow * 0.5, // forward drift + tiny beat nudge
+      rx: size.width  * 0.26 * (1.0 + 0.18 * math.sin(tau2 * 0.53 + 0.7)),
+      ry: size.height * 0.16 * (1.0 + 0.12 * math.cos(tau2 * 0.37)),
+      angle: tau * 0.055 + tau2 * 0.12 + flow * 0.5,
       wobble: 0.06 * math.sin(tau * 0.13),
       radius: size.width * 0.66,
       baseOpacity: 0.26,
       color: accent,
     );
+    // Orb 2 — counter-rotating primary; secondary drift also reversed.
     _drawBubble(
       canvas, centre, fade, boost, flow,
-      rx: size.width * 0.22, ry: size.height * 0.21,
-      angle: -tau * 0.07 + 2.1 - flow * 0.4, // counter-rotating
+      rx: size.width  * 0.22 * (1.0 + 0.14 * math.cos(tau2 * 0.41 + 1.2)),
+      ry: size.height * 0.21 * (1.0 + 0.16 * math.sin(tau2 * 0.71)),
+      angle: -tau * 0.043 + 2.1 - tau2 * 0.09 - flow * 0.4,
       wobble: 0.07 * math.sin(tau * 0.11 + 1.5),
       radius: size.width * 0.58,
       baseOpacity: 0.24,
       color: Color.lerp(accent, wash, isDark ? 0.45 : 0.2)!,
     );
+    // Orb 3 — slowest forward orbit; independent secondary drift direction.
     _drawBubble(
       canvas, centre, fade, boost, flow,
-      rx: size.width * 0.30, ry: size.height * 0.13,
-      angle: tau * 0.06 + 4.0 + flow * 0.55,
+      rx: size.width  * 0.30 * (1.0 + 0.20 * math.sin(tau2 * 0.59 + 2.3)),
+      ry: size.height * 0.13 * (1.0 + 0.10 * math.cos(tau2 * 0.83)),
+      angle: tau * 0.034 + 4.0 + tau2 * 0.11 + flow * 0.55,
       wobble: 0.05 * math.sin(tau * 0.17 + 0.8),
       radius: size.width * 0.48,
       baseOpacity: 0.22,
@@ -2419,8 +2442,6 @@ class _AmbientPainter extends CustomPainter {
     required double baseOpacity,
     required Color color,
   }) {
-    // Orbit position, pulled toward the centre as the track pauses (convergence
-    // shrinks rx/ry to 0). A small beat breath (flow) widens the orbit a touch.
     final orbit = (1.0 + wobble + 0.05 * flow) * fade;
     final pos = Offset(
       centre.dx + math.cos(angle) * rx * orbit,
@@ -2448,6 +2469,7 @@ class _AmbientPainter extends CustomPainter {
   @override
   bool shouldRepaint(_AmbientPainter o) =>
       o.t != t ||
+      o.t2 != t2 ||
       o.accent != accent ||
       o.wash != wash ||
       o.isDark != isDark ||
