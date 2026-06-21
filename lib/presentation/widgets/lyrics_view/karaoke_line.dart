@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/constants/aurora_colors.dart';
 import '../../../domain/models/lyrics.dart';
 
 /// Renders a word-timed lyric line with a left-to-right karaoke fill: the line
-/// is drawn in [base] colour, and an [accent] copy is clipped to the portion
-/// sung so far, computed from the word timings and the current [position].
+/// is drawn dimmed in [base] colour, and an aurora-gradient copy is clipped to
+/// the portion sung so far, computed from the word timings and the current
+/// [position].
 ///
 /// Fill is by character proportion across the words (completed words plus the
 /// time-interpolated fraction of the word currently being sung), which tracks
@@ -17,7 +19,6 @@ class KaraokeLine extends StatelessWidget {
     required this.lineEnd,
     required this.position,
     required this.style,
-    required this.accent,
     required this.base,
     required this.textDirection,
   });
@@ -29,7 +30,8 @@ class KaraokeLine extends StatelessWidget {
   final Duration lineEnd;
   final Duration position;
   final TextStyle style;
-  final Color accent;
+
+  /// Dimmed colour for the not-yet-sung base copy of the text.
   final Color base;
   final TextDirection textDirection;
 
@@ -66,11 +68,24 @@ class KaraokeLine extends StatelessWidget {
     final text = _text;
     return Stack(
       children: [
-        Text(text, textDirection: textDirection, style: style.copyWith(color: base)),
+        // Dimmed base copy of the full line.
+        Text(text,
+            textAlign: TextAlign.center,
+            textDirection: textDirection,
+            style: style.copyWith(color: base)),
+        // Aurora-gradient copy, clipped to the sung fraction (left→right; RTL
+        // fills from the right). srcIn paints the gradient through the glyphs.
         ClipRect(
           clipper: _FractionClipper(fraction, textDirection),
-          child:
-              Text(text, textDirection: textDirection, style: style.copyWith(color: accent)),
+          child: ShaderMask(
+            shaderCallback: (bounds) =>
+                AuroraColors.gradient.createShader(bounds),
+            blendMode: BlendMode.srcIn,
+            child: Text(text,
+                textAlign: TextAlign.center,
+                textDirection: textDirection,
+                style: style.copyWith(color: Colors.white)),
+          ),
         ),
       ],
     );

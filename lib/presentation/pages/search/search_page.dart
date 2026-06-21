@@ -7,8 +7,10 @@ import '../../../core/constants/spacing_tokens.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/color_scheme.dart';
 import '../../../core/theme/typography.dart';
+import '../../../core/utils/seed_color.dart';
 import '../../../domain/models/album.dart';
 import '../../../domain/models/artist.dart';
+import '../../../domain/models/genre.dart';
 import '../../../domain/models/song.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
@@ -54,13 +56,30 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           Padding(
             padding: const EdgeInsets.fromLTRB(
               SpacingTokens.lg,
-              SpacingTokens.xl,
+              SpacingTokens.md,
+              SpacingTokens.lg,
+              SpacingTokens.sm,
+            ),
+            // Large screen title (24 / 600 / -0.5), per the DS Search header.
+            child: Text(
+              l10n.tabSearch,
+              style: AppTextTheme.display.copyWith(
+                color: colors.onSurface,
+                fontSize: 24,
+                letterSpacing: -0.5,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              SpacingTokens.lg,
+              0,
               SpacingTokens.lg,
               SpacingTokens.md,
             ),
-            child: TextField(
+            child: _SearchField(
               controller: _controller,
-              autocorrect: false,
+              showClear: query.isNotEmpty,
               onChanged: (v) {
                 ref.read(searchQueryProvider.notifier).state = v;
                 // Reset "show all" state when query changes
@@ -77,51 +96,31 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   ref.read(recentSearchesProvider.notifier).record(t);
                 }
               },
-              style: AppTextTheme.body.copyWith(color: colors.onSurface),
-              decoration: InputDecoration(
-                hintText: l10n.searchHint,
-                hintStyle:
-                    AppTextTheme.body.copyWith(color: colors.onSurfaceFaint),
-                prefixIcon: Icon(Icons.search, color: colors.onSurfaceFaint),
-                suffixIcon: query.isEmpty
-                    ? null
-                    : IconButton(
-                        tooltip: l10n.searchClear,
-                        icon: Icon(Icons.close, color: colors.onSurfaceFaint),
-                        onPressed: () {
-                          _controller.clear();
-                          ref.read(searchQueryProvider.notifier).state = '';
-                          setState(() {
-                            _showAllArtists = false;
-                            _showAllAlbums = false;
-                          });
-                        },
-                      ),
-                filled: true,
-                fillColor: colors.surfaceElevated,
-                border: OutlineInputBorder(
-                  borderRadius: RadiusTokens.brPill,
-                  borderSide: BorderSide.none,
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: RadiusTokens.brPill,
-                  borderSide: BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: RadiusTokens.brPill,
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: SpacingTokens.md,
-                  vertical: SpacingTokens.sm,
-                ),
-              ),
+              onClear: () {
+                _controller.clear();
+                ref.read(searchQueryProvider.notifier).state = '';
+                setState(() {
+                  _showAllArtists = false;
+                  _showAllAlbums = false;
+                });
+              },
             ),
           ),
           Expanded(child: _buildResults(context, l10n, query)),
         ],
       ),
     );
+  }
+
+  /// Fills the search field with [term] and runs the query (genre tap, recent).
+  void _applyQuery(String term) {
+    _controller.text = term;
+    _controller.selection = TextSelection.collapsed(offset: term.length);
+    ref.read(searchQueryProvider.notifier).state = term;
+    setState(() {
+      _showAllArtists = false;
+      _showAllAlbums = false;
+    });
   }
 
   Widget _buildResults(
@@ -131,18 +130,31 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   ) {
     if (query.trim().isEmpty) {
       final recents = ref.watch(recentSearchesProvider);
-      if (recents.isEmpty) {
+      final genres = ref.watch(genresProvider).valueOrNull ?? const [];
+      if (recents.isEmpty && genres.isEmpty) {
         return _centered(context, Icons.search, l10n.searchPrompt);
       }
-      return _RecentSearches(
-        terms: recents,
-        onTap: (t) {
-          _controller.text = t;
-          _controller.selection = TextSelection.collapsed(offset: t.length);
-          ref.read(searchQueryProvider.notifier).state = t;
-        },
-        onRemove: (t) => ref.read(recentSearchesProvider.notifier).remove(t),
-        onClear: () => ref.read(recentSearchesProvider.notifier).clear(),
+      final miniPlayerVisible = ref.watch(hasMediaProvider);
+      final bottomPadding =
+          playerBarInset(context, miniPlayerVisible: miniPlayerVisible);
+      // Empty query: recent searches (if any) above the genre browser.
+      return ListView(
+        padding: EdgeInsets.only(bottom: bottomPadding),
+        children: [
+          if (recents.isNotEmpty)
+            _RecentSearches(
+              terms: recents,
+              onTap: _applyQuery,
+              onRemove: (t) =>
+                  ref.read(recentSearchesProvider.notifier).remove(t),
+              onClear: () => ref.read(recentSearchesProvider.notifier).clear(),
+            ),
+          if (genres.isNotEmpty)
+            _BrowseGenres(
+              genres: genres,
+              onTap: (g) => _applyQuery(g.name),
+            ),
+        ],
       );
     }
 
@@ -299,7 +311,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 }
 
 // ---------------------------------------------------------------------------
-// Section header
+// Section header — DS SubHead: uppercase, faint, weight 600, ls 0.3.
 // ---------------------------------------------------------------------------
 
 class _SectionHeader extends StatelessWidget {
@@ -309,7 +321,6 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         SpacingTokens.xs,
@@ -317,11 +328,199 @@ class _SectionHeader extends StatelessWidget {
         SpacingTokens.xs,
         SpacingTokens.xs,
       ),
-      child: Text(
-        title,
-        style: AppTextTheme.title.copyWith(
-          color: colors.onSurface,
-          fontWeight: FontWeight.w700,
+      child: _SubHead(title),
+    );
+  }
+}
+
+/// The shared DS "SubHead" label used for grouped-section and browse headers.
+class _SubHead extends StatelessWidget {
+  const _SubHead(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Text(
+      text.toUpperCase(),
+      style: AppTextTheme.body.copyWith(
+        color: colors.onSurfaceFaint,
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0.3,
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Pill search field
+// ---------------------------------------------------------------------------
+
+class _SearchField extends StatelessWidget {
+  const _SearchField({
+    required this.controller,
+    required this.showClear,
+    required this.onChanged,
+    required this.onSubmitted,
+    required this.onClear,
+  });
+
+  final TextEditingController controller;
+  final bool showClear;
+  final ValueChanged<String> onChanged;
+  final ValueChanged<String> onSubmitted;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final l10n = AppLocalizations.of(context);
+    return Container(
+      height: 46,
+      padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.md),
+      decoration: BoxDecoration(
+        color: colors.surfaceElevated,
+        borderRadius: RadiusTokens.brPill,
+        border: Border.all(color: colors.divider),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.search, size: IconSizes.md, color: colors.onSurfaceFaint),
+          const SizedBox(width: SpacingTokens.sm),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              autocorrect: false,
+              onChanged: onChanged,
+              onSubmitted: onSubmitted,
+              style: AppTextTheme.body.copyWith(color: colors.onSurface),
+              decoration: InputDecoration(
+                isCollapsed: true,
+                border: InputBorder.none,
+                hintText: l10n.searchHint,
+                hintStyle:
+                    AppTextTheme.body.copyWith(color: colors.onSurfaceFaint),
+              ),
+            ),
+          ),
+          if (showClear)
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onClear,
+              child: Semantics(
+                button: true,
+                label: l10n.searchClear,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: SpacingTokens.sm),
+                  child: Icon(Icons.close,
+                      size: IconSizes.sm, color: colors.onSurfaceFaint),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Browse genres — a wrap of seed-gradient cards (shown on the empty query).
+// ---------------------------------------------------------------------------
+
+class _BrowseGenres extends StatelessWidget {
+  const _BrowseGenres({required this.genres, required this.onTap});
+
+  final List<Genre> genres;
+  final ValueChanged<Genre> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Two columns: each tile spans ~half the row minus the inter-tile gap.
+        final tileWidth =
+            (constraints.maxWidth - SpacingTokens.sm) / 2;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(
+            SpacingTokens.lg,
+            SpacingTokens.xs,
+            SpacingTokens.lg,
+            SpacingTokens.md,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _SubHead(l10n.browseGenres),
+              const SizedBox(height: SpacingTokens.md),
+              Wrap(
+                spacing: SpacingTokens.sm,
+                runSpacing: SpacingTokens.sm,
+                children: [
+                  for (final genre in genres)
+                    SizedBox(
+                      width: tileWidth,
+                      child: _GenreCard(
+                        genre: genre,
+                        label: genre.isUnknown ? l10n.genreUnknown : genre.name,
+                        onTap: () => onTap(genre),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _GenreCard extends StatelessWidget {
+  const _GenreCard({
+    required this.genre,
+    required this.label,
+    required this.onTap,
+  });
+
+  final Genre genre;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    // Per-genre calm gradient from the clamped seed palette.
+    final seed = genre.artworkSeed;
+    final gradient = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [SeedPalette.accent(seed), SeedPalette.wash(seed)],
+    );
+    return Semantics(
+      button: true,
+      label: label,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          height: 76,
+          padding: const EdgeInsets.all(SpacingTokens.md),
+          alignment: Alignment.bottomLeft,
+          decoration: BoxDecoration(
+            gradient: gradient,
+            borderRadius: RadiusTokens.brMd,
+          ),
+          child: Text(
+            label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextTheme.title.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ),
       ),
     );
@@ -520,48 +719,44 @@ class _RecentSearches extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final l10n = AppLocalizations.of(context);
-    return ListView(
+    return Padding(
       padding: const EdgeInsets.fromLTRB(
         SpacingTokens.lg,
+        SpacingTokens.xs,
+        SpacingTokens.lg,
         SpacingTokens.md,
-        SpacingTokens.lg,
-        SpacingTokens.lg,
       ),
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                l10n.recentSearches,
-                style: AppTextTheme.title.copyWith(
-                  color: colors.onSurface,
-                  fontWeight: FontWeight.w700,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Expanded(child: _SubHead(l10n.recentSearches)),
+              TextButton(
+                onPressed: onClear,
+                child: Text(
+                  l10n.clearRecentSearches,
+                  style: AppTextTheme.body.copyWith(color: colors.accent),
                 ),
               ),
-            ),
-            TextButton(
-              onPressed: onClear,
-              child: Text(
-                l10n.clearRecentSearches,
-                style: AppTextTheme.body.copyWith(color: colors.accent),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: SpacingTokens.sm),
-        Wrap(
-          spacing: SpacingTokens.sm,
-          runSpacing: SpacingTokens.sm,
-          children: [
-            for (final term in terms)
-              _RecentChip(
-                label: term,
-                onTap: () => onTap(term),
-                onRemove: () => onRemove(term),
-              ),
-          ],
-        ),
-      ],
+            ],
+          ),
+          const SizedBox(height: SpacingTokens.xs),
+          Wrap(
+            spacing: SpacingTokens.sm,
+            runSpacing: SpacingTokens.sm,
+            children: [
+              for (final term in terms)
+                _RecentChip(
+                  label: term,
+                  onTap: () => onTap(term),
+                  onRemove: () => onRemove(term),
+                ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

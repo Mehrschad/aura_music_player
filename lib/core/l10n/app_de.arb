@@ -424,5 +424,6 @@
   "playingFrom": "Wiedergabe von",
   "npEq": "EQ",
   "npSleep": "Schlaf",
-  "badgeSynced": "Synchron"
+  "badgeSynced": "Synchron",
+  "browseGenres": "Genres durchsuchen"
 }

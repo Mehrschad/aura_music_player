@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -6,11 +5,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart' as intl;
 
 import '../../../core/constants/motion_tokens.dart';
-import '../../../core/utils/motion.dart';
+import '../../../core/constants/radius_tokens.dart';
 import '../../../core/constants/spacing_tokens.dart';
+import '../../../core/extensions/duration_format.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/color_scheme.dart';
 import '../../../core/theme/typography.dart';
+import '../../../core/utils/motion.dart';
 import '../../../core/utils/seed_color.dart';
 import '../../../domain/models/lyrics.dart';
 import '../../providers/async_value_x.dart';
@@ -35,23 +36,24 @@ Future<void> openLyrics(BuildContext context) {
 
 /// Lyric font sizes (current line / secondary lines / translation), keyed by
 /// the user's [LyricsFontSize] preference. Feature-local layout config rather
-/// than the global type scale, since lyric sizing is user-adjustable.
+/// than the global type scale, since lyric sizing is user-adjustable. Defaults
+/// (medium) match the Aura DS: 30px current, 22px neighbour.
 class _LyricMetrics {
   const _LyricMetrics._();
   static const Map<LyricsFontSize, double> current = {
-    LyricsFontSize.small: 18,
-    LyricsFontSize.medium: 22,
-    LyricsFontSize.large: 28,
+    LyricsFontSize.small: 26,
+    LyricsFontSize.medium: 30,
+    LyricsFontSize.large: 36,
   };
   static const Map<LyricsFontSize, double> secondary = {
-    LyricsFontSize.small: 14,
-    LyricsFontSize.medium: 16,
-    LyricsFontSize.large: 19,
+    LyricsFontSize.small: 19,
+    LyricsFontSize.medium: 22,
+    LyricsFontSize.large: 26,
   };
   static const Map<LyricsFontSize, double> translation = {
-    LyricsFontSize.small: 12,
-    LyricsFontSize.medium: 13,
-    LyricsFontSize.large: 15,
+    LyricsFontSize.small: 13,
+    LyricsFontSize.medium: 15,
+    LyricsFontSize.large: 17,
   };
 }
 
@@ -62,46 +64,13 @@ class LyricsPage extends ConsumerStatefulWidget {
   ConsumerState<LyricsPage> createState() => _LyricsPageState();
 }
 
-class _LyricsPageState extends ConsumerState<LyricsPage>
-    with TickerProviderStateMixin {
+class _LyricsPageState extends ConsumerState<LyricsPage> {
   final _scrollController = ScrollController();
   List<GlobalKey> _keys = const [];
   int _keyCount = -1;
 
-  // Slow drift for ambient orbs (24s loop)
-  late final AnimationController _ambientCtrl = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 24),
-  );
-
-  // Fast pulse for the frosted-glass light shimmer (~2.4s loop, ≈25 BPM)
-  late final AnimationController _pulseCtrl = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 2400),
-  );
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _syncAmbient();
-  }
-
-  // Hold the ambient loops still under reduce-motion; run them otherwise.
-  void _syncAmbient() {
-    final reduce = MediaQuery.disableAnimationsOf(context);
-    for (final c in [_ambientCtrl, _pulseCtrl]) {
-      if (reduce) {
-        c.stop();
-      } else if (!c.isAnimating) {
-        c.repeat();
-      }
-    }
-  }
-
   @override
   void dispose() {
-    _pulseCtrl.dispose();
-    _ambientCtrl.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -121,12 +90,11 @@ class _LyricsPageState extends ConsumerState<LyricsPage>
       if (ctx == null) return;
       Scrollable.ensureVisible(
         ctx,
-        alignment: 0.40, // current line sits ~40% from the top
-        // Longer, gentler glide than a screen transition so lines drift
-        // smoothly into focus rather than snapping.
-        duration:
-            instant ? Duration.zero : const Duration(milliseconds: 720),
-        curve: Curves.easeInOutCubic,
+        alignment: 0.42, // current line sits a touch above centre
+        // Gentle eased glide so lines drift into focus rather than snapping;
+        // collapses to instant under reduced motion.
+        duration: instant ? Duration.zero : context.motion(MotionTokens.albumArt),
+        curve: MotionTokens.emphasized,
       );
     });
   }
@@ -146,7 +114,9 @@ class _LyricsPageState extends ConsumerState<LyricsPage>
     final lyricsAsync = ref.watch(currentLyricsProvider).unwrapPrevious();
     final fontSize = ref.watch(lyricsFontSizeProvider);
     final dual = ref.watch(dualLanguageProvider);
-    final accent = SeedPalette.accent(song?.artworkSeed ?? 'lyrics');
+    final seed = song?.artworkSeed ?? 'lyrics';
+    final accent = SeedPalette.accent(seed);
+    final wash = SeedPalette.wash(seed);
 
     // Auto-scroll on line change.
     ref.listen<int>(currentLyricLineProvider, (_, next) => _scrollTo(next));
@@ -165,93 +135,54 @@ class _LyricsPageState extends ConsumerState<LyricsPage>
       backgroundColor: colors.background,
       body: Stack(
         children: [
-          // Blurred album-art background + dark overlay.
+          // ── Calm, immersive background ──────────────────────────────────
+          // Blurred album art, scaled out so the blur doesn't reveal edges.
           if (song != null)
             Positioned.fill(
               child: Opacity(
-                opacity: 0.35,
-                child: ImageFiltered(
-                  imageFilter: ui.ImageFilter.blur(sigmaX: 60, sigmaY: 60),
-                  child: AuraArtwork(
-                    seed: song.artworkSeed,
-                    size: MediaQuery.sizeOf(context).width,
-                    hasArtwork: song.hasArtwork,
-                  ),
-                ),
-              ),
-            ),
-          Positioned.fill(child: ColoredBox(color: colors.background.withOpacity(0.48))),
-          // Ambient orbs — slow drift layer
-          Positioned.fill(
-            child: AnimatedBuilder(
-              animation: _ambientCtrl,
-              builder: (_, __) => CustomPaint(
-                painter: _LyricsAmbientPainter(
-                  t: _ambientCtrl.value,
-                  accent: accent,
-                ),
-              ),
-            ),
-          ),
-          // Frosted-glass light from below — pulses softly with rhythm
-          Positioned.fill(
-            child: AnimatedBuilder(
-              animation: _pulseCtrl,
-              builder: (_, __) {
-                final pulse =
-                    0.5 + 0.5 * math.sin(_pulseCtrl.value * 2 * math.pi);
-                return DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
-                      colors: [
-                        // Bottom: warm glow that breathes
-                        accent.withOpacity(0.055 + 0.028 * pulse),
-                        accent.withOpacity(0.022 + 0.010 * pulse),
-                        Colors.transparent,
-                      ],
-                      stops: const [0.0, 0.38, 0.70],
+                opacity: 0.5,
+                child: Transform.scale(
+                  scale: 1.3,
+                  child: ImageFiltered(
+                    imageFilter:
+                        ui.ImageFilter.blur(sigmaX: 70, sigmaY: 70),
+                    child: AuraArtwork(
+                      seed: seed,
+                      size: MediaQuery.sizeOf(context).width,
+                      hasArtwork: song.hasArtwork,
                     ),
                   ),
-                );
-              },
+                ),
+              ),
             ),
-          ),
-          // Top edge: very faint white shimmer (frosted ceiling reflection)
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 160,
+          // Wash gradient: album tint up top, fading to true bg at the foot.
+          Positioned.fill(
             child: DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.white.withOpacity(0.025),
+                    wash.withOpacity(0.55),
                     Colors.transparent,
+                    Colors.transparent,
+                    colors.background.withOpacity(0.55),
                   ],
+                  stops: const [0.0, 0.40, 0.60, 1.0],
                 ),
               ),
             ),
+          ),
+          // Background scrim keeps the lyric text legible over any artwork.
+          Positioned.fill(
+            child: ColoredBox(color: colors.background.withOpacity(0.42)),
           ),
           SafeArea(
             child: Column(
               children: [
                 _TopBar(
-                  title: l10n.lyrics,
-                  hasTranslations:
-                      lyricsAsync.valueOrNull?.hasTranslations ?? false,
-                  dual: dual,
-                  fontSize: fontSize,
-                  onToggleDual: () => ref
-                      .read(dualLanguageProvider.notifier)
-                      .update((v) => !v),
-                  onCycleFontSize: () => ref
-                      .read(lyricsFontSizeProvider.notifier)
-                      .update(_nextFontSize),
+                  title: song?.title ?? l10n.lyrics,
+                  artist: song?.artist,
                   onOpenSync: () => openSyncEditor(context),
                 ),
                 Expanded(
@@ -260,20 +191,27 @@ class _LyricsPageState extends ConsumerState<LyricsPage>
                     isEmpty: (l) => l == null || l.isEmpty,
                     emptyMessage: l10n.lyricsNone,
                     emptyIcon: Icons.lyrics_outlined,
-                    data: (lyrics) => _LyricsBody(
-                      lyrics: lyrics!,
-                      controller: _scrollController,
-                      keys: () {
-                        _ensureKeys(lyrics.lines.length);
-                        return _keys;
-                      }(),
-                      fontSize: fontSize,
-                      dual: dual,
-                      accent: accent,
-                      directionFor: _directionFor,
+                    data: (lyrics) => Stack(
+                      children: [
+                        _LyricsBody(
+                          lyrics: lyrics!,
+                          controller: _scrollController,
+                          keys: () {
+                            _ensureKeys(lyrics.lines.length);
+                            return _keys;
+                          }(),
+                          fontSize: fontSize,
+                          dual: dual,
+                          directionFor: _directionFor,
+                        ),
+                        // Fade masks so lines melt in/out at the edges.
+                        const _EdgeFade(top: true),
+                        const _EdgeFade(top: false),
+                      ],
                     ),
                   ),
                 ),
+                _MiniTransport(accent: accent),
               ],
             ),
           ),
@@ -283,49 +221,53 @@ class _LyricsPageState extends ConsumerState<LyricsPage>
   }
 }
 
-LyricsFontSize _nextFontSize(LyricsFontSize s) => switch (s) {
-      LyricsFontSize.small => LyricsFontSize.medium,
-      LyricsFontSize.medium => LyricsFontSize.large,
-      LyricsFontSize.large => LyricsFontSize.small,
-    };
-
+/// Top bar — down-chevron (close) · centred title + artist · sync-editor icon.
 class _TopBar extends StatelessWidget {
   const _TopBar({
     required this.title,
-    required this.hasTranslations,
-    required this.dual,
-    required this.fontSize,
-    required this.onToggleDual,
-    required this.onCycleFontSize,
+    required this.artist,
     required this.onOpenSync,
   });
 
   final String title;
-  final bool hasTranslations;
-  final bool dual;
-  final LyricsFontSize fontSize;
-  final VoidCallback onToggleDual;
-  final VoidCallback onCycleFontSize;
+  final String? artist;
   final VoidCallback onOpenSync;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final l10n = AppLocalizations.of(context);
-    // Stack ensures the title is absolutely centered regardless of how many
-    // action buttons are on each side.
+    // Stack centres the title regardless of the flanking icon widths.
     return Stack(
       alignment: Alignment.center,
       children: [
-        Center(
-          child: Text(
-            title,
-            textAlign: TextAlign.center,
-            style: AppTextTheme.caption.copyWith(
-              color: colors.onSurfaceMuted,
-              letterSpacing: 0.8,
-              fontWeight: FontWeight.w500,
-            ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.huge),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextTheme.title.copyWith(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: colors.onSurface,
+                ),
+              ),
+              if (artist != null && artist!.isNotEmpty)
+                Text(
+                  artist!,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextTheme.caption.copyWith(
+                    color: colors.onSurfaceMuted,
+                  ),
+                ),
+            ],
           ),
         ),
         Row(
@@ -336,22 +278,11 @@ class _TopBar extends StatelessWidget {
               iconSize: 28,
             ),
             const Spacer(),
-            if (hasTranslations)
-              IconButton(
-                tooltip: dual ? l10n.lyricsDual : l10n.lyricsSingle,
-                onPressed: onToggleDual,
-                icon: Icon(Icons.translate,
-                    color: dual ? colors.onSurface : colors.onSurfaceFaint),
-              ),
-            IconButton(
-              tooltip: l10n.lyricsFontSize,
-              onPressed: onCycleFontSize,
-              icon: Icon(Icons.format_size, color: colors.onSurfaceMuted),
-            ),
             IconButton(
               tooltip: l10n.syncTitle,
               onPressed: onOpenSync,
               icon: Icon(Icons.edit_note, color: colors.onSurfaceMuted),
+              iconSize: 24,
             ),
           ],
         ),
@@ -367,7 +298,6 @@ class _LyricsBody extends ConsumerWidget {
     required this.keys,
     required this.fontSize,
     required this.dual,
-    required this.accent,
     required this.directionFor,
   });
 
@@ -376,7 +306,6 @@ class _LyricsBody extends ConsumerWidget {
   final List<GlobalKey> keys;
   final LyricsFontSize fontSize;
   final bool dual;
-  final Color accent;
   final TextDirection Function(String) directionFor;
 
   @override
@@ -387,32 +316,29 @@ class _LyricsBody extends ConsumerWidget {
     return ListView.builder(
       controller: controller,
       padding: EdgeInsets.symmetric(
-        horizontal: SpacingTokens.xl,
-        vertical: MediaQuery.sizeOf(context).height * 0.32,
+        horizontal: SpacingTokens.xxl,
+        vertical: MediaQuery.sizeOf(context).height * 0.34,
       ),
       itemCount: lyrics.lines.length,
       itemBuilder: (context, i) {
         final line = lyrics.lines[i];
-        final relation = !lyrics.synced
-            ? _Relation.neutral
-            : i == current
-                ? _Relation.current
-                : i < current
-                    ? _Relation.past
-                    : _Relation.future;
+        // No active line yet (position before the first timestamp): render the
+        // whole column plainly. Otherwise, distance drives size, dim and blur.
+        final hasCurrent = current >= 0;
+        final distance = hasCurrent ? i - current : 0;
         final lineEnd = i + 1 < lyrics.lines.length
             ? lyrics.lines[i + 1].time
             : line.time + const Duration(seconds: 4);
 
         return Padding(
           key: keys.length == lyrics.lines.length ? keys[i] : null,
-          padding: const EdgeInsets.symmetric(vertical: SpacingTokens.sm),
+          padding: const EdgeInsets.symmetric(vertical: SpacingTokens.md),
           child: _LyricRow(
             line: line,
-            relation: relation,
+            synced: lyrics.synced && hasCurrent,
+            distance: distance,
             fontSize: fontSize,
             dual: dual,
-            accent: accent,
             lineEnd: lineEnd,
             direction: directionFor(line.text),
             onTap: lyrics.synced ? () => controllerRef.seek(line.time) : null,
@@ -423,25 +349,25 @@ class _LyricsBody extends ConsumerWidget {
   }
 }
 
-enum _Relation { current, past, future, neutral }
-
 class _LyricRow extends StatelessWidget {
   const _LyricRow({
     required this.line,
-    required this.relation,
+    required this.synced,
+    required this.distance,
     required this.fontSize,
     required this.dual,
-    required this.accent,
     required this.lineEnd,
     required this.direction,
     required this.onTap,
   });
 
   final LyricsLine line;
-  final _Relation relation;
+  final bool synced;
+
+  /// Signed offset from the current line (0 = current, ±1 neighbour, …).
+  final int distance;
   final LyricsFontSize fontSize;
   final bool dual;
-  final Color accent;
   final Duration lineEnd;
   final TextDirection direction;
   final VoidCallback? onTap;
@@ -449,33 +375,49 @@ class _LyricRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final isCurrent = relation == _Relation.current;
+    final isCurrent = synced && distance == 0;
+    final abs = distance.abs();
     final size = (isCurrent
         ? _LyricMetrics.current
         : _LyricMetrics.secondary)[fontSize]!;
 
-    final color = switch (relation) {
-      _Relation.current => accent,
-      _Relation.past => colors.onSurfaceFaint,
-      _Relation.future => colors.onSurfaceMuted,
-      _Relation.neutral => colors.onSurface,
-    };
+    // Neighbour lines dim with distance and vanish beyond ±2; an unsynced
+    // block reads at full primary colour.
+    final double opacity = !synced
+        ? 1
+        : isCurrent
+            ? 1
+            : abs > 2
+                ? 0
+                : (0.42 - (abs - 1) * 0.12).clamp(0.0, 1.0);
+    final double blur = isCurrent ? 0.0 : (abs > 2 ? 2 : abs) * 0.6;
 
     final style = AppTextTheme.body.copyWith(
       fontSize: size,
-      height: 1.3,
-      fontWeight: isCurrent ? FontWeight.w500 : FontWeight.w400,
-      color: color,
+      height: 1.22,
+      letterSpacing: -0.3,
+      fontWeight: isCurrent ? FontWeight.w600 : FontWeight.w500,
+      color: colors.onSurface,
     );
 
     final Widget primary;
     if (isCurrent && line.hasWordTimings) {
+      // Word-timed: aurora karaoke fill over a dimmed base copy.
       primary = _CurrentKaraoke(
         words: line.words,
         lineEnd: lineEnd,
         style: style,
-        accent: accent,
-        base: colors.onSurfaceFaint,
+        base: colors.onSurface.withOpacity(0.3),
+        direction: direction,
+      );
+    } else if (isCurrent) {
+      // Plain synced line: aurora-fill the whole line by its time fraction.
+      primary = _CurrentLineFill(
+        text: line.text,
+        lineStart: line.time,
+        lineEnd: lineEnd,
+        style: style,
+        base: colors.onSurface.withOpacity(0.3),
         direction: direction,
       );
     } else {
@@ -492,7 +434,7 @@ class _LyricRow extends StatelessWidget {
       children: [
         primary,
         if (dual && line.translation != null) ...[
-          const SizedBox(height: 2),
+          const SizedBox(height: SpacingTokens.xs),
           Text(
             line.translation!,
             textDirection: directionForText(line.translation!),
@@ -506,25 +448,18 @@ class _LyricRow extends StatelessWidget {
       ],
     );
 
-    // Wrap the active line in a subtle glass capsule.
-    final Widget inner = isCurrent
-        ? AnimatedContainer(
-            duration: const Duration(milliseconds: 280),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            decoration: BoxDecoration(
-              color: accent.withOpacity(0.10),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: accent.withOpacity(0.20), width: 1),
-            ),
-            child: content,
-          )
-        : Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            child: content,
-          );
+    Widget inner = content;
+    if (blur > 0) {
+      inner = ImageFiltered(
+        imageFilter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+        child: inner,
+      );
+    }
+    if (opacity < 1) inner = Opacity(opacity: opacity, child: inner);
 
     return GestureDetector(
       onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: Center(child: inner),
     );
   }
@@ -535,66 +470,107 @@ class _LyricRow extends StatelessWidget {
           : TextDirection.ltr;
 }
 
-// ── Ambient frosted-glass gradient that breathes behind the lyrics ───────────
+/// A top or bottom gradient fade (bg → transparent) so lines melt at the edges.
+class _EdgeFade extends StatelessWidget {
+  const _EdgeFade({required this.top});
+  final bool top;
 
-class _LyricsAmbientPainter extends CustomPainter {
-  _LyricsAmbientPainter({required this.t, required this.accent});
-  final double t;
+  @override
+  Widget build(BuildContext context) {
+    final bg = context.colors.background;
+    return Positioned(
+      top: top ? 0 : null,
+      bottom: top ? null : 0,
+      left: 0,
+      right: 0,
+      height: top ? 110 : 130,
+      child: IgnorePointer(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: top ? Alignment.topCenter : Alignment.bottomCenter,
+              end: top ? Alignment.bottomCenter : Alignment.topCenter,
+              colors: [bg.withOpacity(0.9), Colors.transparent],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bottom mini transport — current-time · thin progress · play/pause.
+class _MiniTransport extends ConsumerWidget {
+  const _MiniTransport({required this.accent});
   final Color accent;
 
   @override
-  void paint(Canvas canvas, Size size) {
-    // Top orb — shifts slowly left/right
-    _drawOrb(
-      canvas,
-      Offset(
-        size.width * (0.35 + 0.30 * _n(math.sin(t * 2 * math.pi * 0.25))),
-        size.height * 0.18,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final l10n = AppLocalizations.of(context);
+    final position = ref.watch(positionProvider).valueOrNull ?? Duration.zero;
+    final state = ref.watch(playbackStateProvider).valueOrNull;
+    final duration = state?.duration ?? Duration.zero;
+    final playing = state?.playing ?? false;
+    final fraction = duration.inMilliseconds <= 0
+        ? 0.0
+        : (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        SpacingTokens.xxl,
+        0,
+        SpacingTokens.xxl,
+        SpacingTokens.xxl,
       ),
-      size.width * 0.55,
-      accent.withOpacity(0.055),
-    );
-    // Bottom orb — counter-phase drift
-    _drawOrb(
-      canvas,
-      Offset(
-        size.width * (0.55 + 0.28 * _n(math.cos(t * 2 * math.pi * 0.20 + 1.8))),
-        size.height * 0.80,
+      child: Row(
+        children: [
+          SizedBox(
+            width: 36,
+            child: Text(
+              position.clock,
+              style: AppTextTheme.caption.copyWith(
+                color: colors.onSurfaceFaint,
+                fontFeatures: const [ui.FontFeature.tabularFigures()],
+              ),
+            ),
+          ),
+          const SizedBox(width: SpacingTokens.md),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: RadiusTokens.brPill,
+              child: LinearProgressIndicator(
+                value: fraction,
+                minHeight: 3,
+                // 10% white veil track (DS --state-press) + album-accent fill.
+                backgroundColor: colors.onSurface.withOpacity(0.10),
+                valueColor: AlwaysStoppedAnimation<Color>(accent),
+              ),
+            ),
+          ),
+          const SizedBox(width: SpacingTokens.md),
+          IconButton(
+            tooltip: playing ? l10n.pause : l10n.play,
+            onPressed: () => ref.read(audioControllerProvider).togglePlayPause(),
+            icon: Icon(
+              playing ? Icons.pause : Icons.play_arrow,
+              color: playing ? accent : colors.onSurface,
+            ),
+            iconSize: 26,
+          ),
+        ],
       ),
-      size.width * 0.48,
-      accent.withOpacity(0.045),
     );
   }
-
-  void _drawOrb(Canvas canvas, Offset center, double radius, Color color) {
-    canvas.drawCircle(
-      center,
-      radius,
-      Paint()
-        ..shader = RadialGradient(
-          colors: [color, color.withOpacity(0.0)],
-        ).createShader(Rect.fromCenter(
-          center: center,
-          width: radius * 2,
-          height: radius * 2,
-        )),
-    );
-  }
-
-  double _n(double x) => (x + 1.0) / 2.0;
-
-  @override
-  bool shouldRepaint(_LyricsAmbientPainter o) => o.t != t || o.accent != accent;
 }
 
-/// The active line's karaoke fill — watches [positionProvider] so only this one
-/// line repaints per tick.
+/// The active line's word-timed karaoke fill — watches [positionProvider] so
+/// only this one line repaints per tick.
 class _CurrentKaraoke extends ConsumerWidget {
   const _CurrentKaraoke({
     required this.words,
     required this.lineEnd,
     required this.style,
-    required this.accent,
     required this.base,
     required this.direction,
   });
@@ -602,7 +578,6 @@ class _CurrentKaraoke extends ConsumerWidget {
   final List<LyricWord> words;
   final Duration lineEnd;
   final TextStyle style;
-  final Color accent;
   final Color base;
   final TextDirection direction;
 
@@ -614,7 +589,41 @@ class _CurrentKaraoke extends ConsumerWidget {
       lineEnd: lineEnd,
       position: position,
       style: style,
-      accent: accent,
+      base: base,
+      textDirection: direction,
+    );
+  }
+}
+
+/// Aurora fill for a synced line without word timings: the whole line fills
+/// left→right by its elapsed fraction (start → next line) over a dimmed base.
+class _CurrentLineFill extends ConsumerWidget {
+  const _CurrentLineFill({
+    required this.text,
+    required this.lineStart,
+    required this.lineEnd,
+    required this.style,
+    required this.base,
+    required this.direction,
+  });
+
+  final String text;
+  final Duration lineStart;
+  final Duration lineEnd;
+  final TextStyle style;
+  final Color base;
+  final TextDirection direction;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final position = ref.watch(positionProvider).valueOrNull ?? Duration.zero;
+    // Synthesise a single word spanning the line, so KaraokeLine fills it by
+    // time fraction — reusing the established aurora-fill widget.
+    return KaraokeLine(
+      words: [LyricWord(start: lineStart, text: text)],
+      lineEnd: lineEnd,
+      position: position,
+      style: style,
       base: base,
       textDirection: direction,
     );

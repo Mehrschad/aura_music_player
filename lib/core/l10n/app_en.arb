@@ -782,5 +782,9 @@
   "badgeSynced": "Synced",
   "@badgeSynced": {
     "description": "Pill badge shown beside a song that has time-synced lyrics."
+  },
+  "browseGenres": "Browse genres",
+  "@browseGenres": {
+    "description": "Search screen section header above the genre browse cards."
   }
 }
