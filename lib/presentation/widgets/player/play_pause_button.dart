@@ -1,15 +1,15 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../core/constants/aurora_colors.dart';
 import '../../../core/constants/motion_tokens.dart';
 import '../../../core/theme/color_scheme.dart';
 import '../press_scale.dart';
 
 /// The primary play/pause control: a filled disc with an [AnimatedIcon] that
-/// morphs between play and pause. When playing the disc wears the aurora
-/// gradient — the brand's one moment of bottled colour. Honours
-/// `MediaQuery.disableAnimations` by jumping the morph instantly.
+/// morphs between play and pause. On tap, concentric water-ripple rings expand
+/// outward and fade. Simple, monochrome.
 class PlayPauseButton extends StatefulWidget {
   const PlayPauseButton({
     super.key,
@@ -29,11 +29,17 @@ class PlayPauseButton extends StatefulWidget {
 }
 
 class _PlayPauseButtonState extends State<PlayPauseButton>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
+    with TickerProviderStateMixin {
+  late final AnimationController _morphCtrl = AnimationController(
     vsync: this,
     duration: MotionTokens.micro,
     value: widget.playing ? 1 : 0,
+  );
+
+  // Drives two staggered ripple rings on each tap.
+  late final AnimationController _rippleCtrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 650),
   );
 
   @override
@@ -43,15 +49,16 @@ class _PlayPauseButtonState extends State<PlayPauseButton>
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
     final target = widget.playing ? 1.0 : 0.0;
     if (reduceMotion) {
-      _controller.value = target;
+      _morphCtrl.value = target;
     } else {
-      _controller.animateTo(target, curve: MotionTokens.standard);
+      _morphCtrl.animateTo(target, curve: MotionTokens.standard);
     }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _morphCtrl.dispose();
+    _rippleCtrl.dispose();
     super.dispose();
   }
 
@@ -61,45 +68,62 @@ class _PlayPauseButtonState extends State<PlayPauseButton>
     return PressScale(
       onTap: () {
         HapticFeedback.lightImpact();
+        _rippleCtrl.forward(from: 0);
         widget.onTap();
       },
       semanticLabel: widget.semanticLabel,
       child: SizedBox(
         width: widget.size,
         height: widget.size,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            // Base solid disc — always visible.
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: colors.onSurface,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-            // Aurora overlay — fades in while playing (the moment of delight).
-            Positioned.fill(
-              child: AnimatedOpacity(
-                opacity: widget.playing ? 1.0 : 0.0,
-                duration: MotionTokens.micro,
-                curve: MotionTokens.standard,
-                child: Container(
-                  decoration: const BoxDecoration(
-                    gradient: AuroraColors.gradient,
+        child: AnimatedBuilder(
+          animation: Listenable.merge([_morphCtrl, _rippleCtrl]),
+          builder: (_, __) {
+            final t = _rippleCtrl.value;
+            return Stack(
+              alignment: Alignment.center,
+              children: [
+                _rippleRing(colors.onSurface, t, delay: 0.00),
+                _rippleRing(colors.onSurface, t, delay: 0.15),
+                // Monochrome disc
+                Container(
+                  width: widget.size,
+                  height: widget.size,
+                  decoration: BoxDecoration(
+                    color: colors.onSurface,
                     shape: BoxShape.circle,
                   ),
+                  alignment: Alignment.center,
+                  child: AnimatedIcon(
+                    icon: AnimatedIcons.play_pause,
+                    progress: _morphCtrl,
+                    size: widget.size * 0.44,
+                    color: colors.background,
+                  ),
                 ),
-              ),
-            ),
-            AnimatedIcon(
-              icon: AnimatedIcons.play_pause,
-              progress: _controller,
-              size: widget.size * 0.44,
-              color: colors.background,
-            ),
-          ],
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _rippleRing(Color color, double t, {required double delay}) {
+    final adjT =
+        math.max(0.0, (t - delay) / math.max(0.001, 1.0 - delay)).clamp(0.0, 1.0);
+    final scale = 1.0 + 1.45 * Curves.easeOut.transform(adjT);
+    final opacity = 0.38 * (1.0 - Curves.easeIn.transform(adjT));
+    return Opacity(
+      opacity: opacity,
+      child: Transform.scale(
+        scale: scale,
+        child: Container(
+          width: widget.size,
+          height: widget.size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: color, width: 1.5),
+          ),
         ),
       ),
     );

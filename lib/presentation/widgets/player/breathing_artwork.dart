@@ -44,6 +44,7 @@ class _BreathingArtworkState extends State<BreathingArtwork>
   late final AnimationController _breathCtrl;
   late final AnimationController _scaleCtrl;
   late final Animation<double> _pauseScale;
+  late final Animation<double> _pauseRise;
 
   @override
   void initState() {
@@ -54,6 +55,9 @@ class _BreathingArtworkState extends State<BreathingArtwork>
       duration: const Duration(milliseconds: 400),
     );
     _pauseScale = Tween<double>(begin: 1.0, end: 0.88)
+        .animate(CurvedAnimation(parent: _scaleCtrl, curve: Curves.easeInOut));
+    // Artwork rises ~13 px when paused — reinforces the "resting" feel.
+    _pauseRise = Tween<double>(begin: 0.0, end: -13.0)
         .animate(CurvedAnimation(parent: _scaleCtrl, curve: Curves.easeInOut));
     // Set the correct initial scale without animation.
     _scaleCtrl.value = widget.playing ? 0.0 : 1.0;
@@ -157,10 +161,13 @@ class _BreathingArtworkState extends State<BreathingArtwork>
       tag: kNowPlayingHeroTag,
       child: AnimatedBuilder(
         animation: Listenable.merge([_breathCtrl, _scaleCtrl]),
-        builder: (_, child) => Transform.scale(
-          // Multiply breathing oscillation by the play/pause scale.
-          scale: breatheScale.value * _pauseScale.value,
-          child: child,
+        builder: (_, child) => Transform.translate(
+          // Artwork floats up slightly when paused — matches light convergence.
+          offset: Offset(0, _pauseRise.value),
+          child: Transform.scale(
+            scale: breatheScale.value * _pauseScale.value,
+            child: child,
+          ),
         ),
         child: Container(
           decoration: BoxDecoration(

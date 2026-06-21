@@ -47,6 +47,7 @@ dependencies:
   # lrc: ^1.2.0
   #
   # UI & animations
+  phosphor_flutter: ^2.1.0
   # flutter_animate: ^4.5.0
   # animations: ^2.0.11
   # palette_dart: ^0.1.0

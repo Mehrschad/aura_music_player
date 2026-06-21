@@ -1,11 +1,12 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
-import '../../../core/constants/aurora_colors.dart';
 import '../../../core/constants/icon_sizes.dart';
 import '../../../core/constants/radius_tokens.dart';
 import '../../../core/constants/spacing_tokens.dart';
@@ -37,7 +38,6 @@ import '../equalizer/equalizer_page.dart';
 import '../lyrics/lyrics_page.dart';
 import '../settings/settings_page.dart';
 import '../../widgets/glass/glass_surface.dart';
-import '../../widgets/player/ab_repeat_controls.dart';
 import '../../widgets/player/pitch_speed_sheet.dart';
 import '../../widgets/player/breathing_artwork.dart';
 import '../../widgets/player/play_pause_button.dart';
@@ -45,6 +45,7 @@ import '../../widgets/player/queue_drawer.dart';
 import '../../widgets/player/queue_sheet.dart';
 import '../../widgets/player/sleep_timer_chip.dart';
 import '../../widgets/library/star_rating.dart';
+import '../../widgets/player/song_actions_sheet.dart';
 import '../../widgets/waveform/waveform_scrubber.dart';
 
 class NowPlayingPage extends ConsumerStatefulWidget {
@@ -55,10 +56,16 @@ class NowPlayingPage extends ConsumerStatefulWidget {
 }
 
 class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _ambientCtrl = AnimationController(
     vsync: this,
     duration: const Duration(seconds: 28),
+  );
+
+  // 0 = orbs expanded (playing), 1 = orbs converged & faded (paused).
+  late final AnimationController _pauseCtrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
   );
 
   // Tracks skip direction for the cover art slide animation.
@@ -69,9 +76,11 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
   void didChangeDependencies() {
     super.didChangeDependencies();
     _syncAmbient();
+    // Sync pause-convergence to current playing state without animation.
+    final isPlaying = ref.read(playbackStateProvider).valueOrNull?.playing ?? true;
+    _pauseCtrl.value = isPlaying ? 0.0 : 1.0;
   }
 
-  // Hold the orbs still under reduce-motion; loop them otherwise.
   void _syncAmbient() {
     if (MediaQuery.disableAnimationsOf(context)) {
       _ambientCtrl.stop();
@@ -83,6 +92,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
   @override
   void dispose() {
     _ambientCtrl.dispose();
+    _pauseCtrl.dispose();
     super.dispose();
   }
 
@@ -97,6 +107,18 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
       final nextIdx = next.valueOrNull?.currentIndex;
       if (prevIdx != null && nextIdx != null && prevIdx != nextIdx) {
         _artSlideDir = nextIdx > prevIdx ? 1 : -1;
+      }
+    });
+
+    // Drive orb convergence when playing state changes.
+    ref.listen<AsyncValue<PlaybackState>>(playbackStateProvider,
+        (prev, next) {
+      final wasPlaying = prev?.valueOrNull?.playing ?? true;
+      final isPlaying = next.valueOrNull?.playing ?? true;
+      if (wasPlaying && !isPlaying) {
+        _pauseCtrl.forward();
+      } else if (!wasPlaying && isPlaying) {
+        _pauseCtrl.reverse();
       }
     });
 
@@ -143,32 +165,38 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
         backgroundColor: colors.background,
         body: Stack(
           children: [
-            // ── Layer 1: blurred album-art wash ─────────────────────────────
+            // ── Layer 1: dark base ───────────────────────────────────────────
             Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [wash.withOpacity(0.22), colors.background],
-                    stops: const [0.0, 0.60],
-                  ),
-                ),
-              ),
+              child: ColoredBox(color: colors.background),
             ),
-            // ── Layer 2: ambient animated orbs ──────────────────────────────
+            // ── Layer 2: album-color light sources ───────────────────────────
             Positioned.fill(
               child: AnimatedBuilder(
-                animation: _ambientCtrl,
+                animation: Listenable.merge([_ambientCtrl, _pauseCtrl]),
                 builder: (_, __) => CustomPaint(
                   painter: _AmbientPainter(
                     t: _ambientCtrl.value,
                     accent: accent,
+                    wash: wash,
+                    convergence: _pauseCtrl.value,
                   ),
                 ),
               ),
             ),
-            // ── Layer 3: content ─────────────────────────────────────────────
+            // ── Layer 3: frosted glass ───────────────────────────────────────
+            Positioned.fill(
+              child: ClipRect(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 52, sigmaY: 52),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: colors.background.withOpacity(0.55),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            // ── Layer 4: content ─────────────────────────────────────────────
             SafeArea(
               child: isLandscape
                   ? _LandscapeBody(state: state, song: song, accent: accent, slideDirection: _artSlideDir)
@@ -203,23 +231,27 @@ class _PortraitBody extends ConsumerWidget {
       return total > 0 ? b.positionMs / total : 0.0;
     }).where((f) => f > 0 && f < 1).toList();
 
+    final ab = ref.watch(abRepeatProvider);
+    final isCurrent = ab.songId == song.id;
+    final totalMs = song.duration.inMilliseconds;
+    final abFracA = isCurrent && ab.hasA && totalMs > 0
+        ? (ab.pointA!.inMilliseconds / totalMs).clamp(0.0, 1.0)
+        : null;
+    final abFracB = isCurrent && ab.hasB && totalMs > 0
+        ? (ab.pointB!.inMilliseconds / totalMs).clamp(0.0, 1.0)
+        : null;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.xl),
       child: Column(
         children: [
           _TopBar(song: song, accent: accent),
-
-          // ── Sleep timer countdown chip ───────────────────────────────────
           SleepTimerChip(accent: accent),
 
-          // ── Artwork: flexible — takes whatever height is left so the page
-          // never overflows on short screens. Capped at 76% of width.
           Expanded(
             child: Center(
               child: LayoutBuilder(
                 builder: (context, c) {
-                  // The glow shadow extends ~4% below the art, so cap at 94%
-                  // of the available height to avoid a sub-pixel overflow.
                   final side = math.min(c.maxWidth * 0.76, c.maxHeight * 0.94);
                   return _ArtworkWithGlow(
                     song: song,
@@ -234,35 +266,31 @@ class _PortraitBody extends ConsumerWidget {
           ),
           const SizedBox(height: SpacingTokens.sm),
 
-          // ── 3-line lyrics carousel (always present) ─────────────────────
           _Lyrics3LineCarousel(
             accent: accent,
             onTap: () => openLyrics(context),
           ),
           const SizedBox(height: SpacingTokens.sm),
 
-          // ── Track info with trailing like button ────────────────────────
           _TrackInfoRow(song: song, accent: accent),
           const SizedBox(height: SpacingTokens.xs),
 
-          // ── Scrubber (full-width) — long-press to add bookmark ──────────
+          // ── Scrubber — long-press cycles A → B → clear (A-B repeat) ────
           WaveformScrubber(
             duration: song.duration,
             accent: accent,
             seed: song.artworkSeed,
+            isPlaying: state.playing,
             bookmarkFractions: bookmarkFracs,
+            abPointA: abFracA,
+            abPointB: abFracB,
             onLongPress: (position) =>
-                _showAddBookmarkDialog(context, ref, song, position),
+                _cycleAbRepeat(ref, song, position),
           ),
 
-          // ── A-B repeat controls ─────────────────────────────────────────
-          ABRepeatControls(accent: accent, song: song),
-
-          // ── Transport: shuffle · prev · play/pause · next · repeat ──────
           _TransportRow(state: state, accent: accent),
           const SizedBox(height: SpacingTokens.sm),
 
-          // ── Utility row: EQ · Lyrics · Queue · Sleep ────────────────────
           _UtilityRow(song: song),
           const SizedBox(height: SpacingTokens.sm),
         ],
@@ -294,9 +322,19 @@ class _LandscapeBody extends ConsumerWidget {
       return total > 0 ? b.positionMs / total : 0.0;
     }).where((f) => f > 0 && f < 1).toList();
 
+    final ab = ref.watch(abRepeatProvider);
+    final isCurrent = ab.songId == song.id;
+    final totalMs = song.duration.inMilliseconds;
+    final abFracA = isCurrent && ab.hasA && totalMs > 0
+        ? (ab.pointA!.inMilliseconds / totalMs).clamp(0.0, 1.0)
+        : null;
+    final abFracB = isCurrent && ab.hasB && totalMs > 0
+        ? (ab.pointB!.inMilliseconds / totalMs).clamp(0.0, 1.0)
+        : null;
+
     return Row(
       children: [
-        // ── Left: Artwork — sized to fit whatever height is available ─────
+        // ── Left: Artwork ────────────────────────────────────────────────
         SizedBox(
           width: size.width * 0.42,
           child: Center(
@@ -343,11 +381,13 @@ class _LandscapeBody extends ConsumerWidget {
                     duration: song.duration,
                     accent: accent,
                     seed: song.artworkSeed,
+                    isPlaying: state.playing,
                     bookmarkFractions: bookmarkFracs,
+                    abPointA: abFracA,
+                    abPointB: abFracB,
                     onLongPress: (position) =>
-                        _showAddBookmarkDialog(context, ref, song, position),
+                        _cycleAbRepeat(ref, song, position),
                   ),
-                  ABRepeatControls(accent: accent, song: song),
                   _TransportRow(state: state, accent: accent),
                   const Spacer(),
                   const SizedBox(height: SpacingTokens.sm),
@@ -415,14 +455,14 @@ class _TopBar extends StatelessWidget {
           Row(
             children: [
               _PressIcon(
-                icon: Icons.keyboard_arrow_down,
+                icon: PhosphorIconsRegular.caretDown,
                 size: IconSizes.xl,
                 color: colors.onSurface,
                 onTap: () => Navigator.of(context).maybePop(),
               ),
               const Spacer(),
               _PressIcon(
-                icon: Icons.more_vert_rounded,
+                icon: PhosphorIconsRegular.dotsThreeVertical,
                 tooltip: l10n.moreActions,
                 color: colors.onSurfaceMuted,
                 onTap: () => showNowPlayingMenu(context, song, accent),
@@ -561,16 +601,22 @@ class _Lyrics3LineCarousel extends ConsumerStatefulWidget {
 }
 
 class _Lyrics3LineCarouselState extends ConsumerState<_Lyrics3LineCarousel>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   static const double _lineH = 42.0;
 
   late final AnimationController _ctrl = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 520),
   );
-  // Eased progress so lines glide rather than slide linearly.
   late final Animation<double> _t =
       CurvedAnimation(parent: _ctrl, curve: Curves.easeInOutCubic);
+
+  // "No lyrics found" fade: after 10 s of no synced lines, dissolves the label.
+  late final AnimationController _noLyricsCtrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  );
+  Timer? _noLyricsTimer;
 
   int _anchor = 0;
 
@@ -592,14 +638,29 @@ class _Lyrics3LineCarouselState extends ConsumerState<_Lyrics3LineCarousel>
 
   @override
   void dispose() {
+    _noLyricsTimer?.cancel();
     _ctrl.dispose();
+    _noLyricsCtrl.dispose();
     super.dispose();
+  }
+
+  void _scheduleNoLyricsHide() {
+    _noLyricsTimer?.cancel();
+    _noLyricsCtrl.value = 0;
+    _noLyricsTimer = Timer(const Duration(seconds: 10), () {
+      if (mounted) _noLyricsCtrl.forward();
+      _noLyricsTimer = null;
+    });
+  }
+
+  void _cancelNoLyricsHide() {
+    _noLyricsTimer?.cancel();
+    _noLyricsTimer = null;
+    _noLyricsCtrl.value = 0;
   }
 
   @override
   Widget build(BuildContext context) {
-    // unwrapPrevious: never carry the previous track's lines into the next
-    // track — if the new one has no lyrics, the placeholder shows instead.
     final lyricsAsync = ref.watch(currentLyricsProvider).unwrapPrevious();
 
     ref.listen<int>(currentLyricLineProvider, (_, next) {
@@ -611,18 +672,41 @@ class _Lyrics3LineCarouselState extends ConsumerState<_Lyrics3LineCarousel>
       }
     });
 
+    // When lyrics finish loading: start the hide timer if still empty.
+    ref.listen(currentLyricsProvider, (prev, next) {
+      if (!mounted) return;
+      final wasLoading = prev?.isLoading ?? true;
+      if (wasLoading && !next.isLoading) {
+        final l = next.valueOrNull;
+        final found = l != null && !l.isEmpty && l.synced;
+        if (found) {
+          _cancelNoLyricsHide();
+        } else {
+          _scheduleNoLyricsHide();
+        }
+      }
+    });
+
     final lyrics = lyricsAsync.valueOrNull;
     final hasLines = lyrics != null && !lyrics.isEmpty && lyrics.synced;
 
     if (!hasLines) {
-      // No synced lyrics yet — a calm placeholder keeps the slot reserved so the
-      // layout doesn't jump the moment lyrics arrive.
       return GestureDetector(
         onTap: widget.onTap,
         behavior: HitTestBehavior.opaque,
         child: SizedBox(
           height: _lineH * 3,
-          child: Center(child: _DotsPlaceholder(accent: widget.accent)),
+          child: Center(
+            child: AnimatedBuilder(
+              animation: _noLyricsCtrl,
+              builder: (_, __) => Opacity(
+                opacity: (1.0 - _noLyricsCtrl.value).clamp(0.0, 1.0),
+                child: lyricsAsync.isLoading
+                    ? _DotsPlaceholder(accent: widget.accent)
+                    : _NoLyricsLabel(accent: widget.accent),
+              ),
+            ),
+          ),
         ),
       );
     }
@@ -694,40 +778,24 @@ class _CarouselLine extends StatelessWidget {
     final color = Color.lerp(accent, colors.onSurfaceMuted, t)!;
     final weight = t < 0.4 ? FontWeight.w700 : FontWeight.w400;
 
+    // Active line glows softly in the album accent colour — calmer than aurora.
+    final textColor = distance.abs() < 0.05 ? accent : color;
     return Opacity(
       opacity: opacity,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.lg),
-        child: distance.abs() < 0.05
-            ? ShaderMask(
-                shaderCallback: (bounds) =>
-                    AuroraColors.gradient.createShader(bounds),
-                blendMode: BlendMode.srcIn,
-                child: Text(
-                  text!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: AppTextTheme.body.copyWith(
-                    color: Colors.white,
-                    fontSize: fontSize,
-                    fontWeight: weight,
-                    letterSpacing: -0.2,
-                  ),
-                ),
-              )
-            : Text(
-                text!,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: AppTextTheme.body.copyWith(
-                  color: color,
-                  fontSize: fontSize,
-                  fontWeight: weight,
-                  letterSpacing: -0.2,
-                ),
-              ),
+        child: Text(
+          text!,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: AppTextTheme.body.copyWith(
+            color: textColor,
+            fontSize: fontSize,
+            fontWeight: weight,
+            letterSpacing: -0.2,
+          ),
+        ),
       ),
     );
   }
@@ -745,6 +813,24 @@ class _DotsPlaceholder extends StatelessWidget {
       style: AppTextTheme.body.copyWith(
         color: colors.onSurfaceFaint,
         letterSpacing: 8,
+      ),
+    );
+  }
+}
+
+class _NoLyricsLabel extends StatelessWidget {
+  const _NoLyricsLabel({required this.accent});
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final l10n = AppLocalizations.of(context);
+    return Text(
+      l10n.lyricsNone,
+      style: AppTextTheme.body.copyWith(
+        color: colors.onSurfaceFaint,
+        fontSize: 13,
       ),
     );
   }
@@ -935,7 +1021,7 @@ class _LikeButtonState extends ConsumerState<_LikeButton>
                 Transform.scale(
                   scale: _scale.value,
                   child: Icon(
-                    isFav ? Icons.favorite : Icons.favorite_border,
+                    isFav ? PhosphorIconsFill.heart : PhosphorIconsRegular.heart,
                     color: isFav ? colors.favorite : colors.onSurfaceMuted,
                     size: IconSizes.lg,
                   ),
@@ -972,14 +1058,14 @@ class _TransportRow extends ConsumerWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         _PlayerToggle(
-          icon: Icons.shuffle_rounded,
+          icon: PhosphorIconsRegular.shuffle,
           tooltip: l10n.shuffle,
           active: state.shuffleEnabled,
           accent: accent,
           onTap: () => ctrl.setShuffle(!state.shuffleEnabled),
         ),
         _SkipButton(
-          icon: Icons.skip_previous_rounded,
+          icon: PhosphorIconsRegular.skipBack,
           tooltip: l10n.previousTrack,
           onTap: state.hasPrevious ? ctrl.skipToPrevious : null,
         ),
@@ -990,12 +1076,12 @@ class _TransportRow extends ConsumerWidget {
           size: 68,
         ),
         _SkipButton(
-          icon: Icons.skip_next_rounded,
+          icon: PhosphorIconsRegular.skipForward,
           tooltip: l10n.nextTrack,
           onTap: state.hasNext ? ctrl.skipToNext : null,
         ),
         _PlayerToggle(
-          icon: repeatOne ? Icons.repeat_one_rounded : Icons.repeat_rounded,
+          icon: repeatOne ? PhosphorIconsRegular.repeatOnce : PhosphorIconsRegular.repeat,
           tooltip: repeatOne ? l10n.repeatOne : l10n.repeat,
           active: state.repeatMode != RepeatMode.off,
           accent: accent,
@@ -1167,23 +1253,23 @@ class _UtilityRow extends ConsumerWidget {
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         _UtilTile(
-          icon: Icons.graphic_eq_rounded,
+          icon: PhosphorIconsRegular.equalizer,
           label: l10n.npEq,
           onTap: () => openEqualizer(context),
         ),
         _UtilTile(
-          icon: Icons.lyrics_outlined,
+          icon: PhosphorIconsRegular.microphone,
           label: l10n.lyrics,
           highlight: hasLyrics,
           onTap: () => openLyrics(context),
         ),
         _UtilTile(
-          icon: Icons.queue_music_rounded,
+          icon: PhosphorIconsRegular.queue,
           label: l10n.queueTitle,
           onTap: () => showQueueSheet(context),
         ),
         _UtilTile(
-          icon: Icons.bedtime_outlined,
+          icon: PhosphorIconsRegular.moon,
           label: l10n.npSleep,
           onTap: () => showSleepTimerSheet(context, ref),
         ),
@@ -1263,6 +1349,28 @@ class _UtilTileState extends State<_UtilTile> {
   }
 }
 
+/// Cycles the A-B repeat state on long-press: no-A → set-A → set-B → clear.
+void _cycleAbRepeat(WidgetRef ref, Song song, Duration position) {
+  final notifier = ref.read(abRepeatProvider.notifier);
+  final ab = ref.read(abRepeatProvider);
+  final isCurrent = ab.songId == song.id;
+  if (!isCurrent || !ab.hasA) {
+    notifier.setA(song.id, position);
+    HapticFeedback.selectionClick();
+  } else if (!ab.hasB) {
+    if (position > ab.pointA!) {
+      notifier.setB(song.id, position);
+      HapticFeedback.mediumImpact();
+    } else {
+      notifier.setA(song.id, position);
+      HapticFeedback.selectionClick();
+    }
+  } else {
+    notifier.clear();
+    HapticFeedback.selectionClick();
+  }
+}
+
 // ── Now Playing overflow menu + navigation + sheets ──────────────────────────
 
 /// Resolves the [Album] for [song] and pushes its detail page.
@@ -1329,7 +1437,7 @@ class _NowPlayingMenu extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               _MenuItem(
-                icon: Icons.info_outline_rounded,
+                icon: PhosphorIconsRegular.info,
                 label: l10n.songInfo,
                 onTap: () {
                   Navigator.of(context).pop();
@@ -1337,7 +1445,7 @@ class _NowPlayingMenu extends ConsumerWidget {
                 },
               ),
               _MenuItem(
-                icon: Icons.album_outlined,
+                icon: PhosphorIconsRegular.vinylRecord,
                 label: l10n.goToAlbum,
                 onTap: () {
                   Navigator.of(context).pop();
@@ -1345,7 +1453,7 @@ class _NowPlayingMenu extends ConsumerWidget {
                 },
               ),
               _MenuItem(
-                icon: Icons.person_outline_rounded,
+                icon: PhosphorIconsRegular.user,
                 label: l10n.goToArtist,
                 onTap: () {
                   Navigator.of(context).pop();
@@ -1353,7 +1461,15 @@ class _NowPlayingMenu extends ConsumerWidget {
                 },
               ),
               _MenuItem(
-                icon: Icons.star_outline_rounded,
+                icon: PhosphorIconsRegular.plusCircle,
+                label: l10n.addToPlaylist,
+                onTap: () {
+                  Navigator.of(context).pop();
+                  showAddToPlaylist(context, song);
+                },
+              ),
+              _MenuItem(
+                icon: PhosphorIconsRegular.star,
                 label: l10n.rateSong,
                 onTap: () {
                   Navigator.of(context).pop();
@@ -1361,7 +1477,7 @@ class _NowPlayingMenu extends ConsumerWidget {
                 },
               ),
               _MenuItem(
-                icon: Icons.bookmark_outline_rounded,
+                icon: PhosphorIconsRegular.bookmark,
                 label: l10n.bookmarks,
                 onTap: () {
                   Navigator.of(context).pop();
@@ -1369,7 +1485,7 @@ class _NowPlayingMenu extends ConsumerWidget {
                 },
               ),
               _MenuItem(
-                icon: Icons.bedtime_outlined,
+                icon: PhosphorIconsRegular.moon,
                 label: l10n.sleepTimer,
                 onTap: () {
                   Navigator.of(context).pop();
@@ -1377,7 +1493,7 @@ class _NowPlayingMenu extends ConsumerWidget {
                 },
               ),
               _MenuItem(
-                icon: Icons.speed_rounded,
+                icon: PhosphorIconsRegular.gauge,
                 label: l10n.speedAndPitch,
                 onTap: () {
                   Navigator.of(context).pop();
@@ -1385,7 +1501,7 @@ class _NowPlayingMenu extends ConsumerWidget {
                 },
               ),
               _MenuItem(
-                icon: Icons.dynamic_feed_rounded,
+                icon: PhosphorIconsRegular.queue,
                 label: l10n.queues,
                 onTap: () {
                   Navigator.of(context).pop();
@@ -1393,7 +1509,7 @@ class _NowPlayingMenu extends ConsumerWidget {
                 },
               ),
               _MenuItem(
-                icon: Icons.settings_outlined,
+                icon: PhosphorIconsRegular.gear,
                 label: l10n.settings,
                 onTap: () {
                   Navigator.of(context).pop();
@@ -1402,7 +1518,7 @@ class _NowPlayingMenu extends ConsumerWidget {
               ),
               Divider(color: colors.divider, height: 1),
               _MenuItem(
-                icon: Icons.delete_outline_rounded,
+                icon: PhosphorIconsRegular.trash,
                 label: l10n.delete,
                 destructive: true,
                 onTap: () {
@@ -1610,7 +1726,7 @@ class _SleepTimerSheetState extends ConsumerState<_SleepTimerSheet> {
             children: [
               // Header
               Row(children: [
-                Icon(Icons.bedtime_outlined,
+                Icon(PhosphorIconsRegular.moon,
                     size: IconSizes.sm, color: colors.onSurfaceMuted),
                 const SizedBox(width: SpacingTokens.xs),
                 Text(l10n.sleepTimer,
@@ -1701,7 +1817,7 @@ class _SleepTimerSheetState extends ConsumerState<_SleepTimerSheet> {
 
               // Fade-out duration slider
               Row(children: [
-                Icon(Icons.volume_down_outlined,
+                Icon(PhosphorIconsRegular.speakerLow,
                     size: 16, color: colors.onSurfaceMuted),
                 const SizedBox(width: SpacingTokens.xs),
                 Text(
@@ -1749,7 +1865,7 @@ class _ActiveStatus extends StatelessWidget {
         l10n.sleepTracksLeft(tracksLeft),
     };
     return Row(children: [
-      Icon(Icons.bedtime_outlined, size: 16, color: colors.accent),
+      Icon(PhosphorIconsRegular.moon, size: 16, color: colors.accent),
       const SizedBox(width: 6),
       Text(text,
           style: AppTextTheme.body.copyWith(
@@ -1884,13 +2000,13 @@ Future<void> showBookmarksSheet(
                   for (final bm in bmarks)
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: Icon(Icons.bookmark_outline_rounded,
+                      leading: Icon(PhosphorIconsRegular.bookmark,
                           color: colors.onSurfaceMuted, size: IconSizes.md),
                       title: Text(bm.label,
                           style: AppTextTheme.body
                               .copyWith(color: colors.onSurface)),
                       trailing: IconButton(
-                        icon: Icon(Icons.close_rounded,
+                        icon: Icon(PhosphorIconsRegular.x,
                             color: colors.onSurfaceMuted, size: IconSizes.sm),
                         onPressed: () async {
                           await sheetRef
@@ -1961,52 +2077,77 @@ Future<void> _showAddBookmarkDialog(
   }
 }
 
-// ── Ambient painter — three soft drifting orbs ──────────────────────────────
+// ── Ambient painter — three vibrant drifting light sources ──────────────────
 
+/// Three radial-gradient orbs that drift slowly under the frosted glass.
+/// When [convergence] → 1 (paused state), orbs converge toward the artwork
+/// centre and fade out — simulating the lights "collecting" under the cover.
 class _AmbientPainter extends CustomPainter {
-  _AmbientPainter({required this.t, required this.accent});
+  _AmbientPainter({
+    required this.t,
+    required this.accent,
+    required this.wash,
+    this.convergence = 0.0,
+  });
   final double t;
   final Color accent;
+  final Color wash;
+  final double convergence;
 
   @override
   void paint(Canvas canvas, Size size) {
+    // Artwork lives at roughly 38 % from the top in portrait mode.
+    final target = Offset(size.width * 0.5, size.height * 0.38);
+    final fade = (1.0 - convergence).clamp(0.0, 1.0);
+
     _drawOrb(
       canvas,
-      Offset(
-        size.width * (0.12 + 0.76 * _n(math.sin(t * 2 * math.pi * 0.38))),
-        size.height * (0.08 + 0.42 * _n(math.cos(t * 2 * math.pi * 0.27))),
+      _converge(
+        Offset(
+          size.width * (0.12 + 0.76 * _n(math.sin(t * 2 * math.pi * 0.38))),
+          size.height * (0.08 + 0.42 * _n(math.cos(t * 2 * math.pi * 0.27))),
+        ),
+        target,
       ),
-      size.width * 0.62,
-      accent.withOpacity(0.09),
+      size.width * 0.70 * (1.0 - convergence * 0.45),
+      accent.withOpacity(0.28 * fade),
+    );
+
+    // Second orb uses the wash tint for complementary colour.
+    _drawOrb(
+      canvas,
+      _converge(
+        Offset(
+          size.width * (0.72 + 0.24 * _n(math.sin(t * 2 * math.pi * 0.22 + 2.1))),
+          size.height * (0.52 + 0.30 * _n(math.cos(t * 2 * math.pi * 0.33 + 1.5))),
+        ),
+        target,
+      ),
+      size.width * 0.56 * (1.0 - convergence * 0.55),
+      Color.lerp(accent, wash, 0.45)!.withOpacity(0.22 * fade),
     );
 
     _drawOrb(
       canvas,
-      Offset(
-        size.width * (0.65 + 0.32 * _n(math.sin(t * 2 * math.pi * 0.22 + 2.1))),
-        size.height * (0.50 + 0.32 * _n(math.cos(t * 2 * math.pi * 0.33 + 1.5))),
+      _converge(
+        Offset(
+          size.width * (0.18 + 0.38 * _n(math.cos(t * 2 * math.pi * 0.19 + 4.2))),
+          size.height * (0.70 + 0.18 * _n(math.sin(t * 2 * math.pi * 0.44 + 0.9))),
+        ),
+        target,
       ),
-      size.width * 0.52,
-      accent.withOpacity(0.07),
-    );
-
-    _drawOrb(
-      canvas,
-      Offset(
-        size.width * (0.18 + 0.40 * _n(math.cos(t * 2 * math.pi * 0.19 + 4.2))),
-        size.height * (0.68 + 0.20 * _n(math.sin(t * 2 * math.pi * 0.44 + 0.9))),
-      ),
-      size.width * 0.40,
-      accent.withOpacity(0.06),
+      size.width * 0.44 * (1.0 - convergence * 0.65),
+      accent.withOpacity(0.18 * fade),
     );
   }
 
+  Offset _converge(Offset orb, Offset target) =>
+      Offset.lerp(orb, target, Curves.easeInOut.transform(convergence))!;
+
   void _drawOrb(Canvas canvas, Offset center, double radius, Color color) {
-    final rect = Rect.fromCenter(
-      center: center,
-      width: radius * 2,
-      height: radius * 2,
-    );
+    if (radius <= 0 || color.alpha < 2) return;
+    final rect =
+        Rect.fromCenter(center: center, width: radius * 2, height: radius * 2);
     canvas.drawCircle(
       center,
       radius,
@@ -2021,5 +2162,5 @@ class _AmbientPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_AmbientPainter o) =>
-      o.t != t || o.accent != accent;
+      o.t != t || o.accent != accent || o.wash != wash || o.convergence != convergence;
 }
