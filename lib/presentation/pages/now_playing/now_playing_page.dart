@@ -235,10 +235,10 @@ class _PortraitBody extends ConsumerWidget {
     final isCurrent = ab.songId == song.id;
     final totalMs = song.duration.inMilliseconds;
     final abFracA = isCurrent && ab.hasA && totalMs > 0
-        ? (ab.pointA!.inMilliseconds / totalMs).clamp(0.0, 1.0)
+        ? (ab.pointA!.inMilliseconds / totalMs).clamp(0.0, 1.0).toDouble()
         : null;
     final abFracB = isCurrent && ab.hasB && totalMs > 0
-        ? (ab.pointB!.inMilliseconds / totalMs).clamp(0.0, 1.0)
+        ? (ab.pointB!.inMilliseconds / totalMs).clamp(0.0, 1.0).toDouble()
         : null;
 
     return Padding(
@@ -326,10 +326,10 @@ class _LandscapeBody extends ConsumerWidget {
     final isCurrent = ab.songId == song.id;
     final totalMs = song.duration.inMilliseconds;
     final abFracA = isCurrent && ab.hasA && totalMs > 0
-        ? (ab.pointA!.inMilliseconds / totalMs).clamp(0.0, 1.0)
+        ? (ab.pointA!.inMilliseconds / totalMs).clamp(0.0, 1.0).toDouble()
         : null;
     final abFracB = isCurrent && ab.hasB && totalMs > 0
-        ? (ab.pointB!.inMilliseconds / totalMs).clamp(0.0, 1.0)
+        ? (ab.pointB!.inMilliseconds / totalMs).clamp(0.0, 1.0).toDouble()
         : null;
 
     return Row(
