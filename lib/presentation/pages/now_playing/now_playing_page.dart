@@ -57,6 +57,10 @@ class NowPlayingPage extends ConsumerStatefulWidget {
 
 class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
     with TickerProviderStateMixin {
+  // Calm tempo used when a track carries no BPM tag, so the lights still
+  // breathe gently rather than freezing.
+  static const int _kDefaultBpm = 100;
+
   late final AnimationController _ambientCtrl = AnimationController(
     vsync: this,
     duration: const Duration(seconds: 28),
@@ -67,6 +71,16 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
     vsync: this,
     duration: const Duration(milliseconds: 900),
   );
+
+  // One full cycle per beat — the light orbs pulse on each downbeat. The period
+  // is rebuilt from the current track's BPM so a fast song pulses fast and a
+  // slow one pulses slow. (The audio engine exposes no real-time spectrum, so
+  // the rhythm is read from the track's BPM tag — see _syncBeat.)
+  late final AnimationController _beatCtrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 600),
+  );
+  int? _beatBpm;
 
   // Tracks skip direction for the cover art slide animation.
   // +1 = forward (skip-next), -1 = backward (skip-prev), 0 = initial / unknown.
@@ -79,6 +93,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
     // Sync pause-convergence to current playing state without animation.
     final isPlaying = ref.read(playbackStateProvider).valueOrNull?.playing ?? true;
     _pauseCtrl.value = isPlaying ? 0.0 : 1.0;
+    _syncBeat();
   }
 
   void _syncAmbient() {
@@ -89,10 +104,32 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
     }
   }
 
+  /// Rebuilds the beat clock from the current track's BPM and starts/stops it
+  /// with the playing state. Falls back to [_kDefaultBpm] when no tag is present.
+  void _syncBeat() {
+    if (!mounted) return;
+    final state = ref.read(playbackStateProvider).valueOrNull;
+    final playing = state?.playing ?? false;
+    final tagged = state?.currentSong?.bpm ?? 0;
+    final bpm = (tagged >= 40 && tagged <= 220) ? tagged : _kDefaultBpm;
+    if (_beatBpm != bpm) {
+      _beatBpm = bpm;
+      _beatCtrl.duration = Duration(milliseconds: (60000 / bpm).round());
+      if (_beatCtrl.isAnimating) _beatCtrl.repeat();
+    }
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    if (playing && !reduceMotion) {
+      if (!_beatCtrl.isAnimating) _beatCtrl.repeat();
+    } else {
+      _beatCtrl.stop();
+    }
+  }
+
   @override
   void dispose() {
     _ambientCtrl.dispose();
     _pauseCtrl.dispose();
+    _beatCtrl.dispose();
     super.dispose();
   }
 
@@ -120,6 +157,12 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
       } else if (!wasPlaying && isPlaying) {
         _pauseCtrl.reverse();
       }
+      // Re-arm the beat clock on play/pause and whenever the track (BPM) changes.
+      final prevBpm = prev?.valueOrNull?.currentSong?.bpm;
+      final nextBpm = next.valueOrNull?.currentSong?.bpm;
+      if (wasPlaying != isPlaying || prevBpm != nextBpm) {
+        _syncBeat();
+      }
     });
 
     // A-B repeat loop enforcement: seek back to A whenever position passes B.
@@ -146,6 +189,13 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
     final wash = dynamicColor ? SeedPalette.wash(song.artworkSeed) : colors.background;
     final isLandscape = MediaQuery.orientationOf(context) == Orientation.landscape;
 
+    // The liquid-glass intensity from Settings drives both how heavily the
+    // backdrop is blurred and how frosted (matte) it reads, so changing the
+    // slider visibly changes the Now Playing glass.
+    final glass = ref.watch(settingsProvider.select((s) => s.glassIntensity));
+    final blurSigma = _glassBlur(glass);
+    final frost = _glassFrost(glass);
+
     return GestureDetector(
       onVerticalDragEnd: (d) {
         if ((d.primaryVelocity ?? 0) > 600) Navigator.of(context).maybePop();
@@ -169,32 +219,41 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
             Positioned.fill(
               child: ColoredBox(color: colors.background),
             ),
-            // ── Layer 2: album-color light sources ───────────────────────────
+            // ── Layer 2: album-color light sources (dance to the beat) ───────
             Positioned.fill(
               child: AnimatedBuilder(
-                animation: Listenable.merge([_ambientCtrl, _pauseCtrl]),
+                animation:
+                    Listenable.merge([_ambientCtrl, _pauseCtrl, _beatCtrl]),
                 builder: (_, __) => CustomPaint(
                   painter: _AmbientPainter(
                     t: _ambientCtrl.value,
                     accent: accent,
                     wash: wash,
                     convergence: _pauseCtrl.value,
+                    beat: _beatCtrl.value,
                   ),
                 ),
               ),
             ),
-            // ── Layer 3: frosted glass ───────────────────────────────────────
+            // ── Layer 3: frosted glass (intensity-driven) ────────────────────
             Positioned.fill(
-              child: ClipRect(
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 52, sigmaY: 52),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: colors.background.withOpacity(0.55),
+              child: blurSigma > 0
+                  ? ClipRect(
+                      child: BackdropFilter(
+                        filter:
+                            ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: colors.background.withOpacity(frost),
+                          ),
+                        ),
+                      ),
+                    )
+                  : DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: colors.background.withOpacity(frost),
+                      ),
                     ),
-                  ),
-                ),
-              ),
             ),
             // ── Layer 4: content ─────────────────────────────────────────────
             SafeArea(
@@ -208,6 +267,29 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
     );
   }
 }
+
+// ── Glass intensity → full-screen blur / frost mapping ───────────────────────
+
+/// Backdrop blur sigma for the Now Playing glass at each [GlassIntensity].
+/// Larger than the panel-level [GlassIntensity.sigma] because this blurs the
+/// whole screen behind the controls — the orbs should melt into soft colour.
+double _glassBlur(GlassIntensity g) => switch (g) {
+      GlassIntensity.off => 0.0,
+      GlassIntensity.subtle => 20.0,
+      GlassIntensity.medium => 34.0,
+      GlassIntensity.strong => 48.0,
+      GlassIntensity.ultra => 66.0,
+    };
+
+/// How matte (frosted) the glass reads. Deliberately translucent so the
+/// album-colour light orbs stay clearly visible through the frost.
+double _glassFrost(GlassIntensity g) => switch (g) {
+      GlassIntensity.off => 0.10,
+      GlassIntensity.subtle => 0.16,
+      GlassIntensity.medium => 0.22,
+      GlassIntensity.strong => 0.28,
+      GlassIntensity.ultra => 0.34,
+    };
 
 // ── Portrait layout ──────────────────────────────────────────────────────────
 
@@ -1258,7 +1340,7 @@ class _UtilityRow extends ConsumerWidget {
           onTap: () => openEqualizer(context),
         ),
         _UtilTile(
-          icon: PhosphorIconsRegular.microphone,
+          icon: PhosphorIconsRegular.quotes,
           label: l10n.lyrics,
           highlight: hasLyrics,
           onTap: () => openLyrics(context),
@@ -2079,20 +2161,27 @@ Future<void> _showAddBookmarkDialog(
 
 // ── Ambient painter — three vibrant drifting light sources ──────────────────
 
-/// Three radial-gradient orbs that drift slowly under the frosted glass.
-/// When [convergence] → 1 (paused state), orbs converge toward the artwork
-/// centre and fade out — simulating the lights "collecting" under the cover.
+/// Three radial-gradient orbs that drift slowly under the frosted glass and
+/// pulse on every beat — [beat] runs 0→1 once per beat, so each orb swells and
+/// brightens on the downbeat then eases back. A fast track pulses fast, a slow
+/// one slow. When [convergence] → 1 (paused) the orbs gather toward the artwork
+/// centre and fade — the lights "collecting" under the cover.
+///
+/// Colours come from the album seed (accent / wash), so the effect reads on
+/// every theme — light, dark and AMOLED alike — over [colors.background].
 class _AmbientPainter extends CustomPainter {
   _AmbientPainter({
     required this.t,
     required this.accent,
     required this.wash,
     this.convergence = 0.0,
+    this.beat = 0.0,
   });
   final double t;
   final Color accent;
   final Color wash;
   final double convergence;
+  final double beat;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -2100,6 +2189,11 @@ class _AmbientPainter extends CustomPainter {
     final target = Offset(size.width * 0.5, size.height * 0.38);
     final fade = (1.0 - convergence).clamp(0.0, 1.0);
 
+    // Beat envelope: sharp attack on the downbeat, smooth decay. Suppressed as
+    // the orbs converge so a paused track sits perfectly still.
+    final pulse = math.pow(1.0 - beat.clamp(0.0, 1.0), 1.7).toDouble() * fade;
+
+    // Orb 1 — large accent wash, full-strength pulse.
     _drawOrb(
       canvas,
       _converge(
@@ -2109,11 +2203,15 @@ class _AmbientPainter extends CustomPainter {
         ),
         target,
       ),
-      size.width * 0.70 * (1.0 - convergence * 0.45),
-      accent.withOpacity(0.28 * fade),
+      size.width * 0.70 * (1.0 - convergence * 0.45) * (1.0 + 0.13 * pulse),
+      accent.withOpacity(
+          (0.30 * fade * (1.0 + 0.55 * pulse)).clamp(0.0, 0.9).toDouble()),
     );
 
-    // Second orb uses the wash tint for complementary colour.
+    // Orb 2 — complementary wash tint, gentler pulse, offset half a beat so the
+    // two big orbs trade emphasis instead of pulsing in lock-step.
+    final pulse2 =
+        math.pow(1.0 - ((beat + 0.5) % 1.0), 1.7).toDouble() * fade;
     _drawOrb(
       canvas,
       _converge(
@@ -2123,10 +2221,12 @@ class _AmbientPainter extends CustomPainter {
         ),
         target,
       ),
-      size.width * 0.56 * (1.0 - convergence * 0.55),
-      Color.lerp(accent, wash, 0.45)!.withOpacity(0.22 * fade),
+      size.width * 0.56 * (1.0 - convergence * 0.55) * (1.0 + 0.11 * pulse2),
+      Color.lerp(accent, wash, 0.45)!.withOpacity(
+          (0.25 * fade * (1.0 + 0.5 * pulse2)).clamp(0.0, 0.9).toDouble()),
     );
 
+    // Orb 3 — smaller, snappier accent highlight, full-strength pulse.
     _drawOrb(
       canvas,
       _converge(
@@ -2136,8 +2236,9 @@ class _AmbientPainter extends CustomPainter {
         ),
         target,
       ),
-      size.width * 0.44 * (1.0 - convergence * 0.65),
-      accent.withOpacity(0.18 * fade),
+      size.width * 0.44 * (1.0 - convergence * 0.65) * (1.0 + 0.16 * pulse),
+      accent.withOpacity(
+          (0.22 * fade * (1.0 + 0.6 * pulse)).clamp(0.0, 0.9).toDouble()),
     );
   }
 
@@ -2162,5 +2263,9 @@ class _AmbientPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_AmbientPainter o) =>
-      o.t != t || o.accent != accent || o.wash != wash || o.convergence != convergence;
+      o.t != t ||
+      o.accent != accent ||
+      o.wash != wash ||
+      o.convergence != convergence ||
+      o.beat != beat;
 }

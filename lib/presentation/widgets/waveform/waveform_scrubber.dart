@@ -12,8 +12,10 @@ import '../../../core/theme/color_scheme.dart';
 import '../../../core/theme/typography.dart';
 import '../../providers/playback_providers.dart';
 
-/// Progress scrubber that shows animated EQ bars while playing and collapses
-/// to a clean thin track when paused. Transitions between modes smoothly.
+/// Progress scrubber. The clean progress rail is *always* visible (playing or
+/// paused) so the position is never lost. While playing, a faint translucent
+/// "subdermal" wave ripples just beneath the surface of the rail; when paused
+/// it settles back to a still, clean line.
 ///
 /// [onLongPress] fires with the tapped duration — host uses this to cycle
 /// A-B repeat points. [bookmarkFractions] draw tick marks on the track.
@@ -64,16 +66,16 @@ class _WaveformScrubberState extends ConsumerState<WaveformScrubber>
   );
   Animation<double>? _seekAnim;
 
-  // Drives the EQ bar animation while playing.
-  late final AnimationController _barCtrl = AnimationController(
+  // Drives the slow horizontal travel of the subdermal wave while playing.
+  late final AnimationController _waveCtrl = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 2000),
+    duration: const Duration(milliseconds: 2600),
   );
 
-  // 0 = line mode (paused), 1 = bar mode (playing).
-  late final AnimationController _modeCtrl = AnimationController(
+  // 0 = still line (paused), 1 = rippling wave (playing).
+  late final AnimationController _waveAmpCtrl = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 380),
+    duration: const Duration(milliseconds: 420),
     value: widget.isPlaying ? 1.0 : 0.0,
   );
 
@@ -91,33 +93,33 @@ class _WaveformScrubberState extends ConsumerState<WaveformScrubber>
         _thumbController.reverse();
       }
     });
-    _syncBars();
+    _syncWave();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _syncBars();
+    _syncWave();
   }
 
   @override
   void didUpdateWidget(WaveformScrubber old) {
     super.didUpdateWidget(old);
-    if (widget.isPlaying != old.isPlaying) _syncBars();
+    if (widget.isPlaying != old.isPlaying) _syncWave();
   }
 
-  void _syncBars() {
+  void _syncWave() {
     if (!mounted) return;
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
     if (widget.isPlaying && !reduceMotion) {
-      if (!_barCtrl.isAnimating) _barCtrl.repeat();
-      _modeCtrl.animateTo(1.0, curve: Curves.easeOut);
+      if (!_waveCtrl.isAnimating) _waveCtrl.repeat();
+      _waveAmpCtrl.animateTo(1.0, curve: Curves.easeOut);
     } else {
-      _barCtrl.stop();
+      _waveCtrl.stop();
       if (reduceMotion) {
-        _modeCtrl.value = widget.isPlaying ? 1.0 : 0.0;
+        _waveAmpCtrl.value = widget.isPlaying ? 1.0 : 0.0;
       } else {
-        _modeCtrl.animateTo(0.0, curve: Curves.easeIn);
+        _waveAmpCtrl.animateTo(0.0, curve: Curves.easeIn);
       }
     }
   }
@@ -126,8 +128,8 @@ class _WaveformScrubberState extends ConsumerState<WaveformScrubber>
   void dispose() {
     _thumbController.dispose();
     _seekController.dispose();
-    _barCtrl.dispose();
-    _modeCtrl.dispose();
+    _waveCtrl.dispose();
+    _waveAmpCtrl.dispose();
     super.dispose();
   }
 
@@ -204,7 +206,7 @@ class _WaveformScrubberState extends ConsumerState<WaveformScrubber>
               return Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  // ── track / bar gesture area ───────────────────────────
+                  // ── track gesture area ─────────────────────────────────
                   Positioned(
                     left: 0,
                     right: 0,
@@ -237,82 +239,52 @@ class _WaveformScrubberState extends ConsumerState<WaveformScrubber>
                       onHorizontalDragEnd:
                           hasDuration ? (_) => _onDragEnd() : null,
                       child: AnimatedBuilder(
-                        animation:
-                            Listenable.merge([_thumbScale, _modeCtrl, _barCtrl]),
+                        animation: Listenable.merge(
+                            [_thumbScale, _waveAmpCtrl, _waveCtrl]),
                         builder: (_, __) {
-                          final mode = _modeCtrl.value;
-                          return Stack(
-                            children: [
-                              // Line mode layer (fades out when playing)
-                              if (mode < 0.999)
-                                Opacity(
-                                  opacity: (1.0 - mode).clamp(0.0, 1.0),
-                                  child: CustomPaint(
-                                    size: Size(w, 44),
-                                    painter: _TrackPainter(
-                                      progress: fraction,
-                                      activeColor: widget.accent,
-                                      trackColor:
-                                          colors.onSurface.withOpacity(0.10),
-                                      trackH: 4.0 + 2.0 * _thumbScale.value,
-                                      bookmarkFractions: widget.bookmarkFractions,
-                                      abA: widget.abPointA,
-                                      abB: widget.abPointB,
-                                    ),
-                                  ),
-                                ),
-                              // Bar mode layer (fades in when playing)
-                              if (mode > 0.001)
-                                Opacity(
-                                  opacity: mode.clamp(0.0, 1.0),
-                                  child: CustomPaint(
-                                    size: Size(w, 44),
-                                    painter: _BarPainter(
-                                      progress: fraction,
-                                      t: _barCtrl.value,
-                                      activeColor: widget.accent,
-                                      abA: widget.abPointA,
-                                      abB: widget.abPointB,
-                                    ),
-                                  ),
-                                ),
-                            ],
+                          return CustomPaint(
+                            size: Size(w, 44),
+                            painter: _TrackPainter(
+                              progress: fraction,
+                              activeColor: widget.accent,
+                              trackColor: colors.onSurface.withOpacity(0.10),
+                              trackH: 4.0 + 2.0 * _thumbScale.value,
+                              waveAmp: _waveAmpCtrl.value,
+                              wavePhase: _waveCtrl.value,
+                              bookmarkFractions: widget.bookmarkFractions,
+                              abA: widget.abPointA,
+                              abB: widget.abPointB,
+                            ),
                           );
                         },
                       ),
                     ),
                   ),
 
-                  // ── playhead dot (line mode only) ──────────────────────
+                  // ── playhead dot (always visible) ──────────────────────
                   AnimatedBuilder(
-                    animation: Listenable.merge([_thumbScale, _modeCtrl]),
+                    animation: _thumbScale,
                     builder: (_, __) {
-                      final mode = _modeCtrl.value;
-                      if (mode > 0.85) return const SizedBox.shrink();
-                      final opacity = (1.0 - mode / 0.85).clamp(0.0, 1.0);
-                      final baseR = 5.0;
-                      final dragR = 9.0;
+                      const baseR = 5.0;
+                      const dragR = 9.0;
                       final r = baseR + (dragR - baseR) * _thumbScale.value;
                       const trackY = 22.0;
                       return Positioned(
                         bottom: trackY - r,
                         left: (thumbX - r).clamp(0.0, math.max(0, w - r * 2)),
-                        child: Opacity(
-                          opacity: opacity,
-                          child: Container(
-                            width: r * 2,
-                            height: r * 2,
-                            decoration: BoxDecoration(
-                              color: widget.accent,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: widget.accent.withOpacity(0.38),
-                                  blurRadius: 7 + 4 * _thumbScale.value,
-                                  spreadRadius: 1,
-                                ),
-                              ],
-                            ),
+                        child: Container(
+                          width: r * 2,
+                          height: r * 2,
+                          decoration: BoxDecoration(
+                            color: widget.accent,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: widget.accent.withOpacity(0.38),
+                                blurRadius: 7 + 4 * _thumbScale.value,
+                                spreadRadius: 1,
+                              ),
+                            ],
                           ),
                         ),
                       );
@@ -382,14 +354,18 @@ class _Tooltip extends StatelessWidget {
   }
 }
 
-// ── Line mode painter (paused) ───────────────────────────────────────────────
+// ── Track painter ────────────────────────────────────────────────────────────
 
-/// Clean progress line — no neon, just a soft filled rail and optional A-B pins.
+/// Clean progress rail (always visible) plus a faint translucent "subdermal"
+/// sine wave that ripples beneath the surface while playing ([waveAmp] → 1) and
+/// flattens to nothing when paused ([waveAmp] → 0).
 class _TrackPainter extends CustomPainter {
   _TrackPainter({
     required this.progress,
     required this.activeColor,
     required this.trackColor,
+    required this.waveAmp,
+    required this.wavePhase,
     this.trackH = 4.0,
     this.bookmarkFractions = const [],
     this.abA,
@@ -399,6 +375,8 @@ class _TrackPainter extends CustomPainter {
   final double progress;
   final Color activeColor;
   final Color trackColor;
+  final double waveAmp;
+  final double wavePhase;
   final double trackH;
   final List<double> bookmarkFractions;
   final double? abA;
@@ -428,6 +406,50 @@ class _TrackPainter extends CustomPainter {
         ),
         Paint()..color = activeColor.withOpacity(0.82),
       );
+    }
+
+    // Subdermal wave — a thin, translucent sine just under the rail surface.
+    if (waveAmp > 0.01) {
+      final amp = 2.6 * waveAmp;
+      const periods = 13.0;
+      const twoPi = 2 * math.pi;
+
+      Path build(double from, double to) {
+        final p = Path();
+        var first = true;
+        for (double x = from; x <= to; x += 2) {
+          final phase = (x / size.width) * periods * twoPi - wavePhase * twoPi;
+          final y = centerY + math.sin(phase) * amp;
+          if (first) {
+            p.moveTo(x, y);
+            first = false;
+          } else {
+            p.lineTo(x, y);
+          }
+        }
+        return p;
+      }
+
+      // Unplayed side — barely-there.
+      canvas.drawPath(
+        build(playheadX, size.width),
+        Paint()
+          ..color = activeColor.withOpacity(0.06 * waveAmp)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.3
+          ..strokeCap = StrokeCap.round,
+      );
+      // Played side — a touch more present, still subdermal.
+      if (playheadX > 1) {
+        canvas.drawPath(
+          build(0, playheadX),
+          Paint()
+            ..color = activeColor.withOpacity(0.16 * waveAmp)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.4
+            ..strokeCap = StrokeCap.round,
+        );
+      }
     }
 
     // A-B loop region
@@ -473,103 +495,10 @@ class _TrackPainter extends CustomPainter {
       o.progress != progress ||
       o.activeColor != activeColor ||
       o.trackColor != trackColor ||
+      o.waveAmp != waveAmp ||
+      o.wavePhase != wavePhase ||
       o.trackH != trackH ||
       o.bookmarkFractions != bookmarkFractions ||
-      o.abA != abA ||
-      o.abB != abB;
-}
-
-// ── Bar mode painter (playing) ───────────────────────────────────────────────
-
-/// Animated EQ visualizer bars. Bars to the left of the playhead are bright;
-/// bars to the right are dim. Each bar oscillates at a unique phase and speed.
-class _BarPainter extends CustomPainter {
-  _BarPainter({
-    required this.progress,
-    required this.t,
-    required this.activeColor,
-    this.abA,
-    this.abB,
-  });
-
-  final double progress;
-  final double t;
-  final Color activeColor;
-  final double? abA;
-  final double? abB;
-
-  static const double _barW = 3.5;
-  static const double _gap = 2.5;
-  static const double _step = _barW + _gap;
-  static const double _maxH = 36.0;
-  static const double _minH = 3.0;
-
-  // Spectrum envelope: peaks in the upper-mids, simulates typical music energy.
-  static const List<double> _env = [
-    0.18, 0.32, 0.52, 0.70, 0.84, 0.92, 0.98, 1.00, 0.96, 0.90,
-    0.88, 0.92, 0.96, 0.88, 0.78, 0.68, 0.62, 0.70, 0.58, 0.46,
-    0.40, 0.42, 0.36, 0.28, 0.24, 0.20, 0.16, 0.20, 0.24, 0.18,
-    0.14, 0.12,
-  ];
-
-  double _barH(int i) {
-    final base = _env[i % _env.length];
-    final phase = i * 0.51;
-    final freq = 0.65 + (i % 7) * 0.10;
-    final anim = 0.35 + 0.65 * ((1.0 + math.sin(t * 2 * math.pi * freq + phase)) / 2);
-    return _minH + (_maxH - _minH) * base * anim;
-  }
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final n = (size.width / _step).floor();
-    if (n < 2) return;
-    final totalW = n * _step - _gap;
-    final startX = (size.width - totalW) / 2;
-    final centerY = size.height / 2;
-    final playheadX = progress * size.width;
-
-    // A-B tint behind bars
-    final a = abA;
-    final b = abB;
-    if (a != null && b != null) {
-      canvas.drawRect(
-        Rect.fromLTWH(a * size.width, 0, (b - a) * size.width, size.height),
-        Paint()..color = activeColor.withOpacity(0.09),
-      );
-    }
-
-    for (int i = 0; i < n; i++) {
-      final x = startX + i * _step;
-      final h = _barH(i);
-      final played = (x + _barW / 2) <= playheadX;
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(x, centerY - h / 2, _barW, h),
-          const Radius.circular(1.5),
-        ),
-        Paint()..color = activeColor.withOpacity(played ? 0.80 : 0.26),
-      );
-    }
-
-    // Thin playhead line in bar mode
-    if (playheadX > 0 && playheadX < size.width) {
-      canvas.drawLine(
-        Offset(playheadX, 2),
-        Offset(playheadX, size.height - 2),
-        Paint()
-          ..color = activeColor.withOpacity(0.72)
-          ..strokeWidth = 1.5
-          ..strokeCap = StrokeCap.round,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_BarPainter o) =>
-      o.progress != progress ||
-      o.t != t ||
-      o.activeColor != activeColor ||
       o.abA != abA ||
       o.abB != abB;
 }

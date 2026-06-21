@@ -9,6 +9,7 @@ import 'package:aura_music_player/presentation/widgets/player/mini_player.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class _InstantRepo implements LibraryRepository {
   const _InstantRepo();
@@ -68,16 +69,16 @@ void main() {
     expect(find.text('Test Song'), findsWidgets);
 
     // Favourite toggles from outline to filled.
-    expect(find.byIcon(Icons.favorite_border), findsOneWidget);
-    await tester.tap(find.byIcon(Icons.favorite_border));
+    expect(find.byIcon(PhosphorIconsRegular.heart), findsOneWidget);
+    await tester.tap(find.byIcon(PhosphorIconsRegular.heart));
     await tester.pump();
-    expect(find.byIcon(Icons.favorite), findsOneWidget);
+    expect(find.byIcon(PhosphorIconsFill.heart), findsOneWidget);
 
     // Cycling repeat twice reaches "repeat one".
-    await tester.tap(find.byIcon(Icons.repeat_rounded));
+    await tester.tap(find.byIcon(PhosphorIconsRegular.repeat));
     await tester.pump();
-    await tester.tap(find.byIcon(Icons.repeat_rounded));
+    await tester.tap(find.byIcon(PhosphorIconsRegular.repeat));
     await tester.pump();
-    expect(find.byIcon(Icons.repeat_one_rounded), findsOneWidget);
+    expect(find.byIcon(PhosphorIconsRegular.repeatOnce), findsOneWidget);
   });
 }

@@ -43,6 +43,7 @@ void main() {
                   duration: const Duration(seconds: 100),
                   accent: const Color(0xFF8E8E93),
                   seed: 'al1',
+                  isPlaying: false,
                 ),
               ),
             ),
@@ -52,13 +53,15 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final gesture = find.byKey(const Key('waveform_gesture'));
+    final gesture = find.byKey(const Key('scrubber_gesture'));
     final topLeft = tester.getTopLeft(gesture);
     final size = tester.getSize(gesture);
 
-    // Tap at 75% of the width.
+    // Tap at 75% of the width. The tap kicks off a short animated seek, so pump
+    // past its 300ms duration to let it commit the new position.
     await tester.tapAt(Offset(topLeft.dx + size.width * 0.75, topLeft.dy + size.height / 2));
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
 
     // ~75s into a 100s track (allow a bar's worth of rounding).
     expect(fake.position.inSeconds, closeTo(75, 2));
