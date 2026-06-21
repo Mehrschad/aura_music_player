@@ -30,6 +30,7 @@ dependencies:
   # is the active backend until flipped on device — see just_audio_controller.dart)
   just_audio: ^0.9.38
   audio_service: ^0.18.13
+  just_waveform: ^0.0.16
 
   # ── Enabled per build step (uncomment as each step lands) ────────────────
   # Equalizer & DSP — step 9 (Android system-EQ bridge; the visual EQ is the
