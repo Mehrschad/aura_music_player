@@ -383,5 +383,9 @@
   "npEq": "موازن",
   "npSleep": "نوم",
   "badgeSynced": "متزامن",
-  "browseGenres": "تصفّح الأنواع"
+  "browseGenres": "تصفّح الأنواع",
+  "dynamicColorSub": "تلوين من صورة الألبوم",
+  "androidAutoSub": "إظهار Aura في سيارتك",
+  "lyricsAutoFetchSub": "من Genius عند عدم التوفر",
+  "smartPlaylistAutoCount": "{count, plural, zero{تلقائي · لا أغانٍ} one{تلقائي · أغنية واحدة} two{تلقائي · أغنيتان} few{تلقائي · {count} أغانٍ} many{تلقائي · {count} أغنية} other{تلقائي · {count} أغنية}}"
 }

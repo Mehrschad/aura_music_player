@@ -86,6 +86,7 @@ class SettingsPage extends ConsumerWidget {
             ),
             _SwitchTile(
                 label: l10n.dynamicColor,
+                sub: l10n.dynamicColorSub,
                 value: s.dynamicColor,
                 onChanged: n.setDynamicColor),
             _SliderTile(
@@ -228,6 +229,7 @@ class SettingsPage extends ConsumerWidget {
           _CardGroup(children: [
             _SwitchTile(
                 label: l10n.lyricsAutoFetch,
+                sub: l10n.lyricsAutoFetchSub,
                 value: s.lyricsAutoFetch,
                 onChanged: n.setLyricsAutoFetch),
             _TextTile(
@@ -278,6 +280,7 @@ class SettingsPage extends ConsumerWidget {
                 onChanged: n.setLastFm),
             _SwitchTile(
                 label: l10n.androidAuto,
+                sub: l10n.androidAutoSub,
                 value: s.androidAuto,
                 onChanged: n.setAndroidAuto),
           ]),
@@ -306,6 +309,9 @@ class SettingsPage extends ConsumerWidget {
           _GroupTitle(l10n.settingsAbout),
           _CardGroup(children: [
             ListTile(
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: SpacingTokens.xl),
+              leading: Icon(Icons.info_outline, color: colors.onSurfaceMuted),
               title: Text(l10n.version,
                   style: AppTextTheme.body.copyWith(color: colors.onSurface)),
               trailing: Text('${AppInfo.version} (${AppInfo.buildNumber})',
@@ -516,17 +522,22 @@ class _Chips<T> extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: SpacingTokens.md,
-                        vertical: SpacingTokens.xs),
+                        vertical: SpacingTokens.sm),
                     decoration: BoxDecoration(
+                      // Selected chips use the aurora-2 accent per the DS.
                       color: v == current
-                          ? colors.accent
-                          : colors.surfaceElevated,
+                          ? AuroraColors.c2
+                          : colors.surface,
                       borderRadius: RadiusTokens.brPill,
+                      border: Border.all(
+                          color: v == current
+                              ? AuroraColors.c2
+                              : colors.divider),
                     ),
                     child: Text(labelFor(v),
                         style: AppTextTheme.caption.copyWith(
                             color: v == current
-                                ? colors.background
+                                ? AuroraColors.onAurora
                                 : colors.onSurfaceMuted)),
                   ),
                 ),
@@ -540,8 +551,12 @@ class _Chips<T> extends StatelessWidget {
 
 class _SwitchTile extends StatelessWidget {
   const _SwitchTile(
-      {required this.label, required this.value, required this.onChanged});
+      {required this.label,
+      required this.value,
+      required this.onChanged,
+      this.sub});
   final String label;
+  final String? sub;
   final bool value;
   final ValueChanged<bool> onChanged;
 
@@ -553,7 +568,15 @@ class _SwitchTile extends StatelessWidget {
           const EdgeInsets.symmetric(horizontal: SpacingTokens.xl),
       title: Text(label,
           style: AppTextTheme.body.copyWith(color: colors.onSurface)),
+      subtitle: sub == null
+          ? null
+          : Text(sub!,
+              style: AppTextTheme.caption
+                  .copyWith(color: colors.onSurfaceFaint)),
       value: value,
+      // Switch tracks/thumbs use the aurora-2 accent per the DS.
+      activeColor: AuroraColors.onAurora,
+      activeTrackColor: AuroraColors.c2,
       onChanged: (v) {
         HapticFeedback.selectionClick();
         onChanged(v);
@@ -599,12 +622,21 @@ class _SliderTile extends StatelessWidget {
                       .copyWith(color: colors.onSurfaceMuted)),
             ],
           ),
-          Slider(
-            value: value,
-            min: min,
-            max: max,
-            divisions: divisions,
-            onChanged: onChanged,
+          // Slider track/thumb use the aurora-2 accent per the DS.
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: AuroraColors.c2,
+              thumbColor: AuroraColors.c2,
+              inactiveTrackColor: colors.divider,
+              overlayColor: AuroraColors.c2.withOpacity(0.18),
+            ),
+            child: Slider(
+              value: value,
+              min: min,
+              max: max,
+              divisions: divisions,
+              onChanged: onChanged,
+            ),
           ),
         ],
       ),
@@ -650,10 +682,19 @@ class _TextTile extends StatelessWidget {
 
 class _NavTile extends StatelessWidget {
   const _NavTile(
-      {required this.label, required this.icon, required this.onTap});
+      {required this.label,
+      required this.icon,
+      required this.onTap,
+      this.sub,
+      this.trailing});
   final String label;
   final IconData icon;
   final VoidCallback onTap;
+  final String? sub;
+
+  /// Optional trailing value (e.g. version string). When set the chevron is
+  /// replaced by this text, matching the DS RowNav trailing variant.
+  final String? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -664,6 +705,15 @@ class _NavTile extends StatelessWidget {
       leading: Icon(icon, color: colors.onSurfaceMuted),
       title: Text(label,
           style: AppTextTheme.body.copyWith(color: colors.onSurface)),
+      subtitle: sub == null
+          ? null
+          : Text(sub!,
+              style: AppTextTheme.caption
+                  .copyWith(color: colors.onSurfaceFaint)),
+      trailing: trailing != null
+          ? Text(trailing!,
+              style: AppTextTheme.caption.copyWith(color: colors.onSurfaceMuted))
+          : Icon(Icons.chevron_right, color: colors.onSurfaceFaint),
       onTap: onTap,
     );
   }

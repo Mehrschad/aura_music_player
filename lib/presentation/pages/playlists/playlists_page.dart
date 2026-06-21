@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/aurora_colors.dart';
+import '../../../core/constants/icon_sizes.dart';
 import '../../../core/constants/radius_tokens.dart';
 import '../../../core/constants/spacing_tokens.dart';
 import '../../../core/l10n/app_localizations.dart';
@@ -51,8 +52,7 @@ class PlaylistsPage extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(SpacingTokens.xl, 0,
                 SpacingTokens.xl, SpacingTokens.sm),
-            child: Text(l10n.playlistsMadeForYou,
-                style: AppTextTheme.title.copyWith(color: colors.onSurfaceMuted)),
+            child: _SubHead(text: l10n.playlistsMadeForYou),
           ),
           Padding(
             padding:
@@ -95,9 +95,7 @@ class PlaylistsPage extends ConsumerWidget {
                 SpacingTokens.sm, SpacingTokens.xs),
             child: Row(
               children: [
-                Text(l10n.playlistsYours,
-                    style: AppTextTheme.title
-                        .copyWith(color: colors.onSurfaceMuted)),
+                _SubHead(text: l10n.playlistsYours),
                 const Spacer(),
                 IconButton(
                   tooltip: l10n.playlistNew,
@@ -133,9 +131,7 @@ class PlaylistsPage extends ConsumerWidget {
                 SpacingTokens.xl, 0, SpacingTokens.sm, SpacingTokens.xs),
             child: Row(
               children: [
-                Text(l10n.smartPlaylists,
-                    style: AppTextTheme.title
-                        .copyWith(color: colors.onSurfaceMuted)),
+                _SubHead(text: l10n.smartPlaylists),
                 const Spacer(),
                 IconButton(
                   tooltip: l10n.smartPlaylistNew,
@@ -161,6 +157,26 @@ class PlaylistsPage extends ConsumerWidget {
   }
 }
 
+/// Uppercase section subhead (13/600, faint, +0.3 tracking) per the DS.
+class _SubHead extends StatelessWidget {
+  const _SubHead({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text.toUpperCase(),
+      style: AppTextTheme.body.copyWith(
+        color: context.colors.onSurfaceFaint,
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0.3,
+      ),
+    );
+  }
+}
+
 class _AutoCard extends StatelessWidget {
   const _AutoCard({
     required this.label,
@@ -180,9 +196,10 @@ class _AutoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final l10n = AppLocalizations.of(context);
+    // Favorites uses a favorite-tinted box; others a deeper surface box.
     final iconBg = isFavorites
         ? colors.favorite.withOpacity(0.16)
-        : colors.surfaceElevated;
+        : colors.surface;
     final iconColor = isFavorites ? colors.favorite : colors.onSurface;
     final iconData = isFavorites ? Icons.favorite : icon;
 
@@ -193,10 +210,7 @@ class _AutoCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: colors.surfaceElevated,
           borderRadius: RadiusTokens.brMd,
-          border: Border.all(
-            color: colors.onSurface.withOpacity(0.06),
-            width: 0.8,
-          ),
+          border: Border.all(color: colors.divider),
         ),
         padding: const EdgeInsets.all(SpacingTokens.md),
         child: Row(
@@ -206,9 +220,9 @@ class _AutoCard extends StatelessWidget {
               height: 38,
               decoration: BoxDecoration(
                 color: iconBg,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: RadiusTokens.brSm,
               ),
-              child: Icon(iconData, color: iconColor, size: 20),
+              child: Icon(iconData, color: iconColor, size: IconSizes.md),
             ),
             const SizedBox(width: SpacingTokens.sm),
             Expanded(
@@ -249,17 +263,17 @@ class _SmartRow extends StatelessWidget {
       leading: Container(
         width: 48,
         height: 48,
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: AuroraColors.gradientSoft,
-          borderRadius: RadiusTokens.brXs,
+          borderRadius: RadiusTokens.brSm,
         ),
-        child: const Icon(Icons.auto_awesome, color: Colors.white),
+        child: Icon(Icons.auto_awesome, color: colors.onSurface),
       ),
       title: Text(name,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: AppTextTheme.title.copyWith(color: colors.onSurface)),
-      subtitle: Text(l10n.songsCount(count),
+      subtitle: Text(l10n.smartPlaylistAutoCount(count),
           style: AppTextTheme.caption.copyWith(color: colors.onSurfaceFaint)),
       trailing: Icon(Icons.chevron_right, color: colors.onSurfaceFaint),
       onTap: onTap,

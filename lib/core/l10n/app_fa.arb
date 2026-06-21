@@ -383,5 +383,9 @@
   "npEq": "اکولایزر",
   "npSleep": "خواب",
   "badgeSynced": "همگام",
-  "browseGenres": "مرور ژانرها"
+  "browseGenres": "مرور ژانرها",
+  "dynamicColorSub": "رنگ‌آمیزی از کاور آلبوم",
+  "androidAutoSub": "نمایش Aura در خودرو",
+  "lyricsAutoFetchSub": "از Genius در صورت نبود",
+  "smartPlaylistAutoCount": "{count, plural, other{خودکار · {count} آهنگ}}"
 }

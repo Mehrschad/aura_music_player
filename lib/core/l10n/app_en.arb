@@ -786,5 +786,26 @@
   "browseGenres": "Browse genres",
   "@browseGenres": {
     "description": "Search screen section header above the genre browse cards."
+  },
+  "dynamicColorSub": "Tint from album art",
+  "@dynamicColorSub": {
+    "description": "Subtitle under the Dynamic colour setting."
+  },
+  "androidAutoSub": "Show Aura in your car",
+  "@androidAutoSub": {
+    "description": "Subtitle under the Android Auto setting."
+  },
+  "lyricsAutoFetchSub": "From Genius when missing",
+  "@lyricsAutoFetchSub": {
+    "description": "Subtitle under the auto-fetch lyrics setting."
+  },
+  "smartPlaylistAutoCount": "{count, plural, =0{Auto · No songs} =1{Auto · 1 song} other{Auto · {count} songs}}",
+  "@smartPlaylistAutoCount": {
+    "description": "Smart-playlist subtitle: Auto + pluralised song count.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   }
 }
