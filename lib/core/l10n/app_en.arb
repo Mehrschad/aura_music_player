@@ -796,6 +796,15 @@
   "@lightDanceSub": {
     "description": "Subtitle under the Light dance setting on the Now Playing screen."
   },
+  "visualizerStyle": "Visualizer style",
+  "@visualizerStyle": {
+    "description": "Label for the visualizer style setting."
+  },
+  "vizOff": "Off",
+  "vizOrbs": "Orbs",
+  "vizCoverTwirl": "Cover Twirl",
+  "vizMetaball": "Metaball",
+  "vizFlowField": "Flow Field",
   "androidAutoSub": "Show Aura in your car",
   "@androidAutoSub": {
     "description": "Subtitle under the Android Auto setting."

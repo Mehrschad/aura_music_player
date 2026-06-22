@@ -387,6 +387,12 @@
   "browseGenres": "تصفّح الأنواع",
   "dynamicColorSub": "تلوين من صورة الألبوم",
   "lightDanceSub": "كرات ملوّنة تتمايل مع الإيقاع خلف الغلاف",
+  "visualizerStyle": "نمط التصور",
+  "vizOff": "إيقاف",
+  "vizOrbs": "فقاعات",
+  "vizCoverTwirl": "دوامة الغلاف",
+  "vizMetaball": "ميتابول",
+  "vizFlowField": "تيار",
   "androidAutoSub": "إظهار Aura في سيارتك",
   "lyricsAutoFetchSub": "من Genius عند عدم التوفر",
   "smartPlaylistAutoCount": "{count, plural, zero{تلقائي · لا أغانٍ} one{تلقائي · أغنية واحدة} two{تلقائي · أغنيتان} few{تلقائي · {count} أغانٍ} many{تلقائي · {count} أغنية} other{تلقائي · {count} أغنية}}"

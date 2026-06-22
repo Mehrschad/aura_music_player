@@ -387,6 +387,12 @@
   "browseGenres": "مرور ژانرها",
   "dynamicColorSub": "رنگ‌آمیزی از کاور آلبوم",
   "lightDanceSub": "گوی‌های رنگی پشت کاور با ریتم می‌رقصند",
+  "visualizerStyle": "سبک ویژوالایزر",
+  "vizOff": "خاموش",
+  "vizOrbs": "حباب‌ها",
+  "vizCoverTwirl": "چرخش کاور",
+  "vizMetaball": "متابال",
+  "vizFlowField": "جریان",
   "androidAutoSub": "نمایش Aura در خودرو",
   "lyricsAutoFetchSub": "از Genius در صورت نبود",
   "smartPlaylistAutoCount": "{count, plural, other{خودکار · {count} آهنگ}}"
