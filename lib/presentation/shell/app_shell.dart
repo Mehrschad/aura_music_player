@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -114,12 +115,16 @@ class _AppShellState extends ConsumerState<AppShell>
     final tab = ref.watch(selectedTabProvider);
     final tabIndex = tab.index;
 
-    // Listen for tab changes to drive the directional slide animation.
+    // Listen for tab changes to drive the directional slide animation, and
+    // expand the floating nav bar (a fresh tab always starts at the top).
     ref.listen(selectedTabProvider, (prev, next) {
       if (prev != null && prev != next) {
         _prevTabIndex = prev.index;
         _slideDir = next.index > prev.index ? 1 : -1;
         _tabCtrl.forward(from: 0);
+        if (ref.read(navMinimizedProvider)) {
+          ref.read(navMinimizedProvider.notifier).state = false;
+        }
       }
     });
 
@@ -128,7 +133,11 @@ class _AppShellState extends ConsumerState<AppShell>
       onPopInvoked: (_) => _handleBack(),
       child: Scaffold(
         extendBody: true,
-        body: AnimatedBuilder(
+        // Watch vertical scrolling anywhere in the page content to minimize /
+        // expand the floating nav bar the way iOS 26 tab bars do.
+        body: NotificationListener<UserScrollNotification>(
+          onNotification: _onUserScroll,
+          child: AnimatedBuilder(
           animation: _tabCtrl,
           builder: (context, _) {
             final t = _tabProgress.value;
@@ -143,6 +152,7 @@ class _AppShellState extends ConsumerState<AppShell>
               ],
             );
           },
+          ),
         ),
         bottomNavigationBar: Column(
           mainAxisSize: MainAxisSize.min,
@@ -157,6 +167,20 @@ class _AppShellState extends ConsumerState<AppShell>
         ),
       ),
     );
+  }
+
+  /// Minimizes the floating nav bar while scrolling down through vertical
+  /// content and expands it again on scroll up — the iOS 26 tab-bar behaviour.
+  /// Horizontal scrollers (album carousels) are ignored.
+  bool _onUserScroll(UserScrollNotification n) {
+    if (n.metrics.axis != Axis.vertical) return false;
+    final notifier = ref.read(navMinimizedProvider.notifier);
+    if (n.direction == ScrollDirection.reverse) {
+      if (!ref.read(navMinimizedProvider)) notifier.state = true;
+    } else if (n.direction == ScrollDirection.forward) {
+      if (ref.read(navMinimizedProvider)) notifier.state = false;
+    }
+    return false;
   }
 
   Widget _buildTabSlot(int i, int tabIndex, double t, bool isAnim, double W) {

@@ -11,6 +11,11 @@ enum AppTab { library, artists, albums, playlists, search }
 /// index.
 final selectedTabProvider = StateProvider<AppTab>((ref) => AppTab.library);
 
+/// True while the user is scrolling down through page content, signalling the
+/// floating tab bar to minimize (iOS 26 behaviour). Returns to false the moment
+/// the user scrolls back up or switches tabs.
+final navMinimizedProvider = StateProvider<bool>((ref) => false);
+
 /// Static metadata for each tab. Labels are resolved from l10n at the call
 /// site (see `glass_nav_bar.dart`), so only the icons live here.
 class TabSpec {
