@@ -2,6 +2,8 @@ import '../../core/theme/glass_theme.dart';
 
 enum ThemePref { system, light, dark, amoled }
 
+enum VisualizerStyle { off, orbs, coverTwirl, metaball, flowField }
+
 enum ReplayGainMode { off, track, album }
 
 enum InterruptionBehavior { pause, duck, ignore }
@@ -18,7 +20,7 @@ class AppSettings {
     this.themePref = ThemePref.amoled,
     this.glassIntensity = GlassIntensity.strong,
     this.dynamicColor = true,
-    this.lightDance = true,
+    this.visualizerStyle = VisualizerStyle.orbs,
     this.textScale = 1.0,
     this.density = DisplayDensity.standard,
     this.locale = LocalePref.system,
@@ -54,9 +56,13 @@ class AppSettings {
   final GlassIntensity glassIntensity;
   final bool dynamicColor;
 
-  /// The Now Playing ambient light-dance (colour orbs swirling to the beat).
-  /// When off, only a soft halo remains around the cover.
-  final bool lightDance;
+  /// The Now Playing background visualizer style.
+  /// [VisualizerStyle.off] disables the effect entirely; other values select
+  /// a specific animation. The [lightDance] getter provides backward-compat.
+  final VisualizerStyle visualizerStyle;
+
+  /// Convenience getter: true when any visualizer is active (not [VisualizerStyle.off]).
+  bool get lightDance => visualizerStyle != VisualizerStyle.off;
   final double textScale;
   final DisplayDensity density;
   final LocalePref locale;
@@ -102,7 +108,7 @@ class AppSettings {
     ThemePref? themePref,
     GlassIntensity? glassIntensity,
     bool? dynamicColor,
-    bool? lightDance,
+    VisualizerStyle? visualizerStyle,
     double? textScale,
     DisplayDensity? density,
     LocalePref? locale,
@@ -135,7 +141,7 @@ class AppSettings {
       themePref: themePref ?? this.themePref,
       glassIntensity: glassIntensity ?? this.glassIntensity,
       dynamicColor: dynamicColor ?? this.dynamicColor,
-      lightDance: lightDance ?? this.lightDance,
+      visualizerStyle: visualizerStyle ?? this.visualizerStyle,
       textScale: textScale ?? this.textScale,
       density: density ?? this.density,
       locale: locale ?? this.locale,
@@ -171,7 +177,7 @@ class AppSettings {
         'themePref': themePref.name,
         'glassIntensity': glassIntensity.name,
         'dynamicColor': dynamicColor,
-        'lightDance': lightDance,
+        'visualizerStyle': visualizerStyle.name,
         'textScale': textScale,
         'density': density.name,
         'locale': locale.name,
@@ -215,7 +221,9 @@ class AppSettings {
       glassIntensity: enumOf(
           GlassIntensity.values, json['glassIntensity'], d.glassIntensity),
       dynamicColor: json['dynamicColor'] as bool? ?? d.dynamicColor,
-      lightDance: json['lightDance'] as bool? ?? d.lightDance,
+      visualizerStyle: json['visualizerStyle'] != null
+          ? enumOf(VisualizerStyle.values, json['visualizerStyle'], d.visualizerStyle)
+          : (json['lightDance'] as bool? ?? true) ? VisualizerStyle.orbs : VisualizerStyle.off,
       textScale: (json['textScale'] as num?)?.toDouble() ?? d.textScale,
       density: enumOf(DisplayDensity.values, json['density'], d.density),
       locale: enumOf(LocalePref.values, json['locale'], d.locale),

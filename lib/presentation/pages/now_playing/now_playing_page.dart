@@ -18,6 +18,7 @@ import '../../../core/theme/glass_theme.dart';
 import '../../../core/theme/typography.dart';
 import '../../../core/utils/seed_color.dart';
 import '../../../domain/models/album.dart';
+import '../../../domain/models/app_settings.dart' show VisualizerStyle;
 import '../../../domain/models/artist.dart';
 import '../../../domain/models/bookmark.dart';
 import '../../../domain/models/lyrics.dart';
@@ -126,7 +127,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
     final isPlaying = ref.read(playbackStateProvider).valueOrNull?.playing ?? true;
     _playing = isPlaying;
     _pauseCtrl.value = isPlaying ? 0.0 : 1.0;
-    if (ref.read(settingsProvider).lightDance) {
+    if (ref.read(settingsProvider).visualizerStyle != VisualizerStyle.off) {
       _kickAnalysis(ref.read(currentSongProvider));
     }
   }
@@ -229,7 +230,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
       } else if (!wasPlaying && isPlaying) {
         _pauseCtrl.reverse();
       }
-      if (ref.read(settingsProvider).lightDance) {
+      if (ref.read(settingsProvider).visualizerStyle != VisualizerStyle.off) {
         _kickAnalysis(next.valueOrNull?.currentSong);
       }
     });
@@ -294,11 +295,10 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
     final frost = _glassFrost(glass);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // The ambient light-dance (swirling colour orbs) can be switched off in
-    // Settings; when off, only the soft halo around the cover remains. Beat
-    // analysis is only worth running while the dance is visible.
-    final lightDance = ref.watch(settingsProvider.select((s) => s.lightDance));
-    if (lightDance) _kickAnalysis(song);
+    // The background visualizer can be switched off or styled in Settings;
+    // beat analysis is only worth running while a visualizer is active.
+    final visualizerStyle = ref.watch(settingsProvider.select((s) => s.visualizerStyle));
+    if (visualizerStyle != VisualizerStyle.off) _kickAnalysis(song);
 
     return GestureDetector(
       onVerticalDragEnd: (d) {
@@ -323,23 +323,52 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
             Positioned.fill(
               child: ColoredBox(color: colors.background),
             ),
-            // ── Layer 2: album-color light orbs swirling like bubbles in oil,
-            //    their flow gently shaped by the beat (toggle in Settings) ─────
-            if (lightDance)
+            // ── Layer 2: background visualizer (style selectable in Settings) ─
+            if (visualizerStyle != VisualizerStyle.off)
               Positioned.fill(
                 child: AnimatedBuilder(
                   animation: Listenable.merge(
                       [_ambientCtrl, _driftCtrl, _pauseCtrl, _pulseCtrl]),
                   builder: (_, __) => CustomPaint(
-                    painter: _AmbientPainter(
-                      t: _ambientCtrl.value,
-                      t2: _driftCtrl.value,
-                      accent: _orbAccent(accent, isDark),
-                      wash: _orbWash(wash, isDark),
-                      convergence: _pauseCtrl.value,
-                      pulse: _pulseCtrl.value,
-                      isDark: isDark,
-                    ),
+                    painter: switch (visualizerStyle) {
+                      VisualizerStyle.off => null,
+                      VisualizerStyle.orbs => _AmbientPainter(
+                        t: _ambientCtrl.value,
+                        t2: _driftCtrl.value,
+                        accent: _orbAccent(accent, isDark),
+                        wash: _orbWash(wash, isDark),
+                        convergence: _pauseCtrl.value,
+                        pulse: _pulseCtrl.value,
+                        isDark: isDark,
+                      ),
+                      VisualizerStyle.coverTwirl => _CoverTwirlPainter(
+                        t: _ambientCtrl.value,
+                        t2: _driftCtrl.value,
+                        accent: _orbAccent(accent, isDark),
+                        wash: _orbWash(wash, isDark),
+                        convergence: _pauseCtrl.value,
+                        pulse: _pulseCtrl.value,
+                        isDark: isDark,
+                      ),
+                      VisualizerStyle.metaball => _MetaballPainter(
+                        t: _ambientCtrl.value,
+                        t2: _driftCtrl.value,
+                        accent: _orbAccent(accent, isDark),
+                        wash: _orbWash(wash, isDark),
+                        convergence: _pauseCtrl.value,
+                        pulse: _pulseCtrl.value,
+                        isDark: isDark,
+                      ),
+                      VisualizerStyle.flowField => _FlowFieldPainter(
+                        t: _ambientCtrl.value,
+                        t2: _driftCtrl.value,
+                        accent: _orbAccent(accent, isDark),
+                        wash: _orbWash(wash, isDark),
+                        convergence: _pauseCtrl.value,
+                        pulse: _pulseCtrl.value,
+                        isDark: isDark,
+                      ),
+                    },
                   ),
                 ),
               ),
@@ -2475,4 +2504,290 @@ class _AmbientPainter extends CustomPainter {
       o.isDark != isDark ||
       o.convergence != convergence ||
       o.pulse != pulse;
+}
+
+// ── Cover Twirl — Apple Music style: album-color layers spinning & twisting ──
+
+/// Four elongated colour swathes derived from the album art (accent & wash),
+/// each rotating at a distinct speed and direction. The overlapping translucent
+/// layers create an organic, watercolour-wash motion — the same technique Apple
+/// Music uses, rendered via pure Flutter Canvas (no fragment shaders required).
+class _CoverTwirlPainter extends CustomPainter {
+  const _CoverTwirlPainter({
+    required this.t,
+    required this.t2,
+    required this.accent,
+    required this.wash,
+    required this.isDark,
+    this.convergence = 0.0,
+    this.pulse = 1.0,
+  });
+
+  final double t;
+  final double t2;
+  final Color accent;
+  final Color wash;
+  final bool isDark;
+  final double convergence;
+  final double pulse;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final fade = (1.0 - convergence).clamp(0.0, 1.0).toDouble();
+    final flow = math.pow(1.0 - pulse.clamp(0.0, 1.0), 1.8).toDouble() * fade;
+    final tau = t * 2 * math.pi;
+    final tau2 = t2 * 2 * math.pi;
+    final cx = size.width * 0.5;
+    final cy = size.height * 0.47;
+    final diag = math.sqrt(size.width * size.width + size.height * size.height);
+
+    // Four album-colour swathes, Apple Music layer sizes: 125 %, 80 %, 50 %, 25 %.
+    // The two large ones spin in place; the two small ones orbit while spinning.
+    final a1 = accent;
+    final a2 = Color.lerp(accent, wash, 0.35)!;
+    final a3 = Color.lerp(accent, wash, 0.65)!;
+    final a4 = wash;
+
+    // Layer 1 — 125 % diagonal, slowest spin, in place
+    _swathe(canvas, cx: cx, cy: cy,
+      w: diag * 1.25, h: diag * 0.55,
+      angle: tau * 0.025 + tau2 * 0.06,
+      color: a4, opacity: (0.28 + 0.08 * flow) * fade);
+
+    // Layer 2 — 80 %, counter-spin, in place
+    _swathe(canvas, cx: cx, cy: cy,
+      w: diag * 0.80, h: diag * 0.40,
+      angle: -tau * 0.035 + 1.8 - tau2 * 0.08,
+      color: a3, opacity: (0.32 + 0.10 * flow) * fade);
+
+    // Layer 3 — 50 %, orbiting
+    final r3 = size.width * 0.13 * (1.0 + 0.18 * math.sin(tau2 * 0.47));
+    _swathe(canvas,
+      cx: cx + math.cos(tau * 0.055 + 1.2) * r3,
+      cy: cy + math.sin(tau * 0.055 + 1.2) * r3 * 0.55,
+      w: diag * 0.50, h: diag * 0.24,
+      angle: tau * 0.048 + tau2 * 0.10,
+      color: a2, opacity: (0.36 + 0.12 * flow) * fade);
+
+    // Layer 4 — 25 %, fastest orbit
+    final r4 = size.width * 0.21 * (1.0 + 0.22 * math.cos(tau2 * 0.63));
+    _swathe(canvas,
+      cx: cx + math.cos(-tau * 0.075 + 2.7) * r4,
+      cy: cy + math.sin(-tau * 0.075 + 2.7) * r4 * 0.45,
+      w: diag * 0.27, h: diag * 0.13,
+      angle: -tau * 0.065 + 3.4 + tau2 * 0.13,
+      color: a1, opacity: (0.42 + 0.14 * flow) * fade);
+  }
+
+  /// Draws one elongated colour swathe, rotated [angle] radians around ([cx],[cy]).
+  void _swathe(Canvas canvas, {
+    required double cx,
+    required double cy,
+    required double w,
+    required double h,
+    required double angle,
+    required Color color,
+    required double opacity,
+  }) {
+    if (opacity <= 0) return;
+    canvas.save();
+    canvas.translate(cx, cy);
+    canvas.rotate(angle);
+    final rect = Rect.fromCenter(center: Offset.zero, width: w, height: h);
+    canvas.drawOval(rect, Paint()
+      ..shader = RadialGradient(
+        colors: [color.withOpacity(opacity.clamp(0.0, 0.9).toDouble()), color.withOpacity(0.0)],
+        stops: const [0.0, 1.0],
+      ).createShader(rect));
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_CoverTwirlPainter o) =>
+      o.t != t || o.t2 != t2 || o.accent != accent || o.wash != wash ||
+      o.isDark != isDark || o.convergence != convergence || o.pulse != pulse;
+}
+
+// ── Metaball — organic lava-lamp blobs that merge and separate ───────────────
+
+/// Five soft radial-gradient blobs moving on distinct organic paths (circles,
+/// figure-8s, Lissajous). Overlapping blobs visually merge because their
+/// translucent fills add together — approximating true SDF metaballs on the
+/// CPU without a fragment shader.
+class _MetaballPainter extends CustomPainter {
+  const _MetaballPainter({
+    required this.t,
+    required this.t2,
+    required this.accent,
+    required this.wash,
+    required this.isDark,
+    this.convergence = 0.0,
+    this.pulse = 1.0,
+  });
+
+  final double t;
+  final double t2;
+  final Color accent;
+  final Color wash;
+  final bool isDark;
+  final double convergence;
+  final double pulse;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final fade = (1.0 - convergence).clamp(0.0, 1.0).toDouble();
+    final flow = math.pow(1.0 - pulse.clamp(0.0, 1.0), 1.8).toDouble();
+    final tau = t * 2 * math.pi;
+    final tau2 = t2 * 2 * math.pi;
+
+    final w = size.width;
+    final h = size.height;
+    // Base radius breathes gently with the beat
+    final baseR = w * (0.30 + 0.05 * flow);
+
+    final blobs = [
+      // (cx, cy, radius-scale, color-lerp)
+      (
+        w * (0.50 + 0.32 * math.sin(tau * 0.78 + 0.0)),
+        h * (0.45 + 0.28 * math.cos(tau * 0.91)),
+        1.00,
+        0.00, // accent
+      ),
+      (
+        w * (0.50 + 0.26 * math.cos(tau * 0.63 + 2.1)),
+        h * (0.52 + 0.33 * math.sin(tau * 0.71 + 2.1)),
+        0.88,
+        0.25,
+      ),
+      // Figure-8
+      (
+        w * (0.50 + 0.38 * math.sin(tau * 0.52 + 4.2)),
+        h * (0.48 + 0.22 * math.sin(tau * 1.04 + 4.2)),
+        0.80,
+        0.50,
+      ),
+      (
+        w * (0.50 + 0.20 * math.sin(tau2 * 0.84 + 1.0)),
+        h * (0.44 + 0.38 * math.cos(tau * 0.87 + 1.0)),
+        0.72,
+        0.75,
+      ),
+      // Near-centre slow drift via t2
+      (
+        w * (0.50 + 0.12 * math.cos(tau2 * 0.55)),
+        h * (0.50 + 0.10 * math.sin(tau2 * 0.67)),
+        0.60,
+        1.00, // wash
+      ),
+    ];
+
+    for (final (cx, cy, rScale, lerp) in blobs) {
+      final color = Color.lerp(accent, wash, lerp)!;
+      final r = baseR * rScale;
+      final opacity = (isDark ? 0.28 : 0.60) * fade;
+      final rect = Rect.fromCenter(center: Offset(cx, cy), width: r * 2, height: r * 2);
+      canvas.drawCircle(
+        Offset(cx, cy),
+        r,
+        Paint()
+          ..shader = RadialGradient(
+            colors: [color.withOpacity(opacity.clamp(0.0, 0.9).toDouble()), color.withOpacity(0.0)],
+          ).createShader(rect),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_MetaballPainter o) =>
+      o.t != t || o.t2 != t2 || o.accent != accent || o.wash != wash ||
+      o.isDark != isDark || o.convergence != convergence || o.pulse != pulse;
+}
+
+// ── Flow Field — domain-warped aurora fabric flowing with the beat ────────────
+
+/// Layered sine-wave bands whose phase advances with time, creating a
+/// flowing aurora-borealis curtain in the album's accent colours.
+/// Each band is a filled curved path; overlapping translucent bands
+/// build depth. Beat pulse accelerates the flow speed momentarily.
+class _FlowFieldPainter extends CustomPainter {
+  const _FlowFieldPainter({
+    required this.t,
+    required this.t2,
+    required this.accent,
+    required this.wash,
+    required this.isDark,
+    this.convergence = 0.0,
+    this.pulse = 1.0,
+  });
+
+  final double t;
+  final double t2;
+  final Color accent;
+  final Color wash;
+  final bool isDark;
+  final double convergence;
+  final double pulse;
+
+  static const _bands = 14;
+  static const _step = 8.0; // x resolution (px between path points)
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final fade = (1.0 - convergence).clamp(0.0, 1.0).toDouble();
+    // Beat speeds up the flow momentarily
+    final flowBoost = math.pow(1.0 - pulse.clamp(0.0, 1.0), 2.0).toDouble();
+    final tau = t * 2 * math.pi + flowBoost * 0.25;
+    final tau2 = t2 * 2 * math.pi;
+
+    final w = size.width;
+    final h = size.height;
+
+    for (var i = 0; i < _bands; i++) {
+      final progress = i / (_bands - 1); // 0 → 1
+      final baseY = h * (0.05 + progress * 0.90);
+      // Domain warp: two-octave sine approximation
+      final freq1 = 0.0025 + 0.0010 * (i % 4);
+      final freq2 = freq1 * 1.61; // golden-ratio secondary
+      final speed1 = 0.40 + 0.25 * ((i % 3) / 2.0);
+      final speed2 = speed1 * 0.53;
+      final amp = h * (0.04 + 0.045 * math.sin(progress * math.pi) + 0.015 * flowBoost);
+      final phase = i * 0.53 + tau2 * 0.15 * ((i % 2 == 0) ? 1 : -1);
+
+      final bandH = h / _bands * 1.4;
+
+      // Top curve
+      final top = Path()..moveTo(0, _y(0, baseY, freq1, freq2, tau, speed1, speed2, amp, phase));
+      for (var x = _step; x <= w + _step; x += _step) {
+        top.lineTo(x, _y(x, baseY, freq1, freq2, tau, speed1, speed2, amp, phase));
+      }
+      // Bottom curve (close the band)
+      final phaseB = phase + 0.35;
+      for (var x = w; x >= -_step; x -= _step) {
+        top.lineTo(x, _y(x, baseY + bandH, freq1, freq2, tau, speed1, speed2, amp * 0.8, phaseB));
+      }
+      top.close();
+
+      final color = Color.lerp(accent, wash, progress)!;
+      final opacity = ((isDark ? 0.10 : 0.15) + 0.06 * math.sin(tau * 0.4 + i * 0.7)) * fade;
+
+      canvas.drawPath(
+        top,
+        Paint()
+          ..color = color.withOpacity(opacity.clamp(0.0, 0.9).toDouble())
+          ..style = PaintingStyle.fill,
+      );
+    }
+  }
+
+  double _y(double x, double baseY, double f1, double f2, double tau,
+      double s1, double s2, double amp, double phase) {
+    return baseY +
+        amp * math.sin(x * f1 + tau * s1 + phase) +
+        amp * 0.45 * math.sin(x * f2 + tau * s2 + phase * 1.3);
+  }
+
+  @override
+  bool shouldRepaint(_FlowFieldPainter o) =>
+      o.t != t || o.t2 != t2 || o.accent != accent || o.wash != wash ||
+      o.isDark != isDark || o.convergence != convergence || o.pulse != pulse;
 }

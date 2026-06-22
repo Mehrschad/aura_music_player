@@ -89,11 +89,19 @@ class SettingsPage extends ConsumerWidget {
                 sub: l10n.dynamicColorSub,
                 value: s.dynamicColor,
                 onChanged: n.setDynamicColor),
-            _SwitchTile(
-                label: l10n.lightDance,
-                sub: l10n.lightDanceSub,
-                value: s.lightDance,
-                onChanged: n.setLightDance),
+            _Chips<VisualizerStyle>(
+              label: 'Visualizer',
+              values: VisualizerStyle.values,
+              current: s.visualizerStyle,
+              labelFor: (v) => switch (v) {
+                VisualizerStyle.off => 'Off',
+                VisualizerStyle.orbs => 'Orbs',
+                VisualizerStyle.coverTwirl => 'Cover Twirl',
+                VisualizerStyle.metaball => 'Metaball',
+                VisualizerStyle.flowField => 'Flow Field',
+              },
+              onSelect: n.setVisualizerStyle,
+            ),
             _SliderTile(
               label: l10n.textScale,
               value: s.textScale,
