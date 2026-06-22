@@ -20,6 +20,7 @@ import 'package:path_provider/path_provider.dart';
 ///    extraction finishes, so callers fall back gracefully (a paused, calm look).
 class WaveformAnalysisService {
   final Map<String, List<int>> _beats = {};
+  final Map<String, List<double>> _envelopes = {};
   final Set<String> _pending = {};
 
   /// Sampling resolution. 50 px/s → one amplitude sample every 20 ms, fine
@@ -27,9 +28,19 @@ class WaveformAnalysisService {
   static const int _pixelsPerSecond = 50;
   static const double _msPerSample = 1000.0 / _pixelsPerSecond;
 
+  /// Milliseconds between consecutive envelope samples (20 ms at 50 px/s).
+  /// Callers index [getCachedEnvelope] by `positionMs ~/ msPerSample`.
+  static const double msPerSample = _msPerSample;
+
   /// Returns the cached beat timestamps (ms, ascending) for [songId], or [null]
   /// if analysis has not finished (or failed).
   List<int>? getCachedBeats(String songId) => _beats[songId];
+
+  /// Returns the cached, per-song peak-normalised loudness envelope (values in
+  /// 0..1, one sample every [msPerSample] ms) for [songId], or [null] if
+  /// analysis has not finished. Drives the continuous (non-beat) reactivity of
+  /// the Now Playing visualizers — the picture swells with the music's loudness.
+  List<double>? getCachedEnvelope(String songId) => _envelopes[songId];
 
   /// Analyses [filePath] in the background and caches its beat grid. Safe to
   /// call repeatedly for the same [songId]: in-flight duplicates are ignored and
@@ -56,6 +67,7 @@ class WaveformAnalysisService {
       if (result != null) {
         final amps = _envelope(result);
         _beats[songId] = _detectBeats(amps);
+        _envelopes[songId] = _normalize(amps);
       }
     } catch (_) {
       // Platform channel unavailable (tests), unsupported format, or missing
@@ -74,6 +86,19 @@ class WaveformAnalysisService {
       final lo = w.getPixelMin(i).abs();
       return ((hi + lo) / 2 / 32768.0).clamp(0.0, 1.0).toDouble();
     });
+  }
+
+  /// Peak-normalises an envelope so its loudest sample maps to 1.0. This gives
+  /// the visualizers full dynamic range regardless of how quiet the master is,
+  /// so even a softly-mastered track visibly breathes with its own dynamics.
+  List<double> _normalize(List<double> amps) {
+    var peak = 0.0;
+    for (final a in amps) {
+      if (a > peak) peak = a;
+    }
+    if (peak <= 0) return amps;
+    return List<double>.generate(
+        amps.length, (i) => (amps[i] / peak).clamp(0.0, 1.0).toDouble());
   }
 
   /// Energy-flux onset detection. Returns ascending beat times in milliseconds.

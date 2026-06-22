@@ -24,6 +24,7 @@ import '../../../domain/models/bookmark.dart';
 import '../../../domain/models/lyrics.dart';
 import '../../../domain/models/playback.dart';
 import '../../../domain/models/song.dart';
+import '../../../data/audio/waveform_analysis_service.dart' show WaveformAnalysisService;
 import '../../providers/ab_repeat_provider.dart';
 import '../../providers/bookmarks_provider.dart';
 import '../../providers/cover_palette_provider.dart';
@@ -106,6 +107,16 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
   bool _playing = false;
   bool _reduceMotion = false;
 
+  // ── Continuous loudness energy ──────────────────────────────────────────────
+  // The per-song peak-normalised envelope (0..1, one sample every
+  // WaveformAnalysisService.msPerSample). [_energy] is a smoothed read of it at
+  // the interpolated playback position — fast attack, slow release — so the
+  // visualizers swell with the music's loudness frame-by-frame (not just on
+  // discrete beats). It rests at 0 when paused or before analysis completes.
+  List<double> _envMs = const [];
+  String? _envSongId;
+  double _energy = 0.0;
+
   // Tracks which song we last kicked off analysis for (dedup guard).
   Song? _analyzedSong;
 
@@ -153,7 +164,8 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
   /// every position-stream tick (and after seeks), so [_onBeatTick] can
   /// interpolate accurately between samples.
   void _syncBeatCursor(String songId, int posMs) {
-    final beats = ref.read(waveformAnalysisServiceProvider).getCachedBeats(songId);
+    final svc = ref.read(waveformAnalysisServiceProvider);
+    final beats = svc.getCachedBeats(songId);
     if (beats != null && _beatsSongId != songId) {
       _beatsMs = beats;
       _beatsSongId = songId;
@@ -162,6 +174,18 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
       // cleared so we don't pulse to the previous song's beats.
       _beatsMs = const [];
       _beatsSongId = null;
+    }
+    // Load the loudness envelope the moment analysis finishes (independent of
+    // the beat grid above so either can arrive first).
+    if (_envSongId != songId) {
+      final env = svc.getCachedEnvelope(songId);
+      if (env != null) {
+        _envMs = env;
+        _envSongId = songId;
+      } else {
+        _envMs = const [];
+        _envSongId = null;
+      }
     }
     _lastPosMs = posMs;
     _lastPosWallMs = DateTime.now().millisecondsSinceEpoch;
@@ -183,10 +207,26 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
   }
 
   void _onBeatTick(Duration _) {
-    if (!_playing || _reduceMotion || _beatsMs.isEmpty) return;
+    if (_reduceMotion) return;
     final estMs = _lastPosMs +
         ((DateTime.now().millisecondsSinceEpoch - _lastPosWallMs) * _speed)
             .round();
+
+    // ── Continuous loudness energy ────────────────────────────────────────────
+    // Sample the envelope at the interpolated position, then smooth it with a
+    // fast attack / slow release so the visuals jump up on a hit and ease back
+    // down — a natural "breathing with the music" feel. Decays toward 0 when
+    // paused or when no envelope is available yet.
+    var target = 0.0;
+    if (_playing && _envMs.isNotEmpty) {
+      final idx = (estMs / WaveformAnalysisService.msPerSample).floor();
+      if (idx >= 0 && idx < _envMs.length) target = _envMs[idx];
+    }
+    final k = target > _energy ? 0.45 : 0.06;
+    _energy += (target - _energy) * k;
+
+    // ── Discrete beat pulse (sharp accent on each onset) ──────────────────────
+    if (!_playing || _beatsMs.isEmpty) return;
     var fired = false;
     while (_nextBeat < _beatsMs.length && _beatsMs[_nextBeat] <= estMs) {
       fired = true;
@@ -339,6 +379,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
                         wash: _orbWash(wash, isDark),
                         convergence: _pauseCtrl.value,
                         pulse: _pulseCtrl.value,
+                        energy: _energy,
                         isDark: isDark,
                       ),
                       VisualizerStyle.coverTwirl => _CoverTwirlPainter(
@@ -348,6 +389,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
                         wash: _orbWash(wash, isDark),
                         convergence: _pauseCtrl.value,
                         pulse: _pulseCtrl.value,
+                        energy: _energy,
                         isDark: isDark,
                       ),
                       VisualizerStyle.metaball => _MetaballPainter(
@@ -357,6 +399,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
                         wash: _orbWash(wash, isDark),
                         convergence: _pauseCtrl.value,
                         pulse: _pulseCtrl.value,
+                        energy: _energy,
                         isDark: isDark,
                       ),
                       VisualizerStyle.flowField => _FlowFieldPainter(
@@ -366,6 +409,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
                         wash: _orbWash(wash, isDark),
                         convergence: _pauseCtrl.value,
                         pulse: _pulseCtrl.value,
+                        energy: _energy,
                         isDark: isDark,
                       ),
                     },
@@ -2396,6 +2440,7 @@ class _AmbientPainter extends CustomPainter {
     required this.isDark,
     this.convergence = 0.0,
     this.pulse = 1.0,
+    this.energy = 0.0,
   });
 
   final double t;
@@ -2406,10 +2451,14 @@ class _AmbientPainter extends CustomPainter {
   final double convergence;
   final double pulse;
 
+  /// Smoothed loudness 0..1; brightens the orbs continuously with the music.
+  final double energy;
+
   @override
   void paint(Canvas canvas, Size size) {
     final fade = (1.0 - convergence).clamp(0.0, 1.0).toDouble();
-    final boost = isDark ? 1.0 : 2.4;
+    final lvl = energy.clamp(0.0, 1.0).toDouble() * fade;
+    final boost = (isDark ? 1.0 : 2.4) * (1.0 + 0.40 * lvl);
     final flow = math.pow(1.0 - pulse.clamp(0.0, 1.0), 1.8).toDouble() * fade;
 
     final tau = t * 2 * math.pi;   // primary orbit phase  (0 → 2π over 70 s)
@@ -2503,7 +2552,8 @@ class _AmbientPainter extends CustomPainter {
       o.wash != wash ||
       o.isDark != isDark ||
       o.convergence != convergence ||
-      o.pulse != pulse;
+      o.pulse != pulse ||
+      o.energy != energy;
 }
 
 // ── Cover Twirl — Apple Music style: album-color layers spinning & twisting ──
@@ -2521,6 +2571,7 @@ class _CoverTwirlPainter extends CustomPainter {
     required this.isDark,
     this.convergence = 0.0,
     this.pulse = 1.0,
+    this.energy = 0.0,
   });
 
   final double t;
@@ -2531,15 +2582,25 @@ class _CoverTwirlPainter extends CustomPainter {
   final double convergence;
   final double pulse;
 
+  /// Smoothed loudness 0..1; swells brightness, scale and spin with the music.
+  final double energy;
+
   @override
   void paint(Canvas canvas, Size size) {
     final fade = (1.0 - convergence).clamp(0.0, 1.0).toDouble();
     final flow = math.pow(1.0 - pulse.clamp(0.0, 1.0), 1.8).toDouble() * fade;
+    final lvl = energy.clamp(0.0, 1.0).toDouble() * fade;
     final tau = t * 2 * math.pi;
     final tau2 = t2 * 2 * math.pi;
     final cx = size.width * 0.5;
     final cy = size.height * 0.47;
     final diag = math.sqrt(size.width * size.width + size.height * size.height);
+
+    // Continuous loudness brightens & enlarges the layers; each beat adds a
+    // brief lift and a small rotational kick (the "twist" surging on hits).
+    final glow = 1.0 + 0.55 * lvl + 0.25 * flow;
+    final grow = 1.0 + 0.12 * lvl;
+    final spin = flow * 0.6;
 
     // Four album-colour swathes, Apple Music layer sizes: 125 %, 80 %, 50 %, 25 %.
     // The two large ones spin in place; the two small ones orbit while spinning.
@@ -2550,33 +2611,33 @@ class _CoverTwirlPainter extends CustomPainter {
 
     // Layer 1 — 125 % diagonal, slowest spin, in place
     _swathe(canvas, cx: cx, cy: cy,
-      w: diag * 1.25, h: diag * 0.55,
-      angle: tau * 0.025 + tau2 * 0.06,
-      color: a4, opacity: (0.28 + 0.08 * flow) * fade);
+      w: diag * 1.25 * grow, h: diag * 0.55 * grow,
+      angle: tau * 0.035 + tau2 * 0.06 + spin,
+      color: a4, opacity: 0.30 * glow * fade);
 
     // Layer 2 — 80 %, counter-spin, in place
     _swathe(canvas, cx: cx, cy: cy,
-      w: diag * 0.80, h: diag * 0.40,
-      angle: -tau * 0.035 + 1.8 - tau2 * 0.08,
-      color: a3, opacity: (0.32 + 0.10 * flow) * fade);
+      w: diag * 0.85 * grow, h: diag * 0.42 * grow,
+      angle: -tau * 0.050 + 1.8 - tau2 * 0.08 - spin,
+      color: a3, opacity: 0.34 * glow * fade);
 
     // Layer 3 — 50 %, orbiting
     final r3 = size.width * 0.13 * (1.0 + 0.18 * math.sin(tau2 * 0.47));
     _swathe(canvas,
-      cx: cx + math.cos(tau * 0.055 + 1.2) * r3,
-      cy: cy + math.sin(tau * 0.055 + 1.2) * r3 * 0.55,
-      w: diag * 0.50, h: diag * 0.24,
-      angle: tau * 0.048 + tau2 * 0.10,
-      color: a2, opacity: (0.36 + 0.12 * flow) * fade);
+      cx: cx + math.cos(tau * 0.070 + 1.2) * r3,
+      cy: cy + math.sin(tau * 0.070 + 1.2) * r3 * 0.55,
+      w: diag * 0.52 * grow, h: diag * 0.26 * grow,
+      angle: tau * 0.065 + tau2 * 0.10 + spin,
+      color: a2, opacity: 0.40 * glow * fade);
 
     // Layer 4 — 25 %, fastest orbit
     final r4 = size.width * 0.21 * (1.0 + 0.22 * math.cos(tau2 * 0.63));
     _swathe(canvas,
-      cx: cx + math.cos(-tau * 0.075 + 2.7) * r4,
-      cy: cy + math.sin(-tau * 0.075 + 2.7) * r4 * 0.45,
-      w: diag * 0.27, h: diag * 0.13,
-      angle: -tau * 0.065 + 3.4 + tau2 * 0.13,
-      color: a1, opacity: (0.42 + 0.14 * flow) * fade);
+      cx: cx + math.cos(-tau * 0.095 + 2.7) * r4,
+      cy: cy + math.sin(-tau * 0.095 + 2.7) * r4 * 0.45,
+      w: diag * 0.30 * grow, h: diag * 0.15 * grow,
+      angle: -tau * 0.085 + 3.4 + tau2 * 0.13 - spin,
+      color: a1, opacity: 0.48 * glow * fade);
   }
 
   /// Draws one elongated colour swathe, rotated [angle] radians around ([cx],[cy]).
@@ -2605,7 +2666,8 @@ class _CoverTwirlPainter extends CustomPainter {
   @override
   bool shouldRepaint(_CoverTwirlPainter o) =>
       o.t != t || o.t2 != t2 || o.accent != accent || o.wash != wash ||
-      o.isDark != isDark || o.convergence != convergence || o.pulse != pulse;
+      o.isDark != isDark || o.convergence != convergence ||
+      o.pulse != pulse || o.energy != energy;
 }
 
 // ── Metaball — organic lava-lamp blobs that merge and separate ───────────────
@@ -2623,6 +2685,7 @@ class _MetaballPainter extends CustomPainter {
     required this.isDark,
     this.convergence = 0.0,
     this.pulse = 1.0,
+    this.energy = 0.0,
   });
 
   final double t;
@@ -2633,17 +2696,21 @@ class _MetaballPainter extends CustomPainter {
   final double convergence;
   final double pulse;
 
+  /// Smoothed loudness 0..1; expands and brightens the blobs with the music.
+  final double energy;
+
   @override
   void paint(Canvas canvas, Size size) {
     final fade = (1.0 - convergence).clamp(0.0, 1.0).toDouble();
     final flow = math.pow(1.0 - pulse.clamp(0.0, 1.0), 1.8).toDouble();
+    final lvl = energy.clamp(0.0, 1.0).toDouble();
     final tau = t * 2 * math.pi;
     final tau2 = t2 * 2 * math.pi;
 
     final w = size.width;
     final h = size.height;
-    // Base radius breathes gently with the beat
-    final baseR = w * (0.30 + 0.05 * flow);
+    // Blobs swell with loudness and surge briefly on every beat.
+    final baseR = w * (0.30 + 0.12 * lvl + 0.05 * flow);
 
     final blobs = [
       // (cx, cy, radius-scale, color-lerp)
@@ -2684,7 +2751,7 @@ class _MetaballPainter extends CustomPainter {
     for (final (cx, cy, rScale, lerp) in blobs) {
       final color = Color.lerp(accent, wash, lerp)!;
       final r = baseR * rScale;
-      final opacity = (isDark ? 0.28 : 0.60) * fade;
+      final opacity = (isDark ? 0.34 : 0.62) * (1.0 + 0.50 * lvl) * fade;
       final rect = Rect.fromCenter(center: Offset(cx, cy), width: r * 2, height: r * 2);
       canvas.drawCircle(
         Offset(cx, cy),
@@ -2700,7 +2767,8 @@ class _MetaballPainter extends CustomPainter {
   @override
   bool shouldRepaint(_MetaballPainter o) =>
       o.t != t || o.t2 != t2 || o.accent != accent || o.wash != wash ||
-      o.isDark != isDark || o.convergence != convergence || o.pulse != pulse;
+      o.isDark != isDark || o.convergence != convergence ||
+      o.pulse != pulse || o.energy != energy;
 }
 
 // ── Flow Field — domain-warped aurora fabric flowing with the beat ────────────
@@ -2718,6 +2786,7 @@ class _FlowFieldPainter extends CustomPainter {
     required this.isDark,
     this.convergence = 0.0,
     this.pulse = 1.0,
+    this.energy = 0.0,
   });
 
   final double t;
@@ -2728,14 +2797,19 @@ class _FlowFieldPainter extends CustomPainter {
   final double convergence;
   final double pulse;
 
+  /// Smoothed loudness 0..1; the bands grow taller and brighter as the music
+  /// gets louder — the clearest "reacting to the rhythm" of all the styles.
+  final double energy;
+
   static const _bands = 14;
   static const _step = 8.0; // x resolution (px between path points)
 
   @override
   void paint(Canvas canvas, Size size) {
     final fade = (1.0 - convergence).clamp(0.0, 1.0).toDouble();
-    // Beat speeds up the flow momentarily
+    // Beat speeds up the flow momentarily; loudness grows the wave height.
     final flowBoost = math.pow(1.0 - pulse.clamp(0.0, 1.0), 2.0).toDouble();
+    final lvl = energy.clamp(0.0, 1.0).toDouble() * fade;
     final tau = t * 2 * math.pi + flowBoost * 0.25;
     final tau2 = t2 * 2 * math.pi;
 
@@ -2750,7 +2824,11 @@ class _FlowFieldPainter extends CustomPainter {
       final freq2 = freq1 * 1.61; // golden-ratio secondary
       final speed1 = 0.40 + 0.25 * ((i % 3) / 2.0);
       final speed2 = speed1 * 0.53;
-      final amp = h * (0.04 + 0.045 * math.sin(progress * math.pi) + 0.015 * flowBoost);
+      // Loudness lifts the crest height up to ~2.2× and beats add a quick jolt.
+      final amp = h *
+          (0.04 + 0.05 * math.sin(progress * math.pi)) *
+          (1.0 + 1.2 * lvl) +
+          h * 0.02 * flowBoost;
       final phase = i * 0.53 + tau2 * 0.15 * ((i % 2 == 0) ? 1 : -1);
 
       final bandH = h / _bands * 1.4;
@@ -2768,7 +2846,9 @@ class _FlowFieldPainter extends CustomPainter {
       top.close();
 
       final color = Color.lerp(accent, wash, progress)!;
-      final opacity = ((isDark ? 0.10 : 0.15) + 0.06 * math.sin(tau * 0.4 + i * 0.7)) * fade;
+      final opacity = ((isDark ? 0.18 : 0.22) + 0.10 * lvl +
+              0.05 * math.sin(tau * 0.4 + i * 0.7)) *
+          fade;
 
       canvas.drawPath(
         top,
@@ -2789,5 +2869,6 @@ class _FlowFieldPainter extends CustomPainter {
   @override
   bool shouldRepaint(_FlowFieldPainter o) =>
       o.t != t || o.t2 != t2 || o.accent != accent || o.wash != wash ||
-      o.isDark != isDark || o.convergence != convergence || o.pulse != pulse;
+      o.isDark != isDark || o.convergence != convergence ||
+      o.pulse != pulse || o.energy != energy;
 }
