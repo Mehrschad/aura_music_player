@@ -1472,11 +1472,26 @@ class _SkipButtonState extends State<_SkipButton> {
           scale: _down ? 0.80 : 1.0,
           duration: const Duration(milliseconds: 130),
           curve: Curves.easeOut,
-          child: Padding(
-            padding: const EdgeInsets.all(6),
+          // Translucent glass circle so the skip controls read as Liquid Glass.
+          child: Container(
+            width: 52,
+            height: 52,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: enabled
+                  ? colors.onSurface.withOpacity(0.06)
+                  : Colors.transparent,
+              border: Border.all(
+                color: enabled
+                    ? Colors.white.withOpacity(0.10)
+                    : Colors.transparent,
+                width: 1,
+              ),
+            ),
             child: Icon(
               widget.icon,
-              size: 38,
+              size: 30,
               color: enabled ? colors.onSurface : colors.onSurfaceFaint,
             ),
           ),
@@ -1554,9 +1569,17 @@ class _PlayerToggleState extends State<_PlayerToggle>
           alignment: Alignment.center,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
+            // Active: a glowing accent disc. Inactive: a faint glass circle so
+            // it still reads as a Liquid-Glass control (iOS 26), not a bare icon.
             color: widget.active
                 ? widget.accent.withOpacity(0.16)
-                : Colors.transparent,
+                : colors.onSurface.withOpacity(0.06),
+            border: Border.all(
+              color: widget.active
+                  ? widget.accent.withOpacity(0.30)
+                  : Colors.white.withOpacity(0.10),
+              width: 1,
+            ),
             boxShadow: widget.active
                 ? [
                     BoxShadow(
@@ -1587,31 +1610,39 @@ class _UtilityRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final hasLyrics = song.hasLyrics;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        _UtilTile(
-          icon: PhosphorIconsRegular.equalizer,
-          label: l10n.npEq,
-          onTap: () => openEqualizer(context),
-        ),
-        _UtilTile(
-          icon: PhosphorIconsRegular.quotes,
-          label: l10n.lyrics,
-          highlight: hasLyrics,
-          onTap: () => openLyrics(context),
-        ),
-        _UtilTile(
-          icon: PhosphorIconsRegular.queue,
-          label: l10n.queueTitle,
-          onTap: () => showQueueSheet(context),
-        ),
-        _UtilTile(
-          icon: PhosphorIconsRegular.moon,
-          label: l10n.npSleep,
-          onTap: () => showSleepTimerSheet(context, ref),
-        ),
-      ],
+    final intensity = ref.watch(settingsProvider.select((s) => s.glassIntensity));
+    // The four utilities float together inside one Liquid-Glass capsule, the
+    // way iOS 26 groups secondary controls into a glass panel.
+    return GlassSurface(
+      borderRadius: RadiusTokens.brPill,
+      intensity: intensity,
+      padding: const EdgeInsets.symmetric(vertical: SpacingTokens.xs),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _UtilTile(
+            icon: PhosphorIconsRegular.equalizer,
+            label: l10n.npEq,
+            onTap: () => openEqualizer(context),
+          ),
+          _UtilTile(
+            icon: PhosphorIconsRegular.quotes,
+            label: l10n.lyrics,
+            highlight: hasLyrics,
+            onTap: () => openLyrics(context),
+          ),
+          _UtilTile(
+            icon: PhosphorIconsRegular.queue,
+            label: l10n.queueTitle,
+            onTap: () => showQueueSheet(context),
+          ),
+          _UtilTile(
+            icon: PhosphorIconsRegular.moon,
+            label: l10n.npSleep,
+            onTap: () => showSleepTimerSheet(context, ref),
+          ),
+        ],
+      ),
     );
   }
 }
