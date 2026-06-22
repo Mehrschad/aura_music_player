@@ -15,10 +15,25 @@ import 'nav_provider.dart';
 
 /// The floating Liquid-Glass navigation, iOS 26 style: the four primary tabs
 /// live in a glass pill, Search sits in its own circular glass bubble beside
-/// it, and the whole bar minimizes (labels collapse, height shrinks) while the
-/// user scrolls down through content.
-class GlassNavBar extends ConsumerWidget {
+/// it. While the user scrolls down through content the whole bar fades out and
+/// collapses away (the mini player above it then drops to the bottom edge);
+/// scrolling back up brings it smoothly back.
+class GlassNavBar extends ConsumerStatefulWidget {
   const GlassNavBar({super.key});
+
+  @override
+  ConsumerState<GlassNavBar> createState() => _GlassNavBarState();
+}
+
+class _GlassNavBarState extends ConsumerState<GlassNavBar>
+    with SingleTickerProviderStateMixin {
+  /// 0 = fully shown (expanded), 1 = fully hidden (collapsed + faded).
+  late final AnimationController _hide = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 320),
+  );
+  late final Animation<double> _t =
+      CurvedAnimation(parent: _hide, curve: Curves.easeInOutCubic);
 
   /// Primary tabs in the main pill. Search is intentionally excluded — it gets
   /// its own bubble, mirroring the iOS 26 Music / App Store layout.
@@ -29,6 +44,12 @@ class GlassNavBar extends ConsumerWidget {
     TabSpec(AppTab.playlists, Icons.queue_music_outlined, Icons.queue_music),
   ];
 
+  @override
+  void dispose() {
+    _hide.dispose();
+    super.dispose();
+  }
+
   String _labelFor(AppTab tab, AppLocalizations l10n) => switch (tab) {
         AppTab.library => l10n.tabLibrary,
         AppTab.artists => l10n.tabArtists,
@@ -38,15 +59,25 @@ class GlassNavBar extends ConsumerWidget {
       };
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final selected = ref.watch(selectedTabProvider);
     final l10n = AppLocalizations.of(context);
     final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
     final intensity = ref.watch(settingsProvider.select((s) => s.glassIntensity));
-    final minimized = ref.watch(navMinimizedProvider);
     final colors = context.colors;
 
-    final barHeight = minimized ? 52.0 : 64.0;
+    // Drive the hide/show animation off the scroll-minimize signal.
+    ref.listen<bool>(navMinimizedProvider, (_, next) {
+      if (MediaQuery.disableAnimationsOf(context)) {
+        _hide.value = next ? 1.0 : 0.0;
+      } else if (next) {
+        _hide.forward();
+      } else {
+        _hide.reverse();
+      }
+    });
+
+    const barHeight = 64.0;
     final mainIndex = _mainTabs.indexWhere((t) => t.tab == selected);
 
     void selectTab(AppTab tab) {
@@ -54,7 +85,7 @@ class GlassNavBar extends ConsumerWidget {
       ref.read(selectedTabProvider.notifier).state = tab;
     }
 
-    return Padding(
+    final bar = Padding(
       padding: EdgeInsets.only(
         left: SpacingTokens.lg,
         right: SpacingTokens.lg,
@@ -67,15 +98,13 @@ class GlassNavBar extends ConsumerWidget {
             child: GlassSurface(
               borderRadius: RadiusTokens.brPill,
               intensity: intensity,
-              child: AnimatedContainer(
-                duration: MotionTokens.micro,
-                curve: MotionTokens.standard,
+              child: SizedBox(
                 height: barHeight,
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     final itemWidth = constraints.maxWidth / _mainTabs.length;
                     final pillWidth = itemWidth - 14;
-                    final pillHeight = barHeight - 18;
+                    const pillHeight = barHeight - 18;
                     final pillLeft = (mainIndex < 0 ? 0 : mainIndex) * itemWidth +
                         (itemWidth - pillWidth) / 2;
 
@@ -106,8 +135,6 @@ class GlassNavBar extends ConsumerWidget {
                                   spec: spec,
                                   label: _labelFor(spec.tab, l10n),
                                   selected: spec.tab == selected,
-                                  minimized: minimized,
-                                  height: barHeight,
                                   onTap: () => selectTab(spec.tab),
                                 ),
                               ),
@@ -131,6 +158,31 @@ class GlassNavBar extends ConsumerWidget {
           ),
         ],
       ),
+    );
+
+    // Collapse + fade + slide-down as the bar hides. `heightFactor` shrinks the
+    // vertical space it occupies (so the mini player above slides to the
+    // bottom), `Opacity` makes it vanish, and the translate adds a gentle drop.
+    return AnimatedBuilder(
+      animation: _t,
+      builder: (context, child) {
+        final reveal = (1.0 - _t.value).clamp(0.0, 1.0);
+        if (reveal <= 0.001) return const SizedBox(width: double.infinity);
+        return ClipRect(
+          child: Align(
+            alignment: Alignment.topCenter,
+            heightFactor: reveal,
+            child: Opacity(
+              opacity: reveal,
+              child: Transform.translate(
+                offset: Offset(0, _t.value * 28),
+                child: child,
+              ),
+            ),
+          ),
+        );
+      },
+      child: bar,
     );
   }
 }
@@ -172,16 +224,12 @@ class _NavItem extends StatefulWidget {
     required this.spec,
     required this.label,
     required this.selected,
-    required this.minimized,
-    required this.height,
     required this.onTap,
   });
 
   final TabSpec spec;
   final String label;
   final bool selected;
-  final bool minimized;
-  final double height;
   final VoidCallback onTap;
 
   @override
@@ -214,7 +262,7 @@ class _NavItemState extends State<_NavItem> {
           duration: MotionTokens.press,
           curve: MotionTokens.standard,
           child: SizedBox(
-            height: widget.height,
+            height: 64,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -231,25 +279,15 @@ class _NavItemState extends State<_NavItem> {
                     color: color,
                   ),
                 ),
-                // Label collapses away when the bar is minimized.
-                AnimatedSize(
+                const SizedBox(height: 3),
+                AnimatedDefaultTextStyle(
                   duration: MotionTokens.micro,
-                  curve: MotionTokens.standard,
-                  child: widget.minimized
-                      ? const SizedBox(width: 0, height: 0)
-                      : Padding(
-                          padding: const EdgeInsets.only(top: 3),
-                          child: AnimatedDefaultTextStyle(
-                            duration: MotionTokens.micro,
-                            style: AppTextTheme.navLabel.copyWith(
-                              color: color,
-                              fontWeight: widget.selected
-                                  ? FontWeight.w600
-                                  : FontWeight.w400,
-                            ),
-                            child: Text(widget.label),
-                          ),
-                        ),
+                  style: AppTextTheme.navLabel.copyWith(
+                    color: color,
+                    fontWeight:
+                        widget.selected ? FontWeight.w600 : FontWeight.w400,
+                  ),
+                  child: Text(widget.label),
                 ),
               ],
             ),

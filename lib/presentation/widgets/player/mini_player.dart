@@ -13,6 +13,7 @@ import '../../../core/theme/typography.dart';
 import '../../../domain/models/playback.dart';
 import '../../providers/playback_providers.dart';
 import '../../providers/settings_providers.dart';
+import '../../shell/nav_provider.dart';
 import '../artwork/aura_artwork.dart';
 import '../glass/glass_surface.dart';
 import '../player_bar_inset.dart';
@@ -35,28 +36,45 @@ class MiniPlayer extends ConsumerWidget {
     final state = stateAsync.valueOrNull ?? PlaybackState.empty;
     final song = state.currentSong;
 
+    // When the nav bar collapses on scroll, the mini player slims down and
+    // drops to the very bottom edge (iOS-style), clearing the system inset
+    // itself since the nav bar that normally handles it is gone.
+    final compact = song != null && ref.watch(navMinimizedProvider);
+    final safeBottom = MediaQuery.viewPaddingOf(context).bottom;
+
     return AnimatedSize(
       duration: MotionTokens.micro,
       curve: MotionTokens.emphasized,
       alignment: Alignment.bottomCenter,
       child: song == null
           ? const SizedBox(width: double.infinity)
-          : Padding(
-              padding: const EdgeInsets.only(
-                left: MiniPlayerMetrics.horizontalMargin,
-                right: MiniPlayerMetrics.horizontalMargin,
-                bottom: MiniPlayerMetrics.gapToNavBar,
+          : AnimatedPadding(
+              duration: const Duration(milliseconds: 320),
+              curve: Curves.easeInOutCubic,
+              padding: EdgeInsets.only(
+                left: compact
+                    ? SpacingTokens.sm
+                    : MiniPlayerMetrics.horizontalMargin,
+                right: compact
+                    ? SpacingTokens.sm
+                    : MiniPlayerMetrics.horizontalMargin,
+                bottom: compact
+                    ? (safeBottom + 6)
+                    : MiniPlayerMetrics.gapToNavBar,
               ),
-              child: _Card(state: state),
+              child: _Card(state: state, compact: compact),
             ),
     );
   }
 }
 
 class _Card extends ConsumerStatefulWidget {
-  const _Card({required this.state});
+  const _Card({required this.state, this.compact = false});
 
   final PlaybackState state;
+
+  /// Slim variant shown while the nav bar is collapsed (scrolling).
+  final bool compact;
 
   @override
   ConsumerState<_Card> createState() => _CardState();
@@ -152,16 +170,18 @@ class _CardState extends ConsumerState<_Card>
         // Fully-rounded stadium shell — matched to the nav bar below it.
         borderRadius: RadiusTokens.brPill,
         intensity: ref.watch(settingsProvider.select((s) => s.glassIntensity)),
-        child: SizedBox(
-          height: MiniPlayerMetrics.height,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 320),
+          curve: Curves.easeInOutCubic,
+          height: widget.compact ? 52 : MiniPlayerMetrics.height,
           child: Stack(
             children: [
               Padding(
-                padding: const EdgeInsets.only(
+                padding: EdgeInsets.only(
                   left: SpacingTokens.md,
                   right: SpacingTokens.xs,
-                  top: SpacingTokens.sm,
-                  bottom: SpacingTokens.sm,
+                  top: widget.compact ? 4 : SpacingTokens.sm,
+                  bottom: widget.compact ? 4 : SpacingTokens.sm,
                 ),
                 child: Row(
                   children: [
@@ -169,7 +189,7 @@ class _CardState extends ConsumerState<_Card>
                       tag: kNowPlayingHeroTag,
                       child: AuraArtwork(
                         seed: song.artworkSeed,
-                        size: 42,
+                        size: widget.compact ? 36 : 42,
                         borderRadius: RadiusTokens.brXs,
                         hasArtwork: song.hasArtwork,
                         artworkId: int.tryParse(song.id),
