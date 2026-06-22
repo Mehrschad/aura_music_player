@@ -84,13 +84,36 @@ class _PlayPauseButtonState extends State<PlayPauseButton>
               children: [
                 _rippleRing(colors.onSurface, t, delay: 0.00),
                 _rippleRing(colors.onSurface, t, delay: 0.15),
-                // Monochrome disc
+                // Glass-prominent disc: a top-lit fill with a soft white rim and
+                // a floating shadow, so the primary control reads as polished
+                // lit glass rather than a flat monochrome puck (iOS 26).
                 Container(
                   width: widget.size,
                   height: widget.size,
                   decoration: BoxDecoration(
-                    color: colors.onSurface,
                     shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Color.lerp(colors.onSurface, Colors.white, 0.20)!,
+                        colors.onSurface,
+                        Color.lerp(colors.onSurface, Colors.black, 0.12)!,
+                      ],
+                      stops: const [0.0, 0.55, 1.0],
+                    ),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.25),
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.28),
+                        blurRadius: 18,
+                        spreadRadius: -4,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
                   ),
                   alignment: Alignment.center,
                   child: AnimatedIcon(
