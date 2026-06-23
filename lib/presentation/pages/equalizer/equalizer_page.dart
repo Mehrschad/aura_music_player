@@ -13,6 +13,7 @@ import '../../../core/theme/typography.dart';
 import '../../../core/utils/seed_color.dart';
 import '../../../domain/models/equalizer.dart';
 import '../../../domain/models/named_eq_preset.dart';
+import '../../providers/cover_palette_provider.dart';
 import '../../providers/equalizer_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../widgets/equalizer/band_slider.dart';
@@ -53,7 +54,15 @@ class EqualizerPage extends ConsumerWidget {
         controller.settings;
     final selected = ref.watch(selectedPresetProvider);
     final song = ref.watch(currentSongProvider);
-    final accent = SeedPalette.accent(song?.artworkSeed ?? 'eq');
+    final palette = song == null
+        ? null
+        : ref.watch(coverPaletteProvider((
+            seed: song.artworkSeed,
+            hasArtwork: song.hasArtwork,
+            artworkId: int.tryParse(song.id),
+          ))).valueOrNull;
+    final accent =
+        palette?.accent ?? SeedPalette.accent(song?.artworkSeed ?? 'eq');
 
     return Scaffold(
       backgroundColor: colors.background,
