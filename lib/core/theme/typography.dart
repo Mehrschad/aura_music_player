@@ -1,62 +1,163 @@
 import 'package:flutter/material.dart';
 
-/// Aura's type scale.
+/// Aura's type scale — the exact iOS type scale (Liquid Glass / iOS 26-27),
+/// rebuilt per the design spec §3.
 ///
-/// One family (Inter), disciplined weights:
-///   300 metadata · 400 body · 500 emphasis · 600 primary actions only.
-/// Widgets must reference these named styles, never inline a [TextStyle].
+/// Latin runs on **Inter** (a near-SF face); Persian/Arabic fall back to the
+/// platform's Arabic face (Vazirmatn once bundled). The family is referenced by
+/// name — if the `.ttf` is absent the engine falls back to the platform sans,
+/// so the app always renders.
 ///
-/// Colour is intentionally left null here — it is applied at the call site
-/// from [AppColors] so the same style works across themes.
+/// Two surfaces are exposed:
+///   1. the canonical iOS roles — [largeTitle], [title1], … [caption2];
+///   2. legacy aliases ([heroTitle], [display], [title], [body], [caption],
+///      [navLabel], [action]) kept so existing widgets compile unchanged, each
+///      remapped onto the new scale.
+///
+/// Colour is intentionally left null — applied at the call site from
+/// [AppColors] so one style works across every theme.
 abstract final class AppTextTheme {
   const AppTextTheme._();
 
   static const String fontFamily = 'Inter';
 
-  /// Now-Playing song title — the hero. 22 / 500.
-  static const TextStyle heroTitle = TextStyle(
-    fontFamily: fontFamily,
-    fontSize: 22,
-    height: 1.2,
-    fontWeight: FontWeight.w500,
-    letterSpacing: -0.2,
-  );
+  /// Persian/Arabic face. Falls back to the platform Arabic font until the
+  /// Vazirmatn `.ttf` weights are bundled.
+  static const String fontFamilyFarsi = 'Vazirmatn';
 
-  /// Section / page headers. 28 / 600.
-  static const TextStyle display = TextStyle(
+  /// Tabular figures for timers/durations (monospaced digits, spec §3).
+  static const List<FontFeature> _tabular = [FontFeature.tabularFigures()];
+
+  // ── Canonical iOS type scale (spec §3) ─────────────────────────────────
+  // size · weight · line-height(px) → height factor = lh / size.
+
+  /// 34 / 400 / 41 — the big screen title ("Library") before it morphs to
+  /// [headline] pinned in the nav bar on scroll.
+  static const TextStyle largeTitle = TextStyle(
     fontFamily: fontFamily,
-    fontSize: 28,
-    height: 1.15,
-    fontWeight: FontWeight.w600,
+    fontSize: 34,
+    height: 41 / 34,
+    fontWeight: FontWeight.w700,
     letterSpacing: -0.4,
   );
 
-  /// List item primary line (e.g. song title in a row). 16 / 500.
-  static const TextStyle title = TextStyle(
+  /// 28 / 400 / 34.
+  static const TextStyle title1 = TextStyle(
     fontFamily: fontFamily,
-    fontSize: 16,
-    height: 1.25,
-    fontWeight: FontWeight.w500,
+    fontSize: 28,
+    height: 34 / 28,
+    fontWeight: FontWeight.w600,
+    letterSpacing: -0.3,
   );
 
-  /// Body / artist · album. 14 / 400.
+  /// 22 / 400 / 28.
+  static const TextStyle title2 = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 22,
+    height: 28 / 22,
+    fontWeight: FontWeight.w600,
+    letterSpacing: -0.2,
+  );
+
+  /// 20 / 400 / 25.
+  static const TextStyle title3 = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 20,
+    height: 25 / 20,
+    fontWeight: FontWeight.w600,
+    letterSpacing: -0.2,
+  );
+
+  /// 17 / 600 / 22 — emphasis tier; same size as [body], heavier weight.
+  static const TextStyle headline = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 17,
+    height: 22 / 17,
+    fontWeight: FontWeight.w600,
+    letterSpacing: -0.1,
+  );
+
+  /// 17 / 400 / 22 — list item primary line; default reading size.
   static const TextStyle body = TextStyle(
     fontFamily: fontFamily,
-    fontSize: 14,
-    height: 1.3,
+    fontSize: 17,
+    height: 22 / 17,
     fontWeight: FontWeight.w400,
   );
 
-  /// Metadata, timestamps, captions. 12 / 300.
-  static const TextStyle caption = TextStyle(
+  /// 16 / 400 / 21.
+  static const TextStyle callout = TextStyle(
     fontFamily: fontFamily,
-    fontSize: 12,
-    height: 1.3,
-    fontWeight: FontWeight.w300,
-    letterSpacing: 0.1,
+    fontSize: 16,
+    height: 21 / 16,
+    fontWeight: FontWeight.w400,
   );
 
-  /// Tab labels on the glass nav bar. 11 / 500.
+  /// 15 / 400 / 20 — secondary text (artist · album) in a muted colour.
+  static const TextStyle subhead = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 15,
+    height: 20 / 15,
+    fontWeight: FontWeight.w400,
+  );
+
+  /// 13 / 400 / 18.
+  static const TextStyle footnote = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 13,
+    height: 18 / 13,
+    fontWeight: FontWeight.w400,
+  );
+
+  /// 12 / 400 / 16.
+  static const TextStyle caption1 = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 12,
+    height: 16 / 12,
+    fontWeight: FontWeight.w400,
+  );
+
+  /// 11 / 400 / 13 — the floor; never go below this (spec §3).
+  static const TextStyle caption2 = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 11,
+    height: 13 / 11,
+    fontWeight: FontWeight.w400,
+    letterSpacing: 0.2,
+  );
+
+  /// [headline] / [body] with tabular figures — for the scrubber's
+  /// elapsed/remaining timers so digits don't jitter as they tick.
+  static const TextStyle timer = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 13,
+    height: 18 / 13,
+    fontWeight: FontWeight.w500,
+    fontFeatures: _tabular,
+  );
+
+  // ── Legacy aliases (remapped onto the iOS scale) ───────────────────────
+  // Kept so the existing presentation layer compiles while it is migrated.
+
+  /// Now-Playing song title hero. → [title2] semibold.
+  static const TextStyle heroTitle = title2;
+
+  /// Section / page headers. → [title1] semibold.
+  static const TextStyle display = title1;
+
+  /// List item primary line. → 17 / 500 (body weight nudged for emphasis).
+  static const TextStyle title = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 17,
+    height: 22 / 17,
+    fontWeight: FontWeight.w500,
+    letterSpacing: -0.1,
+  );
+
+  /// Caption / metadata. → [caption1].
+  static const TextStyle caption = caption1;
+
+  /// Tab labels on the glass nav bar. → 11 / 500.
   static const TextStyle navLabel = TextStyle(
     fontFamily: fontFamily,
     fontSize: 11,
@@ -65,8 +166,7 @@ abstract final class AppTextTheme {
     letterSpacing: 0.2,
   );
 
-  /// Primary action / button label. 15 / 600 — the only place 600 is used
-  /// outside of display headers.
+  /// Primary action / button label. → 15 / 600.
   static const TextStyle action = TextStyle(
     fontFamily: fontFamily,
     fontSize: 15,
@@ -75,15 +175,23 @@ abstract final class AppTextTheme {
     letterSpacing: 0.1,
   );
 
-  /// Builds the Material [TextTheme] so framework widgets inherit Inter.
+  /// Builds the Material [TextTheme] so framework widgets inherit the scale.
   static TextTheme materialTextTheme(Color onSurface) {
     final base = const TextTheme(
-      displayLarge: display,
-      headlineMedium: heroTitle,
+      displayLarge: largeTitle,
+      displayMedium: title1,
+      displaySmall: title2,
+      headlineMedium: title3,
+      headlineSmall: headline,
+      titleLarge: title2,
       titleMedium: title,
+      titleSmall: subhead,
+      bodyLarge: body,
       bodyMedium: body,
+      bodySmall: footnote,
+      labelLarge: action,
+      labelMedium: caption1,
       labelSmall: navLabel,
-      bodySmall: caption,
     );
     return base.apply(
       fontFamily: fontFamily,

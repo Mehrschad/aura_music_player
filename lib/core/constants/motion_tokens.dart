@@ -1,4 +1,5 @@
 import 'package:flutter/animation.dart';
+import 'package:flutter/physics.dart';
 
 /// Motion language for Aura. "Motion that breathes" — every transition
 /// reads from here so timing and easing stay disciplined across the app.
@@ -14,6 +15,9 @@ abstract final class MotionTokens {
 
   /// Screen / route transitions.
   static const Duration screen = Duration(milliseconds: 380);
+
+  /// Swipe-to-change-track on the player / mini player (spec §13.6).
+  static const Duration trackChange = Duration(milliseconds: 280);
 
   /// Album art morph / hero crossfade between tracks.
   static const Duration albumArt = Duration(milliseconds: 500);
@@ -36,4 +40,14 @@ abstract final class MotionTokens {
 
   /// Softer settle — a gentle landing with the slightest overshoot.
   static const Curve softSpring = Cubic(0.5, 1.25, 0.6, 1.0);
+
+  // ── Physics ────────────────────────────────────────────────────────────
+  /// The interactive-glass spring (spec §13.2): bounce ≈ 0.2 — a satisfying,
+  /// not-too-springy settle used for press/morph on Liquid-Glass controls.
+  /// Drive an [AnimationController] with `animateWith(SpringSimulation(...))`.
+  static const SpringDescription interactiveSpring = SpringDescription(
+    mass: 1.0,
+    stiffness: 380.0,
+    damping: 24.0, // ζ ≈ 0.61 underdamped → a small, clean overshoot
+  );
 }
