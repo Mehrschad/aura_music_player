@@ -39,18 +39,32 @@ class ArtistDetailPage extends ConsumerWidget {
       artworkId: artist.firstSongId,
     ))).valueOrNull;
     final accent = palette?.accent ?? SeedPalette.accent(artist.artworkSeed);
+    final wash = palette?.wash ?? SeedPalette.wash(artist.artworkSeed);
     final isFav = ref.watch(isArtistFavoriteProvider(artist.id));
 
+    // iOS 27: entire page background gets a gentle wash tint so the artwork
+    // colour bleeds through the whole scroll area — not just the header.
+    final pageBackground =
+        Color.alphaBlend(wash.withOpacity(0.10), colors.background);
+
+    // Half-screen hero: the artwork fills the top 50 % of the display.
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final heroHeight = screenHeight * 0.50;
+
     return Scaffold(
-      backgroundColor: colors.background,
+      backgroundColor: pageBackground,
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
-            backgroundColor: colors.background,
-            expandedHeight: 240,
+            backgroundColor: Colors.transparent,
+            // Start transparent so the hero photo shows through the status bar.
+            systemOverlayStyle: SystemUiOverlayStyle.light,
+            expandedHeight: heroHeight,
             pinned: true,
+            // Collapsed app bar uses the wash-tinted background colour.
+            surfaceTintColor: Colors.transparent,
+            shadowColor: Colors.transparent,
             actions: [
-              // Like / favourite this artist.
               IconButton(
                 tooltip:
                     isFav ? l10n.removeFromFavorites : l10n.addToFavorites,
@@ -68,40 +82,66 @@ class ArtistDetailPage extends ConsumerWidget {
             ],
             flexibleSpace: FlexibleSpaceBar(
               titlePadding: const EdgeInsetsDirectional.fromSTEB(
-                SpacingTokens.xl, 0, SpacingTokens.xl, SpacingTokens.md),
+                SpacingTokens.xl, 0, SpacingTokens.xl, SpacingTokens.lg),
               title: Text(
                 artist.name,
-                style: AppTextTheme.display.copyWith(color: Colors.white),
+                style: AppTextTheme.display.copyWith(
+                  color: Colors.white,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black.withOpacity(0.55),
+                      blurRadius: 12,
+                    ),
+                  ],
+                ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
+              // collapseMode: none so the image stays visible while collapsing;
+              // it parallax-shrinks naturally with the default behaviour.
               background: Stack(
                 fit: StackFit.expand,
                 children: [
-                  ClipRect(
-                    child: AuraArtwork(
-                      seed: artist.artworkSeed,
-                      size: double.maxFinite,
-                      borderRadius: BorderRadius.zero,
-                      hasArtwork: artist.hasArtwork,
-                      artworkId: artist.firstSongId,
-                    ),
+                  // Full-bleed artist photo — no ClipRect rounding.
+                  AuraArtwork(
+                    seed: artist.artworkSeed,
+                    size: double.maxFinite,
+                    borderRadius: BorderRadius.zero,
+                    hasArtwork: artist.hasArtwork,
+                    artworkId: artist.firstSongId,
                   ),
-                  // Subtle palette hue wash.
+                  // Subtle palette hue wash over the photo.
                   DecoratedBox(
-                    decoration: BoxDecoration(color: accent.withOpacity(0.08)),
+                    decoration:
+                        BoxDecoration(color: accent.withOpacity(0.10)),
                   ),
-                  // Dark-top / transparent-middle / page-background-bottom scrim.
+                  // Top scrim: dark vignette so back button / status bar remain
+                  // legible.
                   DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        stops: const [0, 0.3, 1],
+                        end: Alignment.center,
                         colors: [
-                          Colors.black.withOpacity(0.25),
+                          Colors.black.withOpacity(0.42),
                           Colors.transparent,
-                          colors.background,
+                        ],
+                      ),
+                    ),
+                  ),
+                  // Bottom melt: image fades into pageBackground so the scroll
+                  // content appears to grow out of the photo — the iOS 27
+                  // "liquid" transition.
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.center,
+                        end: Alignment.bottomCenter,
+                        stops: const [0.0, 0.55, 1.0],
+                        colors: [
+                          Colors.transparent,
+                          pageBackground.withOpacity(0.60),
+                          pageBackground,
                         ],
                       ),
                     ),
@@ -139,6 +179,7 @@ class ArtistDetailPage extends ConsumerWidget {
                                   label: l10n.play,
                                   filled: true,
                                   accent: accent,
+                                  pageBackground: pageBackground,
                                   onTap: () => ref
                                       .read(audioControllerProvider)
                                       .playQueue(songs),
@@ -151,6 +192,7 @@ class ArtistDetailPage extends ConsumerWidget {
                                   label: l10n.shuffle,
                                   filled: false,
                                   accent: accent,
+                                  pageBackground: pageBackground,
                                   onTap: () {
                                     final ctrl =
                                         ref.read(audioControllerProvider);
@@ -390,6 +432,7 @@ class _PillButton extends StatelessWidget {
     required this.filled,
     required this.accent,
     required this.onTap,
+    this.pageBackground,
   });
 
   final IconData icon;
@@ -397,11 +440,16 @@ class _PillButton extends StatelessWidget {
   final bool filled;
   final Color accent;
   final VoidCallback onTap;
+  /// The wash-tinted page background, used as the outline-button fill.
+  final Color? pageBackground;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final fg = filled ? Colors.white : colors.onSurface;
+    final outlineFill = pageBackground != null
+        ? Color.alphaBlend(colors.onSurface.withOpacity(0.06), pageBackground!)
+        : colors.surfaceElevated;
     return PressScale(
       onTap: onTap,
       pressedScale: 0.96,
@@ -409,7 +457,7 @@ class _PillButton extends StatelessWidget {
         height: 44,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: filled ? accent : colors.surfaceElevated,
+          color: filled ? accent : outlineFill,
           borderRadius: RadiusTokens.brPill,
           border: filled ? null : Border.all(color: colors.divider),
         ),
