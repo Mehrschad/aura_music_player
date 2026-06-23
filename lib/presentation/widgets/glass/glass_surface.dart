@@ -28,6 +28,8 @@ class GlassSurface extends StatelessWidget {
     this.borderRadius = const BorderRadius.all(Radius.circular(16)),
     this.intensity = GlassTokens.defaultIntensity,
     this.padding = EdgeInsets.zero,
+    this.level,
+    this.tint,
   });
 
   final Widget child;
@@ -35,14 +37,25 @@ class GlassSurface extends StatelessWidget {
   final GlassIntensity intensity;
   final EdgeInsetsGeometry padding;
 
+  /// Material role (spec §4.6). When set, the blur sigma comes from the level
+  /// scaled by [intensity] (`level.sigmaFor`), instead of the raw intensity
+  /// sigma — so an `ultraThin` overlay blurs less than a `regular` nav bar even
+  /// at the same global setting. Null preserves the legacy intensity-only blur.
+  final GlassLevel? level;
+
+  /// Optional dynamic-colour wash (from the artwork palette) blended over the
+  /// neutral glass tint, so a surface can pick up the current track's hue.
+  final Color? tint;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
 
     if (intensity == GlassIntensity.off) {
+      final base = colors.surfaceElevated;
       return DecoratedBox(
         decoration: BoxDecoration(
-          color: colors.surfaceElevated,
+          color: tint != null ? Color.alphaBlend(tint!.withOpacity(0.18), base) : base,
           borderRadius: borderRadius,
           border: Border.all(color: colors.divider, width: GlassTokens.borderWidth),
         ),
@@ -51,58 +64,64 @@ class GlassSurface extends StatelessWidget {
     }
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final sigma = intensity.sigma;
+    final sigma = level?.sigmaFor(intensity) ?? intensity.sigma;
     // At the deepest setting we layer a touch more white over the base tint so
     // the surface reads as thicker frosted crystal rather than just blurrier.
-    final tint = intensity.extraTint > 0
+    var glassTint = intensity.extraTint > 0
         ? Color.alphaBlend(
             Colors.white.withOpacity(intensity.extraTint), colors.glassTint)
         : colors.glassTint;
+    // Dynamic-colour wash: pull the surface gently toward the artwork hue.
+    if (tint != null) {
+      glassTint = Color.alphaBlend(tint!.withOpacity(isDark ? 0.16 : 0.10), glassTint);
+    }
 
-    return ClipRRect(
-      borderRadius: borderRadius,
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-        child: DecoratedBox(
-          // Tint fill — sizes to the content, exactly as the original surface did.
-          decoration: BoxDecoration(color: tint),
-          child: Stack(
-            children: [
-              // ── content defines the surface size ──────────────────────────
-              Padding(padding: padding, child: child),
-              // ── specular sheen: a soft light wash from the top-left with a
-              //    faint pickup bottom-right — glassy, not a flat fill ─────────
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Colors.white.withOpacity(isDark ? 0.14 : 0.30),
-                          Colors.white.withOpacity(0.0),
-                          Colors.white.withOpacity(0.0),
-                          Colors.white.withOpacity(isDark ? 0.05 : 0.10),
-                        ],
-                        stops: const [0.0, 0.34, 0.68, 1.0],
+    return RepaintBoundary(
+      child: ClipRRect(
+        borderRadius: borderRadius,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+          child: DecoratedBox(
+            // Tint fill — sizes to the content, exactly as the original surface did.
+            decoration: BoxDecoration(color: glassTint),
+            child: Stack(
+              children: [
+                // ── content defines the surface size ──────────────────────────
+                Padding(padding: padding, child: child),
+                // ── specular sheen: a soft light wash from the top-left with a
+                //    faint pickup bottom-right — glassy, not a flat fill ─────────
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.white.withOpacity(isDark ? 0.14 : 0.30),
+                            Colors.white.withOpacity(0.0),
+                            Colors.white.withOpacity(0.0),
+                            Colors.white.withOpacity(isDark ? 0.05 : 0.10),
+                          ],
+                          stops: const [0.0, 0.34, 0.68, 1.0],
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              // ── luminous rim (drawn last so it stays crisp over content) ────
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: CustomPaint(
-                    painter: _LiquidRimPainter(
-                      borderRadius: borderRadius,
-                      isDark: isDark,
+                // ── luminous rim (drawn last so it stays crisp over content) ────
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: CustomPaint(
+                      painter: _LiquidRimPainter(
+                        borderRadius: borderRadius,
+                        isDark: isDark,
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
