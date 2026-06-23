@@ -35,17 +35,26 @@ import '../folders/folder_browser_page.dart';
 import '../genres/genre_detail_page.dart';
 import '../settings/settings_page.dart';
 
-class LibraryPage extends ConsumerWidget {
+class LibraryPage extends ConsumerStatefulWidget {
   const LibraryPage({super.key});
 
   static const String _listId = SelectionScopes.library;
 
-  void _play(WidgetRef ref, List<Song> queue, int index) {
+  @override
+  ConsumerState<LibraryPage> createState() => _LibraryPageState();
+}
+
+class _LibraryPageState extends ConsumerState<LibraryPage> {
+  // True once any descendant scroll view has scrolled > 20 logical pixels.
+  // Drives the largeTitle → headline morph per iOS 26 spec §10.
+  bool _scrolled = false;
+
+  void _play(List<Song> queue, int index) {
     ref.read(audioControllerProvider).playQueue(queue, startIndex: index);
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final colors = context.colors;
     final segment = ref.watch(librarySegmentProvider);
@@ -54,84 +63,122 @@ class LibraryPage extends ConsumerWidget {
     final mode = ref.watch(libraryDisplayModeProvider);
     final miniPlayerVisible = ref.watch(hasMediaProvider);
     final selecting = ref.watch(
-        selectionProvider(_listId).select((s) => s.active));
+        selectionProvider(LibraryPage._listId).select((s) => s.active));
     final allSongs = songsAsync.valueOrNull ?? const <Song>[];
 
-    return SafeArea(
-      bottom: false,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (selecting)
-            SelectionBar(listId: _listId, allSongs: allSongs)
-          else
-            Padding(
-              padding: const EdgeInsets.fromLTRB(SpacingTokens.lg, SpacingTokens.sm, SpacingTokens.sm, 0),
-              child: Row(
-                children: [
-                  const AuraMark(size: 26),
-                  const SizedBox(width: SpacingTokens.sm + 1),
-                  Text(
-                    'Aura',
-                    style: AppTextTheme.display.copyWith(
-                      color: colors.onSurface,
-                      fontSize: 24,
-                      letterSpacing: -0.8,
-                    ),
+    // Collapsed = title at headline (17pt); expanded = display (24pt).
+    final collapsed = _scrolled && !selecting;
+
+    return NotificationListener<ScrollUpdateNotification>(
+      onNotification: (n) {
+        final scrolled = n.metrics.pixels > 20;
+        if (scrolled != _scrolled) setState(() => _scrolled = scrolled);
+        return false; // don't absorb — let the scroll view handle it too
+      },
+      child: SafeArea(
+        bottom: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (selecting)
+              SelectionBar(listId: LibraryPage._listId, allSongs: allSongs)
+            else
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOut,
+                height: collapsed ? 44 : 58,
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    SpacingTokens.lg,
+                    collapsed ? 6 : SpacingTokens.sm,
+                    SpacingTokens.sm,
+                    0,
                   ),
-                  const Spacer(),
-                  DisplayModeButton(
-                    mode: mode,
-                    onChanged: (m) =>
-                        ref.read(libraryDisplayModeProvider.notifier).state = m,
-                  ),
-                  IconButton(
-                    tooltip: l10n.folders,
-                    onPressed: () => openFolderBrowser(context),
-                    icon: const Icon(Icons.folder_outlined),
-                  ),
-                  IconButton(
-                    tooltip: l10n.sortLabel,
-                    onPressed: () => showSortSheet(
-                      context,
-                      current: sort,
-                      onChanged: (s) =>
-                          ref.read(librarySortProvider.notifier).state = s,
-                    ),
-                    icon: const Icon(Icons.sort),
-                  ),
-                  IconButton(
-                    tooltip: l10n.settings,
-                    onPressed: () => openSettings(context),
-                    icon: const Icon(Icons.settings_outlined),
-                  ),
-                ],
-              ),
-            ),
-          if (!selecting) _SegmentRow(selected: segment),
-          Expanded(
-            child: switch (segment) {
-              LibrarySegment.songs => AsyncStateView<List<Song>>(
-                  value: songsAsync.like,
-                  isEmpty: (s) => s.isEmpty,
-                  emptyMessage: l10n.libraryEmpty,
-                  onRetry: () => ref.invalidate(songsProvider),
-                  data: (songs) => _SongsBody(
-                    songs: songs,
-                    mode: mode,
-                    miniPlayerVisible: miniPlayerVisible,
-                    onPlayAt: (i) => _play(ref, songs, i),
+                  child: Row(
+                    children: [
+                      // Logo fades out as the header collapses.
+                      AnimatedOpacity(
+                        duration: const Duration(milliseconds: 180),
+                        opacity: collapsed ? 0 : 1,
+                        child: IgnorePointer(
+                          ignoring: collapsed,
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            const AuraMark(size: 26),
+                            const SizedBox(width: SpacingTokens.sm + 1),
+                          ]),
+                        ),
+                      ),
+                      // Title morphs from 24pt → 17pt as the header collapses.
+                      AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOut,
+                        style: collapsed
+                            ? AppTextTheme.headline
+                                .copyWith(color: colors.onSurface)
+                            : AppTextTheme.display.copyWith(
+                                color: colors.onSurface,
+                                fontSize: 24,
+                                letterSpacing: -0.8,
+                              ),
+                        child: const Text('Aura'),
+                      ),
+                      const Spacer(),
+                      DisplayModeButton(
+                        mode: mode,
+                        onChanged: (m) =>
+                            ref
+                                .read(libraryDisplayModeProvider.notifier)
+                                .state = m,
+                      ),
+                      IconButton(
+                        tooltip: l10n.folders,
+                        onPressed: () => openFolderBrowser(context),
+                        icon: const Icon(Icons.folder_outlined),
+                      ),
+                      IconButton(
+                        tooltip: l10n.sortLabel,
+                        onPressed: () => showSortSheet(
+                          context,
+                          current: sort,
+                          onChanged: (s) =>
+                              ref.read(librarySortProvider.notifier).state = s,
+                        ),
+                        icon: const Icon(Icons.sort),
+                      ),
+                      IconButton(
+                        tooltip: l10n.settings,
+                        onPressed: () => openSettings(context),
+                        icon: const Icon(Icons.settings_outlined),
+                      ),
+                    ],
                   ),
                 ),
-              LibrarySegment.albums =>
-                _AlbumsBody(miniPlayerVisible: miniPlayerVisible),
-              LibrarySegment.artists =>
-                _ArtistsBody(miniPlayerVisible: miniPlayerVisible),
-              LibrarySegment.genres =>
-                _GenresBody(miniPlayerVisible: miniPlayerVisible),
-            },
-          ),
-        ],
+              ),
+            if (!selecting) _SegmentRow(selected: segment),
+            Expanded(
+              child: switch (segment) {
+                LibrarySegment.songs => AsyncStateView<List<Song>>(
+                    value: songsAsync.like,
+                    isEmpty: (s) => s.isEmpty,
+                    emptyMessage: l10n.libraryEmpty,
+                    onRetry: () => ref.invalidate(songsProvider),
+                    data: (songs) => _SongsBody(
+                      songs: songs,
+                      mode: mode,
+                      miniPlayerVisible: miniPlayerVisible,
+                      onPlayAt: (i) => _play(songs, i),
+                    ),
+                  ),
+                LibrarySegment.albums =>
+                  _AlbumsBody(miniPlayerVisible: miniPlayerVisible),
+                LibrarySegment.artists =>
+                  _ArtistsBody(miniPlayerVisible: miniPlayerVisible),
+                LibrarySegment.genres =>
+                  _GenresBody(miniPlayerVisible: miniPlayerVisible),
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
