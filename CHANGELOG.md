@@ -6,6 +6,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+### Changed — iOS 26/27 Liquid Glass redesign
+- **Ambient track colour** bleeds behind the glass nav bar as a coloured wash
+  that shifts smoothly with every track change — makes the frosted-glass effect
+  visible even on AMOLED black.
+- **Active-tab pill and Search bubble** now animate to the current track's
+  accent colour, giving the bottom nav bar a dynamic, music-reactive feel.
+- **Scroll edge fade** — content melts into the glass layer at the bottom of
+  every scroll view instead of being harshly cut off behind the nav bar.
+- **Full-bleed hero images** on Artist, Album, Genre, and Playlist detail
+  pages now fill 40–50 % of the screen height; a two-stage gradient melt
+  (top dark vignette + bottom wash-tinted fade) flows the artwork into the
+  page content below.
+- **Wash-tinted page backgrounds** — every detail page derives a gentle colour
+  from the artwork palette and blends it into the background, so the whole
+  scroll area feels immersed in the album's mood.
+- **Breathing artwork** on Now Playing: 1.08× scale while playing (with a
+  gentle 1.015× breath loop), settling to 0.94× when paused — the iOS 27
+  artwork presence spec.
+- **Artist detail section order** restructured per spec §6.7: Top Songs
+  section appears above the Albums rail (identity → action → discovery).
+- **PressScale everywhere**: CTA buttons on the onboarding screen and all
+  search result rows replaced Material InkWell with the spring-scale tap
+  feedback used throughout the rest of the UI.
+
 ### Changed — Design-system alignment
 - **Light theme reworked** to the canonical Aura spec: an airy paper background
   (`#F4F4F7`) with white cards above it, a true near-black text ladder for AA+
