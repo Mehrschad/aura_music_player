@@ -45,14 +45,21 @@ class AlbumDetailPage extends ConsumerWidget {
       artworkId: album.firstSongId,
     ))).valueOrNull;
     final accent = palette?.accent ?? SeedPalette.accent(album.artworkSeed);
+    final wash = palette?.wash ?? SeedPalette.wash(album.artworkSeed);
+    final pageBackground =
+        Color.alphaBlend(wash.withOpacity(0.10), colors.background);
+
+    final heroHeight = MediaQuery.sizeOf(context).height * 0.44;
 
     return Scaffold(
-      backgroundColor: colors.background,
+      backgroundColor: pageBackground,
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
-            backgroundColor: colors.background,
-            expandedHeight: 300,
+            backgroundColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            expandedHeight: heroHeight,
             pinned: true,
             // Soft dark circle behind the back arrow so it reads on artwork.
             leading: Padding(
@@ -86,7 +93,7 @@ class AlbumDetailPage extends ConsumerWidget {
             flexibleSpace: FlexibleSpaceBar(
               background: _Hero(
                 album: album,
-                background: colors.background,
+                background: pageBackground,
                 accent: accent,
                 meta: songsAsync.maybeWhen(
                   data: (songs) => _metaLine(l10n, songs),
@@ -262,16 +269,29 @@ class _Hero extends StatelessWidget {
         DecoratedBox(
           decoration: BoxDecoration(color: accent.withOpacity(0.08)),
         ),
-        // Dark-top / transparent-middle / page-background-bottom scrim.
+        // Top vignette so back button stays legible.
         DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              stops: const [0, 0.3, 1],
+              end: Alignment.center,
               colors: [
-                Colors.black.withOpacity(0.25),
+                Colors.black.withOpacity(0.38),
                 Colors.transparent,
+              ],
+            ),
+          ),
+        ),
+        // Bottom melt: artwork dissolves into the wash-tinted page background.
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.center,
+              end: Alignment.bottomCenter,
+              stops: const [0.0, 0.50, 1.0],
+              colors: [
+                Colors.transparent,
+                background.withOpacity(0.65),
                 background,
               ],
             ),
