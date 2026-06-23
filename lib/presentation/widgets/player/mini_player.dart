@@ -11,6 +11,7 @@ import '../../../core/theme/color_scheme.dart';
 import '../../../core/theme/glass_theme.dart';
 import '../../../core/theme/typography.dart';
 import '../../../domain/models/playback.dart';
+import '../../providers/cover_palette_provider.dart';
 import '../../providers/playback_providers.dart';
 import '../../providers/settings_providers.dart';
 import '../../shell/nav_provider.dart';
@@ -140,6 +141,15 @@ class _CardState extends ConsumerState<_Card>
     final colors = context.colors;
     final song = widget.state.currentSong!;
     final controller = ref.read(audioControllerProvider);
+    // The glass shell refracts the current track's dominant hue (spec §4).
+    final tint = ref
+        .watch(coverPaletteProvider((
+          seed: song.artworkSeed,
+          hasArtwork: song.hasArtwork,
+          artworkId: int.tryParse(song.id),
+        )))
+        .valueOrNull
+        ?.accent;
 
     return AnimatedBuilder(
       animation: _bounceCtrl,
@@ -169,6 +179,8 @@ class _CardState extends ConsumerState<_Card>
       child: GlassSurface(
         // Fully-rounded stadium shell — matched to the nav bar below it.
         borderRadius: RadiusTokens.brPill,
+        level: GlassLevel.thin, // mini player = thin material (spec §2)
+        tint: tint,
         intensity: ref.watch(settingsProvider.select((s) => s.glassIntensity)),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 320),
