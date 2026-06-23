@@ -77,8 +77,10 @@ abstract final class AppTextTheme {
     letterSpacing: -0.1,
   );
 
-  /// 17 / 400 / 22 — list item primary line; default reading size.
-  static const TextStyle body = TextStyle(
+  /// 17 / 400 / 22 — iOS "body": primary reading line. In Aura's denser layout
+  /// this is reserved for genuine primary/reading text; secondary metadata uses
+  /// [subhead] (which the legacy [body] alias points at — see below).
+  static const TextStyle bodyLarge = TextStyle(
     fontFamily: fontFamily,
     fontSize: 17,
     height: 22 / 17,
@@ -145,6 +147,12 @@ abstract final class AppTextTheme {
   /// Section / page headers. → [title1] semibold.
   static const TextStyle display = title1;
 
+  /// Secondary / metadata text (artist · album · captions-plus). Historically
+  /// Aura's `body` was 14pt secondary text, so it maps onto [subhead] (15),
+  /// NOT the iOS 17pt body — that lives in [bodyLarge]. Keeps the ~120 existing
+  /// call sites at the right secondary tier.
+  static const TextStyle body = subhead;
+
   /// List item primary line. → 17 / 500 (body weight nudged for emphasis).
   static const TextStyle title = TextStyle(
     fontFamily: fontFamily,
@@ -186,8 +194,8 @@ abstract final class AppTextTheme {
       titleLarge: title2,
       titleMedium: title,
       titleSmall: subhead,
-      bodyLarge: body,
-      bodyMedium: body,
+      bodyLarge: bodyLarge,
+      bodyMedium: bodyLarge,
       bodySmall: footnote,
       labelLarge: action,
       labelMedium: caption1,
