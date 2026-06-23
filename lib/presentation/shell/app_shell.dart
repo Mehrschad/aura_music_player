@@ -9,8 +9,10 @@ import '../pages/library/library_page.dart';
 import '../pages/onboarding/onboarding_page.dart';
 import '../pages/playlists/playlists_page.dart';
 import '../pages/search/search_page.dart';
+import '../providers/cover_palette_provider.dart';
 import '../providers/engine_bridge_provider.dart';
 import '../providers/home_widget_providers.dart';
+import '../providers/playback_providers.dart';
 import '../providers/scrobbler_provider.dart';
 import '../providers/selection_providers.dart';
 import '../providers/settings_providers.dart';
@@ -115,6 +117,19 @@ class _AppShellState extends ConsumerState<AppShell>
     final tab = ref.watch(selectedTabProvider);
     final tabIndex = tab.index;
 
+    // Current track palette for ambient colour behind the glass layer.
+    final song = ref.watch(currentSongProvider);
+    final ambientWash = song == null
+        ? null
+        : ref
+            .watch(coverPaletteProvider((
+              seed: song.artworkSeed,
+              hasArtwork: song.hasArtwork,
+              artworkId: int.tryParse(song.id),
+            )))
+            .valueOrNull
+            ?.wash;
+
     // Listen for tab changes to drive the directional slide animation, and
     // expand the floating nav bar (a fresh tab always starts at the top).
     ref.listen(selectedTabProvider, (prev, next) {
@@ -149,6 +164,17 @@ class _AppShellState extends ConsumerState<AppShell>
                   Positioned.fill(
                     child: _buildTabSlot(i, tabIndex, t, isAnim, W),
                   ),
+                // Ambient colour glow: the current track's wash bleeds
+                // through the bottom glass (mini player + nav bar) so the
+                // frosting becomes obvious even over a near-black background.
+                // This is the "Apple Music whole-page tint" effect.
+                Positioned(
+                  bottom: 0, left: 0, right: 0,
+                  height: 260,
+                  child: IgnorePointer(
+                    child: _AmbientGlow(wash: ambientWash),
+                  ),
+                ),
               ],
             );
           },
@@ -238,6 +264,47 @@ class _TabNavigator extends StatelessWidget {
     return Navigator(
       key: navigatorKey,
       onGenerateRoute: (_) => MaterialPageRoute<void>(builder: (_) => root),
+    );
+  }
+}
+
+/// The colour glow behind the glass nav bar + mini player.
+///
+/// When a track is playing, the artwork's `wash` colour bleeds upward as a
+/// translucent gradient so the [GlassSurface] backdrop-filter has colourful
+/// content to blur — making the frosted-glass look clearly visible even over
+/// a uniform near-black or white page background.
+///
+/// Animates smoothly between colours as the track changes.
+class _AmbientGlow extends StatelessWidget {
+  const _AmbientGlow({this.wash});
+  final Color? wash;
+
+  @override
+  Widget build(BuildContext context) {
+    final target = wash ?? Colors.transparent;
+    return TweenAnimationBuilder<Color?>(
+      tween: ColorTween(end: target),
+      duration: const Duration(milliseconds: 900),
+      curve: Curves.easeInOut,
+      builder: (context, color, _) {
+        final c = color ?? Colors.transparent;
+        if (c == Colors.transparent) return const SizedBox.expand();
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                c.withOpacity(0),
+                c.withOpacity(0.22),
+                c.withOpacity(0.44),
+              ],
+              stops: const [0.0, 0.55, 1.0],
+            ),
+          ),
+        );
+      },
     );
   }
 }

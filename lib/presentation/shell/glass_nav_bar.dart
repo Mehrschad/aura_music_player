@@ -9,8 +9,11 @@ import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/color_scheme.dart';
 import '../../core/theme/glass_theme.dart';
 import '../../core/theme/typography.dart';
-import '../widgets/glass/glass_surface.dart';
+import '../../core/utils/seed_color.dart';
+import '../providers/cover_palette_provider.dart';
+import '../providers/playback_providers.dart';
 import '../providers/settings_providers.dart';
+import '../widgets/glass/glass_surface.dart';
 import 'nav_provider.dart';
 
 /// The floating Liquid-Glass navigation, iOS 26 style: the four primary tabs
@@ -77,6 +80,20 @@ class _GlassNavBarState extends ConsumerState<GlassNavBar>
       }
     });
 
+    // Dynamic accent from the currently playing track — makes the active tab
+    // pill visibly coloured even on a black background.
+    final song = ref.watch(currentSongProvider);
+    final trackAccent = song == null
+        ? null
+        : ref
+            .watch(coverPaletteProvider((
+              seed: song.artworkSeed,
+              hasArtwork: song.hasArtwork,
+              artworkId: int.tryParse(song.id),
+            )))
+            .valueOrNull
+            ?.accent;
+
     const barHeight = 64.0;
     final mainIndex = _mainTabs.indexWhere((t) => t.tab == selected);
 
@@ -123,7 +140,10 @@ class _GlassNavBarState extends ConsumerState<GlassNavBar>
                           child: AnimatedOpacity(
                             duration: MotionTokens.micro,
                             opacity: mainIndex < 0 ? 0.0 : 1.0,
-                            child: _GlossyPill(colors: colors),
+                            child: _GlossyPill(
+                              colors: colors,
+                              accent: trackAccent,
+                            ),
                           ),
                         ),
                         Row(
@@ -154,6 +174,7 @@ class _GlassNavBarState extends ConsumerState<GlassNavBar>
             selected: selected == AppTab.search,
             intensity: intensity,
             size: barHeight,
+            accent: trackAccent,
             onTap: () => selectTab(AppTab.search),
           ),
         ],
@@ -187,34 +208,72 @@ class _GlassNavBarState extends ConsumerState<GlassNavBar>
   }
 }
 
-/// The glossy selected-tab capsule — a top-lit translucent fill with a soft
-/// white rim, so the active tab reads as a small piece of lit Liquid Glass.
+/// The glossy selected-tab capsule.
+///
+/// When a track is playing, [accent] fills the capsule with the album's
+/// dominant colour — making the active tab immediately recognisable.
+/// Without a track, it falls back to a neutral white-tinted frosted glass.
 class _GlossyPill extends StatelessWidget {
-  const _GlossyPill({required this.colors});
+  const _GlossyPill({required this.colors, this.accent});
   final AppColors colors;
+
+  /// Dynamic accent from the current track's artwork (may be null).
+  final Color? accent;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: RadiusTokens.brPill,
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            colors.onSurface.withOpacity(0.16),
-            colors.onSurface.withOpacity(0.07),
-          ],
-        ),
-        border: Border.all(color: Colors.white.withOpacity(0.12), width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.white.withOpacity(0.05),
-            blurRadius: 6,
-            spreadRadius: -2,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final base = accent;
+    return TweenAnimationBuilder<Color?>(
+      tween: ColorTween(end: base),
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
+      builder: (context, color, _) {
+        final hasColor = color != null;
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: RadiusTokens.brPill,
+            gradient: hasColor
+                ? LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      color.withOpacity(isDark ? 0.55 : 0.45),
+                      color.withOpacity(isDark ? 0.30 : 0.20),
+                    ],
+                  )
+                : LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      colors.onSurface.withOpacity(0.16),
+                      colors.onSurface.withOpacity(0.07),
+                    ],
+                  ),
+            border: Border.all(
+              color: hasColor
+                  ? color.withOpacity(0.45)
+                  : Colors.white.withOpacity(0.12),
+              width: 1,
+            ),
+            boxShadow: hasColor
+                ? [
+                    BoxShadow(
+                      color: color.withOpacity(isDark ? 0.40 : 0.25),
+                      blurRadius: 12,
+                      spreadRadius: -2,
+                    ),
+                  ]
+                : [
+                    BoxShadow(
+                      color: Colors.white.withOpacity(0.05),
+                      blurRadius: 6,
+                      spreadRadius: -2,
+                    ),
+                  ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -307,6 +366,7 @@ class _SearchBubble extends StatefulWidget {
     required this.intensity,
     required this.size,
     required this.onTap,
+    this.accent,
   });
 
   final String label;
@@ -314,6 +374,7 @@ class _SearchBubble extends StatefulWidget {
   final GlassIntensity intensity;
   final double size;
   final VoidCallback onTap;
+  final Color? accent;
 
   @override
   State<_SearchBubble> createState() => _SearchBubbleState();
@@ -355,22 +416,40 @@ class _SearchBubbleState extends State<_SearchBubble> {
                 children: [
                   if (widget.selected)
                     Positioned.fill(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              colors.onSurface.withOpacity(0.16),
-                              colors.onSurface.withOpacity(0.07),
-                            ],
-                          ),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.12),
-                            width: 1,
-                          ),
-                        ),
+                      child: TweenAnimationBuilder<Color?>(
+                        tween: ColorTween(end: widget.accent),
+                        duration: const Duration(milliseconds: 500),
+                        builder: (context, color, _) {
+                          final isDark = Theme.of(context).brightness == Brightness.dark;
+                          return DecoratedBox(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: color != null
+                                  ? LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        color.withOpacity(isDark ? 0.55 : 0.45),
+                                        color.withOpacity(isDark ? 0.30 : 0.20),
+                                      ],
+                                    )
+                                  : LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        colors.onSurface.withOpacity(0.16),
+                                        colors.onSurface.withOpacity(0.07),
+                                      ],
+                                    ),
+                              border: Border.all(
+                                color: color != null
+                                    ? color.withOpacity(0.45)
+                                    : Colors.white.withOpacity(0.12),
+                                width: 1,
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ),
                   Icon(
