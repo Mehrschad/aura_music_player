@@ -7,8 +7,8 @@ import '../artwork/aura_artwork.dart';
 import 'now_playing_route.dart';
 
 /// The Now Playing album art: a [Hero] (so it flies from the mini player) that
-/// breathes — scaling 1.0 → 1.015 → 1.0 on a 4-second loop — while playing,
-/// and gently shrinks to 0.88 when paused.
+/// scales up to 1.08× while playing (with a gentle 1.015 breath on top) and
+/// settles back to 0.94× when paused — iOS 26 artwork presence spec.
 ///
 /// When [slideDirection] is non-zero the [AnimatedSwitcher] uses a directional
 /// slide+fade instead of a plain crossfade: +1 → new art enters from the right
@@ -54,10 +54,11 @@ class _BreathingArtworkState extends State<BreathingArtwork>
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
-    _pauseScale = Tween<double>(begin: 1.0, end: 0.88)
+    // Playing = 1.08× (confident presence), paused = 0.94× (settled back).
+    _pauseScale = Tween<double>(begin: 1.08, end: 0.94)
         .animate(CurvedAnimation(parent: _scaleCtrl, curve: Curves.easeInOut));
-    // Artwork rises ~13 px when paused — reinforces the "resting" feel.
-    _pauseRise = Tween<double>(begin: 0.0, end: -13.0)
+    // Artwork rises ~8 px when paused — reinforces the "resting" feel.
+    _pauseRise = Tween<double>(begin: 0.0, end: -8.0)
         .animate(CurvedAnimation(parent: _scaleCtrl, curve: Curves.easeInOut));
     // Set the correct initial scale without animation.
     _scaleCtrl.value = widget.playing ? 0.0 : 1.0;
