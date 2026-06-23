@@ -6,6 +6,7 @@ import '../../../core/constants/radius_tokens.dart';
 import '../../../core/constants/spacing_tokens.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/color_scheme.dart';
+import '../../../core/theme/glass_theme.dart';
 import '../../../core/theme/typography.dart';
 import '../../../core/utils/seed_color.dart';
 import '../../../domain/models/album.dart';
@@ -15,7 +16,9 @@ import '../../../domain/models/song.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../providers/recent_searches_provider.dart';
+import '../../providers/settings_providers.dart';
 import '../../widgets/artwork/aura_artwork.dart';
+import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/library/song_list_tile.dart';
 import '../../widgets/player/song_actions_sheet.dart';
 import '../../widgets/player_bar_inset.dart';
@@ -358,7 +361,10 @@ class _SubHead extends StatelessWidget {
 // Pill search field
 // ---------------------------------------------------------------------------
 
-class _SearchField extends StatelessWidget {
+/// Floating glass search bar — frosted-glass pill that blurs whatever content
+/// scrolls behind it (results list, genre cards). Respects the user's glass
+/// intensity preference from Settings.
+class _SearchField extends ConsumerWidget {
   const _SearchField({
     required this.controller,
     required this.showClear,
@@ -374,52 +380,55 @@ class _SearchField extends StatelessWidget {
   final VoidCallback onClear;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
     final l10n = AppLocalizations.of(context);
-    return Container(
-      height: 46,
+    final intensity =
+        ref.watch(settingsProvider.select((s) => s.glassIntensity));
+    return GlassSurface(
+      borderRadius: RadiusTokens.brPill,
+      intensity: intensity,
+      level: GlassLevel.thin,
       padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.md),
-      decoration: BoxDecoration(
-        color: colors.surfaceElevated,
-        borderRadius: RadiusTokens.brPill,
-        border: Border.all(color: colors.divider),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.search, size: IconSizes.md, color: colors.onSurfaceFaint),
-          const SizedBox(width: SpacingTokens.sm),
-          Expanded(
-            child: TextField(
-              controller: controller,
-              autocorrect: false,
-              onChanged: onChanged,
-              onSubmitted: onSubmitted,
-              style: AppTextTheme.body.copyWith(color: colors.onSurface),
-              decoration: InputDecoration(
-                isCollapsed: true,
-                border: InputBorder.none,
-                hintText: l10n.searchHint,
-                hintStyle:
-                    AppTextTheme.body.copyWith(color: colors.onSurfaceFaint),
-              ),
-            ),
-          ),
-          if (showClear)
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: onClear,
-              child: Semantics(
-                button: true,
-                label: l10n.searchClear,
-                child: Padding(
-                  padding: const EdgeInsets.only(left: SpacingTokens.sm),
-                  child: Icon(Icons.close,
-                      size: IconSizes.sm, color: colors.onSurfaceFaint),
+      child: SizedBox(
+        height: 46,
+        child: Row(
+          children: [
+            Icon(Icons.search,
+                size: IconSizes.md, color: colors.onSurfaceFaint),
+            const SizedBox(width: SpacingTokens.sm),
+            Expanded(
+              child: TextField(
+                controller: controller,
+                autocorrect: false,
+                onChanged: onChanged,
+                onSubmitted: onSubmitted,
+                style: AppTextTheme.body.copyWith(color: colors.onSurface),
+                decoration: InputDecoration(
+                  isCollapsed: true,
+                  border: InputBorder.none,
+                  hintText: l10n.searchHint,
+                  hintStyle: AppTextTheme.body
+                      .copyWith(color: colors.onSurfaceFaint),
                 ),
               ),
             ),
-        ],
+            if (showClear)
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onClear,
+                child: Semantics(
+                  button: true,
+                  label: l10n.searchClear,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: SpacingTokens.sm),
+                    child: Icon(Icons.close,
+                        size: IconSizes.sm, color: colors.onSurfaceFaint),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
