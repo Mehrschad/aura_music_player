@@ -43,7 +43,7 @@ abstract final class AppTheme {
       scaffoldBackgroundColor: colors.background,
       canvasColor: colors.background,
       dividerColor: colors.divider,
-      splashFactory: InkSparkle.splashFactory,
+      splashFactory: NoSplash.splashFactory,
       textTheme: AppTextTheme.materialTextTheme(colors.onSurface),
       extensions: <ThemeExtension<dynamic>>[colors],
       // Aura draws its own nav bar; suppress Material defaults that would

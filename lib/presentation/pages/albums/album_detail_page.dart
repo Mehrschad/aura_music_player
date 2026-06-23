@@ -10,12 +10,14 @@ import '../../../core/theme/typography.dart';
 import '../../../core/utils/seed_color.dart';
 import '../../../domain/models/album.dart';
 import '../../../domain/models/song.dart';
+import '../../providers/cover_palette_provider.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../widgets/artwork/aura_artwork.dart';
 import '../../widgets/library/song_list_tile.dart';
 import '../../widgets/player/song_actions_sheet.dart';
 import '../../widgets/player_bar_inset.dart';
+import '../../widgets/press_scale.dart';
 import '../tag_editor/tag_editor_page.dart';
 
 class AlbumDetailPage extends ConsumerWidget {
@@ -37,7 +39,12 @@ class AlbumDetailPage extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final songsAsync = ref.watch(albumSongsProvider(album.id));
     final miniPlayerVisible = ref.watch(hasMediaProvider);
-    final accent = SeedPalette.accent(album.artworkSeed);
+    final palette = ref.watch(coverPaletteProvider((
+      seed: album.artworkSeed,
+      hasArtwork: album.hasArtwork,
+      artworkId: album.firstSongId,
+    ))).valueOrNull;
+    final accent = palette?.accent ?? SeedPalette.accent(album.artworkSeed);
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -80,6 +87,7 @@ class AlbumDetailPage extends ConsumerWidget {
               background: _Hero(
                 album: album,
                 background: colors.background,
+                accent: accent,
                 meta: songsAsync.maybeWhen(
                   data: (songs) => _metaLine(l10n, songs),
                   orElse: () => null,
@@ -230,11 +238,13 @@ class _Hero extends StatelessWidget {
     required this.album,
     required this.background,
     required this.meta,
+    required this.accent,
   });
 
   final Album album;
   final Color background;
   final String? meta;
+  final Color accent;
 
   @override
   Widget build(BuildContext context) {
@@ -248,8 +258,11 @@ class _Hero extends StatelessWidget {
           hasArtwork: album.hasArtwork,
           artworkId: album.firstSongId,
         ),
-        // Subtle dark at the very top (for the back button), transparent
-        // middle, fading to the page background at the bottom.
+        // Subtle palette hue wash — picks up the album's dominant colour.
+        DecoratedBox(
+          decoration: BoxDecoration(color: accent.withOpacity(0.08)),
+        ),
+        // Dark-top / transparent-middle / page-background-bottom scrim.
         DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -299,8 +312,8 @@ class _Hero extends StatelessWidget {
   }
 }
 
-/// A pill action button matching the DS Button: accent fill for the primary
-/// action, elevated surface with a hairline border for the secondary.
+/// Pill action button — accent-fill for the primary action, glass-surface
+/// outline for the secondary. Uses PressScale (no Material ink ripple).
 class _ActionButton extends StatelessWidget {
   const _ActionButton({
     required this.icon,
@@ -320,30 +333,25 @@ class _ActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final fg = filled ? Colors.white : colors.onSurface;
-    return Material(
-      color: filled ? accent : colors.surfaceElevated,
-      borderRadius: RadiusTokens.brPill,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: RadiusTokens.brPill,
-        child: Container(
-          height: 44,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            borderRadius: RadiusTokens.brPill,
-            border: filled
-                ? null
-                : Border.all(color: colors.divider),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 20, color: fg),
-              const SizedBox(width: SpacingTokens.sm),
-              Text(label, style: AppTextTheme.action.copyWith(color: fg)),
-            ],
-          ),
+    return PressScale(
+      onTap: onTap,
+      pressedScale: 0.96,
+      child: Container(
+        height: 44,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: filled ? accent : colors.surfaceElevated,
+          borderRadius: RadiusTokens.brPill,
+          border: filled ? null : Border.all(color: colors.divider),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 20, color: fg),
+            const SizedBox(width: SpacingTokens.sm),
+            Text(label, style: AppTextTheme.action.copyWith(color: fg)),
+          ],
         ),
       ),
     );

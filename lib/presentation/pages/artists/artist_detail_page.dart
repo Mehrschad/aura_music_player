@@ -12,6 +12,7 @@ import '../../../domain/models/album.dart';
 import '../../../domain/models/artist.dart';
 import '../../providers/artist_bio_providers.dart';
 import '../../providers/artist_favorites_providers.dart';
+import '../../providers/cover_palette_provider.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../widgets/artwork/aura_artwork.dart';
@@ -32,7 +33,12 @@ class ArtistDetailPage extends ConsumerWidget {
     final songsAsync = ref.watch(artistSongsProvider(artist.id));
     final albumsAsync = ref.watch(artistAlbumsProvider(artist.id));
     final miniPlayerVisible = ref.watch(hasMediaProvider);
-    final accent = SeedPalette.accent(artist.artworkSeed);
+    final palette = ref.watch(coverPaletteProvider((
+      seed: artist.artworkSeed,
+      hasArtwork: artist.hasArtwork,
+      artworkId: artist.firstSongId,
+    ))).valueOrNull;
+    final accent = palette?.accent ?? SeedPalette.accent(artist.artworkSeed);
     final isFav = ref.watch(isArtistFavoriteProvider(artist.id));
 
     return Scaffold(
@@ -81,7 +87,11 @@ class ArtistDetailPage extends ConsumerWidget {
                       artworkId: artist.firstSongId,
                     ),
                   ),
-                  // DS hero scrim: faint top darkening fading into the page bg.
+                  // Subtle palette hue wash.
+                  DecoratedBox(
+                    decoration: BoxDecoration(color: accent.withOpacity(0.08)),
+                  ),
+                  // Dark-top / transparent-middle / page-background-bottom scrim.
                   DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
@@ -109,24 +119,47 @@ class ArtistDetailPage extends ConsumerWidget {
                 SpacingTokens.xl,
                 SpacingTokens.xs,
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Text(
-                      '${l10n.albumsCount(artist.albumCount)} · ${l10n.songsCount(artist.songCount)}',
-                      style: AppTextTheme.body
-                          .copyWith(color: colors.onSurfaceMuted),
-                    ),
+                  Text(
+                    '${l10n.albumsCount(artist.albumCount)} · ${l10n.songsCount(artist.songCount)}',
+                    style: AppTextTheme.body
+                        .copyWith(color: colors.onSurfaceMuted),
                   ),
+                  const SizedBox(height: SpacingTokens.sm),
                   songsAsync.maybeWhen(
                     data: (songs) => songs.isEmpty
                         ? const SizedBox.shrink()
-                        : FilledButton.icon(
-                            onPressed: () => ref
-                                .read(audioControllerProvider)
-                                .playQueue(songs),
-                            icon: const Icon(Icons.play_arrow),
-                            label: Text(l10n.playAll),
+                        : Row(
+                            children: [
+                              Expanded(
+                                child: _PillButton(
+                                  icon: Icons.play_arrow,
+                                  label: l10n.play,
+                                  filled: true,
+                                  accent: accent,
+                                  onTap: () => ref
+                                      .read(audioControllerProvider)
+                                      .playQueue(songs),
+                                ),
+                              ),
+                              const SizedBox(width: SpacingTokens.sm),
+                              Expanded(
+                                child: _PillButton(
+                                  icon: Icons.shuffle,
+                                  label: l10n.shuffle,
+                                  filled: false,
+                                  accent: accent,
+                                  onTap: () {
+                                    final ctrl =
+                                        ref.read(audioControllerProvider);
+                                    ctrl.setShuffle(true);
+                                    ctrl.playQueue(songs);
+                                  },
+                                ),
+                              ),
+                            ],
                           ),
                     orElse: () => const SizedBox.shrink(),
                   ),
@@ -344,6 +377,52 @@ class _AlbumsRail extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Pill action button — accent-fill for Play, glass-surface outline for
+/// Shuffle. Uses PressScale so there is no Material ink ripple.
+class _PillButton extends StatelessWidget {
+  const _PillButton({
+    required this.icon,
+    required this.label,
+    required this.filled,
+    required this.accent,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool filled;
+  final Color accent;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final fg = filled ? Colors.white : colors.onSurface;
+    return PressScale(
+      onTap: onTap,
+      pressedScale: 0.96,
+      child: Container(
+        height: 44,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: filled ? accent : colors.surfaceElevated,
+          borderRadius: RadiusTokens.brPill,
+          border: filled ? null : Border.all(color: colors.divider),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 20, color: fg),
+            const SizedBox(width: SpacingTokens.sm),
+            Text(label, style: AppTextTheme.action.copyWith(color: fg)),
+          ],
+        ),
+      ),
     );
   }
 }
