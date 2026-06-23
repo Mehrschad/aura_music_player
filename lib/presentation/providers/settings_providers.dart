@@ -78,6 +78,7 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   void setLastFmSessionKey(String v) => _update(state.copyWith(lastFmSessionKey: v));
   void setLastFmUsername(String v) => _update(state.copyWith(lastFmUsername: v));
   void setAndroidAuto(bool v) => _update(state.copyWith(androidAuto: v));
+  void setReduceMotion(bool v) => _update(state.copyWith(reduceMotion: v));
 
   Future<void> setOnboardingSeen() async {
     _update(state.copyWith(onboardingSeen: true));

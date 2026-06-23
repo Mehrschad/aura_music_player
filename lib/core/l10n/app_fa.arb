@@ -395,5 +395,8 @@
   "vizFlowField": "جریان",
   "androidAutoSub": "نمایش Aura در خودرو",
   "lyricsAutoFetchSub": "از Genius در صورت نبود",
-  "smartPlaylistAutoCount": "{count, plural, other{خودکار · {count} آهنگ}}"
+  "smartPlaylistAutoCount": "{count, plural, other{خودکار · {count} آهنگ}}",
+  "settingsAccessibility": "دسترس‌پذیری",
+  "reduceMotion": "کاهش حرکت",
+  "reduceMotionSub": "غیرفعال کردن همه انیمیشن‌ها"
 }

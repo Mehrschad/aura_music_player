@@ -137,6 +137,15 @@ class SettingsPage extends ConsumerWidget {
             ),
           ]),
 
+          _GroupTitle(l10n.settingsAccessibility),
+          _CardGroup(children: [
+            _SwitchTile(
+                label: l10n.reduceMotion,
+                sub: l10n.reduceMotionSub,
+                value: s.reduceMotion,
+                onChanged: n.setReduceMotion),
+          ]),
+
           _GroupTitle(l10n.settingsLibrary),
           _CardGroup(children: [
             _FolderList(folders: s.sourceFolders, notifier: n),

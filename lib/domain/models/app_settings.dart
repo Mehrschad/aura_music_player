@@ -48,6 +48,7 @@ class AppSettings {
     this.lastFmUsername = '',
     this.androidAuto = true,
     this.onboardingSeen = false,
+    this.reduceMotion = false,
   });
 
   static const AppSettings defaults = AppSettings();
@@ -104,6 +105,10 @@ class AppSettings {
   final bool androidAuto;
   final bool onboardingSeen;
 
+  /// When true, all animations are suppressed app-wide (augments the OS
+  /// "Reduce Motion" accessibility flag via [MediaQuery.disableAnimations]).
+  final bool reduceMotion;
+
   AppSettings copyWith({
     ThemePref? themePref,
     GlassIntensity? glassIntensity,
@@ -136,6 +141,7 @@ class AppSettings {
     String? lastFmUsername,
     bool? androidAuto,
     bool? onboardingSeen,
+    bool? reduceMotion,
   }) {
     return AppSettings(
       themePref: themePref ?? this.themePref,
@@ -169,6 +175,7 @@ class AppSettings {
       lastFmUsername: lastFmUsername ?? this.lastFmUsername,
       androidAuto: androidAuto ?? this.androidAuto,
       onboardingSeen: onboardingSeen ?? this.onboardingSeen,
+      reduceMotion: reduceMotion ?? this.reduceMotion,
     );
   }
 
@@ -205,6 +212,7 @@ class AppSettings {
         'lastFmUsername': lastFmUsername,
         'androidAuto': androidAuto,
         'onboardingSeen': onboardingSeen,
+        'reduceMotion': reduceMotion,
       };
 
   static AppSettings fromJson(Map<String, dynamic> json) {
@@ -257,6 +265,7 @@ class AppSettings {
       lastFmUsername: json['lastFmUsername'] as String? ?? d.lastFmUsername,
       androidAuto: json['androidAuto'] as bool? ?? d.androidAuto,
       onboardingSeen: json['onboardingSeen'] as bool? ?? d.onboardingSeen,
+      reduceMotion: json['reduceMotion'] as bool? ?? d.reduceMotion,
     );
   }
 }

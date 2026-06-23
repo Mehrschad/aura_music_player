@@ -30,7 +30,13 @@ class AuraApp extends ConsumerWidget {
       builder: (context, child) {
         final mq = MediaQuery.of(context);
         return MediaQuery(
-          data: mq.copyWith(textScaler: TextScaler.linear(settings.textScale)),
+          data: mq.copyWith(
+            textScaler: TextScaler.linear(settings.textScale),
+            // In-app Reduce Motion augments the OS accessibility flag so
+            // the user can suppress animations without changing system prefs.
+            disableAnimations:
+                settings.reduceMotion || mq.disableAnimations,
+          ),
           child: child ?? const SizedBox.shrink(),
         );
       },

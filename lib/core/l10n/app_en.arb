@@ -813,6 +813,9 @@
   "@lyricsAutoFetchSub": {
     "description": "Subtitle under the auto-fetch lyrics setting."
   },
+  "settingsAccessibility": "Accessibility",
+  "reduceMotion": "Reduce Motion",
+  "reduceMotionSub": "Disable all animations app-wide",
   "smartPlaylistAutoCount": "{count, plural, =0{Auto · No songs} =1{Auto · 1 song} other{Auto · {count} songs}}",
   "@smartPlaylistAutoCount": {
     "description": "Smart-playlist subtitle: Auto + pluralised song count.",

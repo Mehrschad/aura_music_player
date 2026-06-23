@@ -395,5 +395,8 @@
   "vizFlowField": "تيار",
   "androidAutoSub": "إظهار Aura في سيارتك",
   "lyricsAutoFetchSub": "من Genius عند عدم التوفر",
-  "smartPlaylistAutoCount": "{count, plural, zero{تلقائي · لا أغانٍ} one{تلقائي · أغنية واحدة} two{تلقائي · أغنيتان} few{تلقائي · {count} أغانٍ} many{تلقائي · {count} أغنية} other{تلقائي · {count} أغنية}}"
+  "smartPlaylistAutoCount": "{count, plural, zero{تلقائي · لا أغانٍ} one{تلقائي · أغنية واحدة} two{تلقائي · أغنيتان} few{تلقائي · {count} أغانٍ} many{تلقائي · {count} أغنية} other{تلقائي · {count} أغنية}}",
+  "settingsAccessibility": "إمكانية الوصول",
+  "reduceMotion": "تقليل الحركة",
+  "reduceMotionSub": "تعطيل جميع الرسوم المتحركة"
 }
