@@ -9,6 +9,7 @@ import '../pages/library/library_page.dart';
 import '../pages/onboarding/onboarding_page.dart';
 import '../pages/playlists/playlists_page.dart';
 import '../pages/search/search_page.dart';
+import '../../core/theme/color_scheme.dart';
 import '../providers/cover_palette_provider.dart';
 import '../providers/engine_bridge_provider.dart';
 import '../providers/home_widget_providers.dart';
