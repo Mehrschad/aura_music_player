@@ -7,10 +7,12 @@ import '../../../core/constants/spacing_tokens.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/color_scheme.dart';
 import '../../../core/theme/typography.dart';
+import '../../../core/utils/seed_color.dart';
 import '../../../domain/library/playlist_logic.dart';
 import '../../../domain/models/playlist.dart';
 import '../../../domain/models/song.dart';
 import '../../providers/async_value_x.dart';
+import '../../providers/cover_palette_provider.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../providers/playlist_providers.dart';
@@ -93,10 +95,32 @@ class PlaylistDetailPage extends ConsumerWidget {
             ? (ref.watch(smartPlaylistByIdProvider(smartId!))?.name ?? '')
             : autoPlaylistLabel(auto!, l10n);
 
+    // Derive wash tint from the first song's artwork to tint the page.
+    final firstSong = songsAsync.valueOrNull?.isNotEmpty == true
+        ? songsAsync.valueOrNull!.first
+        : null;
+    final palette = firstSong == null
+        ? null
+        : ref
+            .watch(coverPaletteProvider((
+              seed: firstSong.artworkSeed,
+              hasArtwork: firstSong.hasArtwork,
+              artworkId: int.tryParse(firstSong.id),
+            )))
+            .valueOrNull;
+    final wash = palette?.wash ??
+        (firstSong != null
+            ? SeedPalette.wash(firstSong.artworkSeed)
+            : colors.background);
+    final pageBackground = firstSong == null
+        ? colors.background
+        : Color.alphaBlend(wash.withOpacity(0.10), colors.background);
+
     return Scaffold(
-      backgroundColor: colors.background,
+      backgroundColor: pageBackground,
       appBar: AppBar(
-        backgroundColor: colors.background,
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
         title: Text(title,
             style: AppTextTheme.title.copyWith(color: colors.onSurface)),
         actions: [
