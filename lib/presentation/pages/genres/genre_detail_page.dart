@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/constants/radius_tokens.dart';
 import '../../../core/constants/spacing_tokens.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/color_scheme.dart';
 import '../../../core/theme/typography.dart';
+import '../../../core/utils/seed_color.dart';
 import '../../../domain/models/genre.dart';
 import '../../../domain/models/song.dart';
+import '../../providers/cover_palette_provider.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../widgets/artwork/aura_artwork.dart';
 import '../../widgets/library/song_list_tile.dart';
 import '../../widgets/player/song_actions_sheet.dart';
 import '../../widgets/player_bar_inset.dart';
+import '../../widgets/press_scale.dart';
 
 /// Detail header height — matches the album/artist detail backdrops.
 const double _kExpandedHeight = 240;
@@ -36,6 +40,13 @@ class GenreDetailPage extends ConsumerWidget {
     final miniPlayerVisible = ref.watch(hasMediaProvider);
     final title = genre.isUnknown ? l10n.genreUnknown : genre.name;
 
+    final palette = ref.watch(coverPaletteProvider((
+      seed: genre.artworkSeed,
+      hasArtwork: genre.hasArtwork,
+      artworkId: genre.firstSongId,
+    ))).valueOrNull;
+    final accent = palette?.accent ?? SeedPalette.accent(genre.artworkSeed);
+
     return Scaffold(
       backgroundColor: colors.background,
       body: CustomScrollView(
@@ -44,25 +55,12 @@ class GenreDetailPage extends ConsumerWidget {
             backgroundColor: colors.background,
             expandedHeight: _kExpandedHeight,
             pinned: true,
-            actions: [
-              songsAsync.maybeWhen(
-                data: (songs) => songs.isEmpty
-                    ? const SizedBox.shrink()
-                    : IconButton(
-                        tooltip: l10n.shuffleAll,
-                        icon: const Icon(Icons.shuffle_rounded,
-                            color: Colors.white),
-                        onPressed: () => _play(ref, songs, shuffle: true),
-                      ),
-                orElse: () => const SizedBox.shrink(),
-              ),
-            ],
             flexibleSpace: FlexibleSpaceBar(
               titlePadding: const EdgeInsetsDirectional.fromSTEB(
                   SpacingTokens.xl, 0, SpacingTokens.xl, SpacingTokens.md),
               title: Text(
                 title,
-                style: AppTextTheme.title.copyWith(color: colors.onSurface),
+                style: AppTextTheme.title.copyWith(color: Colors.white),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -76,12 +74,23 @@ class GenreDetailPage extends ConsumerWidget {
                     hasArtwork: genre.hasArtwork,
                     artworkId: genre.firstSongId,
                   ),
-                  const DecoratedBox(
+                  // Subtle palette hue wash.
+                  DecoratedBox(
+                    decoration:
+                        BoxDecoration(color: accent.withOpacity(0.08)),
+                  ),
+                  // Dark-top / transparent-middle / page-bg-bottom scrim.
+                  DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [Colors.transparent, Colors.black87],
+                        stops: const [0, 0.3, 1],
+                        colors: [
+                          Colors.black.withOpacity(0.25),
+                          Colors.transparent,
+                          colors.background,
+                        ],
                       ),
                     ),
                   ),
@@ -90,32 +99,95 @@ class GenreDetailPage extends ConsumerWidget {
             ),
           ),
 
-          // Song count + Play-all row.
+          // Song count + Play + Shuffle pill buttons.
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(
                 SpacingTokens.xl,
                 SpacingTokens.sm,
                 SpacingTokens.xl,
-                SpacingTokens.xs,
+                SpacingTokens.md,
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Text(
-                      l10n.songsCount(genre.songCount),
-                      style: AppTextTheme.caption
-                          .copyWith(color: colors.onSurfaceFaint),
-                    ),
+                  Text(
+                    l10n.songsCount(genre.songCount),
+                    style: AppTextTheme.caption
+                        .copyWith(color: colors.onSurfaceFaint),
                   ),
+                  const SizedBox(height: SpacingTokens.sm),
                   songsAsync.maybeWhen(
                     data: (songs) => songs.isEmpty
                         ? const SizedBox.shrink()
-                        : FilledButton.icon(
-                            onPressed: () =>
-                                _play(ref, songs, shuffle: false),
-                            icon: const Icon(Icons.play_arrow),
-                            label: Text(l10n.playAll),
+                        : Row(
+                            children: [
+                              Expanded(
+                                child: PressScale(
+                                  onTap: () =>
+                                      _play(ref, songs, shuffle: false),
+                                  pressedScale: 0.96,
+                                  child: Container(
+                                    height: 44,
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
+                                      color: accent,
+                                      borderRadius: RadiusTokens.brPill,
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.play_arrow,
+                                            size: 20, color: Colors.white),
+                                        const SizedBox(
+                                            width: SpacingTokens.sm),
+                                        Text(l10n.play,
+                                            style: AppTextTheme.action
+                                                .copyWith(
+                                                    color: Colors.white)),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: SpacingTokens.sm),
+                              Expanded(
+                                child: PressScale(
+                                  onTap: () =>
+                                      _play(ref, songs, shuffle: true),
+                                  pressedScale: 0.96,
+                                  child: Container(
+                                    height: 44,
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
+                                      color: colors.surfaceElevated,
+                                      borderRadius: RadiusTokens.brPill,
+                                      border: Border.all(
+                                          color: colors.divider),
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.shuffle,
+                                            size: 20,
+                                            color: colors.onSurface),
+                                        const SizedBox(
+                                            width: SpacingTokens.sm),
+                                        Text(l10n.shuffle,
+                                            style: AppTextTheme.action
+                                                .copyWith(
+                                                    color:
+                                                        colors.onSurface)),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                     orElse: () => const SizedBox.shrink(),
                   ),
