@@ -18,8 +18,6 @@ import '../../widgets/player/song_actions_sheet.dart';
 import '../../widgets/player_bar_inset.dart';
 import '../../widgets/press_scale.dart';
 
-/// Detail header height — matches the album/artist detail backdrops.
-const double _kExpandedHeight = 240;
 
 class GenreDetailPage extends ConsumerWidget {
   const GenreDetailPage({super.key, required this.genre});
@@ -46,18 +44,25 @@ class GenreDetailPage extends ConsumerWidget {
       artworkId: genre.firstSongId,
     ))).valueOrNull;
     final accent = palette?.accent ?? SeedPalette.accent(genre.artworkSeed);
+    final wash = palette?.wash ?? SeedPalette.wash(genre.artworkSeed);
+    final pageBackground =
+        Color.alphaBlend(wash.withOpacity(0.10), colors.background);
+
+    final heroHeight = MediaQuery.sizeOf(context).height * 0.40;
 
     return Scaffold(
-      backgroundColor: colors.background,
+      backgroundColor: pageBackground,
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
-            backgroundColor: colors.background,
-            expandedHeight: _kExpandedHeight,
+            backgroundColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            expandedHeight: heroHeight,
             pinned: true,
             flexibleSpace: FlexibleSpaceBar(
               titlePadding: const EdgeInsetsDirectional.fromSTEB(
-                  SpacingTokens.xl, 0, SpacingTokens.xl, SpacingTokens.md),
+                  SpacingTokens.xl, 0, SpacingTokens.xl, SpacingTokens.lg),
               title: Text(
                 title,
                 style: AppTextTheme.title.copyWith(color: Colors.white),
@@ -77,19 +82,32 @@ class GenreDetailPage extends ConsumerWidget {
                   // Subtle palette hue wash.
                   DecoratedBox(
                     decoration:
-                        BoxDecoration(color: accent.withOpacity(0.08)),
+                        BoxDecoration(color: accent.withOpacity(0.10)),
                   ),
-                  // Dark-top / transparent-middle / page-bg-bottom scrim.
+                  // Top vignette for legibility.
                   DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        stops: const [0, 0.3, 1],
+                        end: Alignment.center,
                         colors: [
-                          Colors.black.withOpacity(0.25),
+                          Colors.black.withOpacity(0.38),
                           Colors.transparent,
-                          colors.background,
+                        ],
+                      ),
+                    ),
+                  ),
+                  // Bottom melt into wash-tinted page background.
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.center,
+                        end: Alignment.bottomCenter,
+                        stops: const [0.0, 0.50, 1.0],
+                        colors: [
+                          Colors.transparent,
+                          pageBackground.withOpacity(0.65),
+                          pageBackground,
                         ],
                       ),
                     ),
