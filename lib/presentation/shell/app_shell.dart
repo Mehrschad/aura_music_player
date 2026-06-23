@@ -143,6 +143,8 @@ class _AppShellState extends ConsumerState<AppShell>
       }
     });
 
+    final colors = context.colors;
+
     return PopScope(
       canPop: false,
       onPopInvoked: (_) => _handleBack(),
@@ -164,6 +166,28 @@ class _AppShellState extends ConsumerState<AppShell>
                   Positioned.fill(
                     child: _buildTabSlot(i, tabIndex, t, isAnim, W),
                   ),
+                // Scroll edge fade: content melts into the glass as it
+                // approaches the floating nav bar — prevents hard cut-off.
+                Positioned(
+                  bottom: 0, left: 0, right: 0,
+                  height: 180,
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            colors.background.withOpacity(0.55),
+                            colors.background.withOpacity(0.82),
+                          ],
+                          stops: const [0.0, 0.6, 1.0],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
                 // Ambient colour glow: the current track's wash bleeds
                 // through the bottom glass (mini player + nav bar) so the
                 // frosting becomes obvious even over a near-black background.
