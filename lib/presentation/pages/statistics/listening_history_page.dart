@@ -16,6 +16,7 @@ import '../../providers/playback_providers.dart';
 import '../../providers/stats_providers.dart';
 import '../../widgets/artwork/aura_artwork.dart';
 import '../../widgets/player_bar_inset.dart';
+import '../../widgets/press_scale.dart';
 
 void openListeningHistory(BuildContext context) {
   Navigator.of(context).push(
@@ -152,12 +153,12 @@ class _HistoryRow extends ConsumerWidget {
         ref.watch(currentSongProvider.select((s) => s?.id == event.songId));
     final time = intl.DateFormat.Hm(localeName).format(event.at);
 
-    return InkWell(
+    return PressScale(
       // History is denormalised; tapping a deleted song is a no-op.
       onTap: song == null
           ? null
           : () => ref.read(audioControllerProvider).playQueue([song!]),
-      borderRadius: RadiusTokens.brMd,
+      pressedScale: 0.97,
       child: Container(
         decoration: BoxDecoration(
           borderRadius: RadiusTokens.brMd,

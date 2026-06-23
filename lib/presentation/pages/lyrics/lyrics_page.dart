@@ -15,6 +15,7 @@ import '../../../core/utils/motion.dart';
 import '../../../core/utils/seed_color.dart';
 import '../../../domain/models/lyrics.dart';
 import '../../providers/async_value_x.dart';
+import '../../providers/cover_palette_provider.dart';
 import '../../providers/lyrics_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../widgets/artwork/aura_artwork.dart';
@@ -115,8 +116,15 @@ class _LyricsPageState extends ConsumerState<LyricsPage> {
     final fontSize = ref.watch(lyricsFontSizeProvider);
     final dual = ref.watch(dualLanguageProvider);
     final seed = song?.artworkSeed ?? 'lyrics';
-    final accent = SeedPalette.accent(seed);
-    final wash = SeedPalette.wash(seed);
+    final palette = song == null
+        ? null
+        : ref.watch(coverPaletteProvider((
+            seed: song.artworkSeed,
+            hasArtwork: song.hasArtwork,
+            artworkId: int.tryParse(song.id),
+          ))).valueOrNull;
+    final accent = palette?.accent ?? SeedPalette.accent(seed);
+    final wash = palette?.wash ?? SeedPalette.wash(seed);
 
     // Auto-scroll on line change.
     ref.listen<int>(currentLyricLineProvider, (_, next) => _scrollTo(next));
