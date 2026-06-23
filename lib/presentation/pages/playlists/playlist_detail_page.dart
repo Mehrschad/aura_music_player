@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/constants/radius_tokens.dart';
 import '../../../core/constants/spacing_tokens.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/color_scheme.dart';
@@ -17,6 +18,7 @@ import '../../providers/smart_playlist_providers.dart';
 import '../../widgets/async_state_view.dart';
 import '../../widgets/artwork/aura_artwork.dart';
 import '../../widgets/library/song_list_tile.dart';
+import '../../widgets/press_scale.dart';
 import '../../widgets/player_bar_inset.dart';
 import '../tag_editor/tag_editor_page.dart';
 import 'playlist_dialogs.dart';
@@ -178,29 +180,86 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final l10n = AppLocalizations.of(context);
+    final disabled = count == 0;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(SpacingTokens.lg, SpacingTokens.sm,
-          SpacingTokens.lg, SpacingTokens.md),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(SpacingTokens.xl, SpacingTokens.sm,
+          SpacingTokens.xl, SpacingTokens.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(l10n.songsCount(count),
               style:
                   AppTextTheme.caption.copyWith(color: colors.onSurfaceFaint)),
-          const Spacer(),
-          IconButton(
-            tooltip: l10n.shuffle,
-            onPressed: count == 0 ? null : onShuffle,
-            icon: Icon(Icons.shuffle, color: colors.onSurfaceMuted),
-          ),
-          const SizedBox(width: SpacingTokens.xs),
-          FilledButton.icon(
-            onPressed: count == 0 ? null : onPlayAll,
-            style: FilledButton.styleFrom(
-              backgroundColor: colors.onSurface,
-              foregroundColor: colors.background,
-            ),
-            icon: const Icon(Icons.play_arrow, size: 20),
-            label: Text(l10n.playAll),
+          const SizedBox(height: SpacingTokens.sm),
+          Row(
+            children: [
+              Expanded(
+                child: PressScale(
+                  onTap: disabled ? null : onPlayAll,
+                  pressedScale: 0.96,
+                  child: Container(
+                    height: 44,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: disabled
+                          ? colors.surfaceElevated
+                          : colors.accent,
+                      borderRadius: RadiusTokens.brPill,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.play_arrow,
+                            size: 20,
+                            color: disabled
+                                ? colors.onSurfaceFaint
+                                : colors.onAccent),
+                        const SizedBox(width: SpacingTokens.sm),
+                        Text(l10n.play,
+                            style: AppTextTheme.action.copyWith(
+                                color: disabled
+                                    ? colors.onSurfaceFaint
+                                    : colors.onAccent)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: SpacingTokens.sm),
+              Expanded(
+                child: PressScale(
+                  onTap: disabled ? null : onShuffle,
+                  pressedScale: 0.96,
+                  child: Container(
+                    height: 44,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: colors.surfaceElevated,
+                      borderRadius: RadiusTokens.brPill,
+                      border: Border.all(color: colors.divider),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.shuffle,
+                            size: 20,
+                            color: disabled
+                                ? colors.onSurfaceFaint
+                                : colors.onSurface),
+                        const SizedBox(width: SpacingTokens.sm),
+                        Text(l10n.shuffle,
+                            style: AppTextTheme.action.copyWith(
+                                color: disabled
+                                    ? colors.onSurfaceFaint
+                                    : colors.onSurface)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
