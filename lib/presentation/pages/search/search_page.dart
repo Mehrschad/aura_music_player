@@ -20,6 +20,7 @@ import '../../providers/settings_providers.dart';
 import '../../widgets/artwork/aura_artwork.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/library/song_list_tile.dart';
+import '../../widgets/press_scale.dart';
 import '../../widgets/player/song_actions_sheet.dart';
 import '../../widgets/player_bar_inset.dart';
 import '../albums/album_detail_page.dart';
@@ -549,9 +550,9 @@ class _SeeAllButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return InkWell(
+    return PressScale(
       onTap: onTap,
-      borderRadius: RadiusTokens.brSm,
+      pressedScale: 0.95,
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: SpacingTokens.xs,
@@ -582,9 +583,9 @@ class _ArtistRow extends StatelessWidget {
     return Semantics(
       button: true,
       label: artist.name,
-      child: InkWell(
+      child: PressScale(
         onTap: onTap,
-        borderRadius: RadiusTokens.brSm,
+        pressedScale: 0.97,
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: SpacingTokens.xs,
@@ -652,9 +653,9 @@ class _AlbumRow extends StatelessWidget {
     return Semantics(
       button: true,
       label: '${album.name}, ${album.artist}',
-      child: InkWell(
+      child: PressScale(
         onTap: onTap,
-        borderRadius: RadiusTokens.brSm,
+        pressedScale: 0.97,
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: SpacingTokens.xs,
@@ -785,9 +786,9 @@ class _RecentChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final l10n = AppLocalizations.of(context);
-    return InkWell(
+    return PressScale(
       onTap: onTap,
-      borderRadius: RadiusTokens.brSm,
+      pressedScale: 0.95,
       child: Container(
         padding: const EdgeInsets.symmetric(
           horizontal: SpacingTokens.md,
