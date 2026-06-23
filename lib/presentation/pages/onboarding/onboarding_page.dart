@@ -9,6 +9,7 @@ import '../../../core/constants/spacing_tokens.dart';
 import '../../../core/theme/color_scheme.dart';
 import '../../../core/theme/typography.dart';
 import '../../providers/settings_providers.dart';
+import '../../widgets/press_scale.dart';
 
 void openOnboarding(BuildContext context) {
   Navigator.of(context).push(
@@ -194,17 +195,14 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage>
                               ),
                             ],
                           ),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              borderRadius: RadiusTokens.brPill,
-                              onTap: _next,
-                              child: Center(
-                                child: Text(
-                                  slide.cta,
-                                  style: AppTextTheme.action.copyWith(
-                                    color: AuroraColors.onAurora,
-                                  ),
+                          child: PressScale(
+                            onTap: _next,
+                            pressedScale: 0.96,
+                            child: Center(
+                              child: Text(
+                                slide.cta,
+                                style: AppTextTheme.action.copyWith(
+                                  color: AuroraColors.onAurora,
                                 ),
                               ),
                             ),
