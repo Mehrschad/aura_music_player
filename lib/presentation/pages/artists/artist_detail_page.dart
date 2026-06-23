@@ -213,6 +213,70 @@ class ArtistDetailPage extends ConsumerWidget {
           // ── Biography (downloaded from Wikipedia, cached offline) ────────
           SliverToBoxAdapter(child: _ArtistBio(artistName: artist.name)),
 
+          // ── Top Songs ───────────────────────────────────────────────────
+          songsAsync.when(
+            loading: () => SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: SpacingTokens.xxl),
+                child: Center(
+                  child: SizedBox(
+                    width: SpacingTokens.xxl,
+                    height: SpacingTokens.xxl,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: colors.onSurfaceFaint),
+                  ),
+                ),
+              ),
+            ),
+            error: (_, __) => SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(SpacingTokens.xl),
+                child: Text(l10n.errorGeneric,
+                    style: AppTextTheme.body
+                        .copyWith(color: colors.onSurfaceMuted)),
+              ),
+            ),
+            data: (songs) {
+              if (songs.isEmpty) {
+                return const SliverToBoxAdapter(child: SizedBox.shrink());
+              }
+              return SliverMainAxisGroup(
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        SpacingTokens.xl,
+                        SpacingTokens.md,
+                        SpacingTokens.xl,
+                        SpacingTokens.sm,
+                      ),
+                      child: Text(
+                        l10n.tabSongs.toUpperCase(),
+                        style: AppTextTheme.caption.copyWith(
+                          color: colors.onSurfaceFaint,
+                          letterSpacing: 0.8,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (_, i) => SongListTile(
+                        song: songs[i],
+                        onTap: () => ref
+                            .read(audioControllerProvider)
+                            .playQueue(songs, startIndex: i),
+                        onMore: () => showSongActions(context, songs[i]),
+                      ),
+                      childCount: songs.length,
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+
           // ── Albums, each its own card in a horizontal rail ──────────────
           albumsAsync.maybeWhen(
             data: (albums) => albums.isEmpty
@@ -224,43 +288,10 @@ class ArtistDetailPage extends ConsumerWidget {
                 const SliverToBoxAdapter(child: SizedBox.shrink()),
           ),
 
-          songsAsync.when(
-            loading: () => SliverFillRemaining(
-              hasScrollBody: false,
-              child: Center(
-                child: SizedBox(
-                  width: SpacingTokens.xxl,
-                  height: SpacingTokens.xxl,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2, color: colors.onSurfaceFaint),
-                ),
-              ),
-            ),
-            error: (_, __) => SliverFillRemaining(
-              hasScrollBody: false,
-              child: Center(
-                child: Text(l10n.errorGeneric,
-                    style: AppTextTheme.body
-                        .copyWith(color: colors.onSurfaceMuted)),
-              ),
-            ),
-            data: (songs) => SliverPadding(
-              padding: EdgeInsets.only(
-                bottom: playerBarInset(context,
-                    miniPlayerVisible: miniPlayerVisible),
-              ),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (_, i) => SongListTile(
-                    song: songs[i],
-                    onTap: () => ref
-                        .read(audioControllerProvider)
-                        .playQueue(songs, startIndex: i),
-                    onMore: () => showSongActions(context, songs[i]),
-                  ),
-                  childCount: songs.length,
-                ),
-              ),
+          SliverToBoxAdapter(
+            child: SizedBox(
+              height: playerBarInset(context,
+                  miniPlayerVisible: miniPlayerVisible),
             ),
           ),
         ],
