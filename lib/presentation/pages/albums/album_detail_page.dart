@@ -47,7 +47,7 @@ class AlbumDetailPage extends ConsumerWidget {
     final accent = palette?.accent ?? SeedPalette.accent(album.artworkSeed);
     final wash = palette?.wash ?? SeedPalette.wash(album.artworkSeed);
     final pageBackground =
-        Color.alphaBlend(wash.withOpacity(0.10), colors.background);
+        Color.alphaBlend(wash.withOpacity(0.18), colors.background);
 
     final heroHeight = MediaQuery.sizeOf(context).height * 0.44;
 

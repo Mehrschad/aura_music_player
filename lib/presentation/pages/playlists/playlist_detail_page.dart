@@ -114,7 +114,7 @@ class PlaylistDetailPage extends ConsumerWidget {
             : colors.background);
     final pageBackground = firstSong == null
         ? colors.background
-        : Color.alphaBlend(wash.withOpacity(0.10), colors.background);
+        : Color.alphaBlend(wash.withOpacity(0.18), colors.background);
 
     return Scaffold(
       backgroundColor: pageBackground,

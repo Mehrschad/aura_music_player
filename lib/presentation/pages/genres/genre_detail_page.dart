@@ -46,7 +46,7 @@ class GenreDetailPage extends ConsumerWidget {
     final accent = palette?.accent ?? SeedPalette.accent(genre.artworkSeed);
     final wash = palette?.wash ?? SeedPalette.wash(genre.artworkSeed);
     final pageBackground =
-        Color.alphaBlend(wash.withOpacity(0.10), colors.background);
+        Color.alphaBlend(wash.withOpacity(0.18), colors.background);
 
     final heroHeight = MediaQuery.sizeOf(context).height * 0.40;
 

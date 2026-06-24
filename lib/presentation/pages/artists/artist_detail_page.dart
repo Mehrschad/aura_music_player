@@ -45,7 +45,7 @@ class ArtistDetailPage extends ConsumerWidget {
     // iOS 27: entire page background gets a gentle wash tint so the artwork
     // colour bleeds through the whole scroll area — not just the header.
     final pageBackground =
-        Color.alphaBlend(wash.withOpacity(0.10), colors.background);
+        Color.alphaBlend(wash.withOpacity(0.18), colors.background);
 
     // Half-screen hero: the artwork fills the top 50 % of the display.
     final screenHeight = MediaQuery.sizeOf(context).height;
