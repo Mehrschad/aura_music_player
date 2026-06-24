@@ -532,60 +532,473 @@ class _PortraitBody extends ConsumerWidget {
         ? (ab.pointB!.inMilliseconds / totalMs).clamp(0.0, 1.0).toDouble()
         : null;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.xl),
-      child: Column(
-        children: [
-          _TopBar(song: song, accent: accent),
-          SleepTimerChip(accent: accent),
+    return Column(
+      children: [
+        // ── Zone 1: compact header (fixed) ──────────────────────────────
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.xl),
+          child: _NpCompactHeader(
+            song: song,
+            accent: accent,
+            state: state,
+            slideDirection: slideDirection,
+          ),
+        ),
+        SleepTimerChip(accent: accent),
 
-          Expanded(
-            child: Center(
-              child: LayoutBuilder(
-                builder: (context, c) {
-                  final side = math.min(c.maxWidth * 0.76, c.maxHeight * 0.94);
-                  return _ArtworkWithGlow(
-                    song: song,
-                    size: side,
-                    accent: accent,
-                    state: state,
-                    slideDirection: slideDirection,
-                  );
-                },
+        // ── Zone 2: lyrics hero (flex — the centerpiece) ─────────────────
+        Expanded(
+          child: _NpLyricsHero(
+            accent: accent,
+            song: song,
+            state: state,
+            slideDirection: slideDirection,
+          ),
+        ),
+
+        // ── Zone 3: docked controls (fixed) ─────────────────────────────
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            SpacingTokens.xl, 0, SpacingTokens.xl, SpacingTokens.sm,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              WaveformScrubber(
+                duration: song.duration,
+                accent: accent,
+                seed: song.artworkSeed,
+                isPlaying: state.playing,
+                bookmarkFractions: bookmarkFracs,
+                abPointA: abFracA,
+                abPointB: abFracB,
+                onLongPress: (position) =>
+                    _cycleAbRepeat(ref, song, position),
+              ),
+              const SizedBox(height: SpacingTokens.sm),
+              _NpTransport(state: state, accent: accent),
+              const SizedBox(height: SpacingTokens.xs),
+              _NpActionRow(state: state, song: song, accent: accent),
+              const SizedBox(height: SpacingTokens.sm),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Now Playing compact header (portrait) ────────────────────────────────────
+
+/// Fixed header zone: dismiss button · grabber · compact artwork · title + heart.
+/// The artwork sits at ~42 % of width — enough to read at a glance without
+/// stealing the screen from the lyrics.
+class _NpCompactHeader extends ConsumerWidget {
+  const _NpCompactHeader({
+    required this.song,
+    required this.accent,
+    required this.state,
+    required this.slideDirection,
+  });
+
+  final Song song;
+  final Color accent;
+  final PlaybackState state;
+  final int slideDirection;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final l10n = AppLocalizations.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Dismiss / grabber / overflow row
+        SizedBox(
+          height: 44,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: colors.onSurfaceFaint.withOpacity(0.36),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Row(
+                children: [
+                  _PressIcon(
+                    icon: PhosphorIconsRegular.caretDown,
+                    size: IconSizes.xl,
+                    color: colors.onSurface,
+                    onTap: () => Navigator.of(context).maybePop(),
+                  ),
+                  const Spacer(),
+                  _PressIcon(
+                    icon: PhosphorIconsRegular.dotsThreeVertical,
+                    tooltip: l10n.moreActions,
+                    color: colors.onSurfaceMuted,
+                    onTap: () => showNowPlayingMenu(context, song, accent),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        // Compact artwork — 42 % of width, centered, breathing on play
+        LayoutBuilder(builder: (ctx, c) {
+          final side = c.maxWidth * 0.42;
+          return _ArtworkWithGlow(
+            song: song,
+            size: side,
+            accent: accent,
+            state: state,
+            slideDirection: slideDirection,
+          );
+        }),
+        const SizedBox(height: SpacingTokens.md),
+        // Track title + artist (tap → artist page) + like button
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    song.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextTheme.title.copyWith(
+                      color: colors.onSurface,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => openArtistForSong(context, ref, song),
+                    child: Text(
+                      song.artist,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextTheme.body.copyWith(
+                        color: colors.onSurfaceMuted,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
+            _LikeButton(songId: song.id),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+// ── Full-height lyrics hero (portrait) ───────────────────────────────────────
+
+/// Auto-scrolling lyrics list that fills the center zone. Active line glows
+/// in the album accent and scales up; neighbors fade with distance. When no
+/// synced lyrics exist the artwork is shown here instead (graceful fallback).
+class _NpLyricsHero extends ConsumerStatefulWidget {
+  const _NpLyricsHero({
+    required this.accent,
+    required this.song,
+    required this.state,
+    required this.slideDirection,
+  });
+
+  final Color accent;
+  final Song song;
+  final PlaybackState state;
+  final int slideDirection;
+
+  @override
+  ConsumerState<_NpLyricsHero> createState() => _NpLyricsHeroState();
+}
+
+class _NpLyricsHeroState extends ConsumerState<_NpLyricsHero> {
+  final ScrollController _scroll = ScrollController();
+  int _activeLine = 0;
+  bool _userScrolling = false;
+  Timer? _resumeTimer;
+
+  static const double _lineH = 58.0;
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = ref.read(currentLyricLineProvider);
+    if (initial >= 0) _activeLine = initial;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollTo(_activeLine, animated: false);
+    });
+  }
+
+  @override
+  void dispose() {
+    _resumeTimer?.cancel();
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _scrollTo(int line, {bool animated = true}) {
+    if (!_scroll.hasClients) return;
+    final pos = _scroll.position;
+    if (!pos.hasContentDimensions) return;
+    final vp = pos.viewportDimension;
+    final offset = line * _lineH - (vp / 2.0 - _lineH / 2.0);
+    final clamped = offset.clamp(0.0, math.max(0.0, pos.maxScrollExtent));
+    if (animated) {
+      _scroll.animateTo(
+        clamped,
+        duration: const Duration(milliseconds: 600),
+        curve: Curves.easeInOutCubic,
+      );
+    } else {
+      _scroll.jumpTo(clamped);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final lyricsAsync = ref.watch(currentLyricsProvider).unwrapPrevious();
+
+    ref.listen<int>(currentLyricLineProvider, (_, next) {
+      if (!mounted || next < 0) return;
+      setState(() => _activeLine = next);
+      if (!_userScrolling) _scrollTo(next);
+    });
+
+    final lyrics = lyricsAsync.valueOrNull;
+    final hasLines = lyrics != null && !lyrics.isEmpty && lyrics.synced;
+
+    if (!hasLines) {
+      // Fallback: large artwork fills the center
+      return Center(
+        child: LayoutBuilder(builder: (ctx, c) {
+          final side = math.min(c.maxWidth * 0.76, c.maxHeight * 0.90);
+          return _ArtworkWithGlow(
+            song: widget.song,
+            size: side,
+            accent: widget.accent,
+            state: widget.state,
+            slideDirection: widget.slideDirection,
+          );
+        }),
+      );
+    }
+
+    return NotificationListener<ScrollNotification>(
+      onNotification: (n) {
+        if (n is ScrollStartNotification && n.dragDetails != null) {
+          _userScrolling = true;
+          _resumeTimer?.cancel();
+        } else if (n is ScrollEndNotification) {
+          _resumeTimer = Timer(const Duration(seconds: 4), () {
+            if (mounted) {
+              _userScrolling = false;
+              _scrollTo(_activeLine);
+            }
+          });
+        }
+        return false;
+      },
+      child: ShaderMask(
+        shaderCallback: (bounds) => const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.transparent,
+            Colors.black,
+            Colors.black,
+            Colors.transparent,
+          ],
+          stops: [0.0, 0.18, 0.78, 1.0],
+        ).createShader(bounds),
+        blendMode: BlendMode.dstIn,
+        child: ListView.builder(
+          controller: _scroll,
+          padding: const EdgeInsets.symmetric(vertical: 80),
+          itemCount: lyrics.lines.length,
+          itemExtent: _lineH,
+          itemBuilder: (ctx, i) => _LyricsHeroLine(
+            text: lyrics.lines[i].text,
+            isActive: i == _activeLine,
+            distance: (i - _activeLine).abs(),
+            accent: widget.accent,
+            onTap: () => ref
+                .read(audioControllerProvider)
+                .seek(lyrics.lines[i].time),
           ),
-          const SizedBox(height: SpacingTokens.sm),
-
-          _Lyrics3LineCarousel(
-            accent: accent,
-            onTap: () => openLyrics(context),
-          ),
-          const SizedBox(height: SpacingTokens.sm),
-
-          _TrackInfoRow(song: song, accent: accent),
-          const SizedBox(height: SpacingTokens.xs),
-
-          // ── Scrubber — long-press cycles A → B → clear (A-B repeat) ────
-          WaveformScrubber(
-            duration: song.duration,
-            accent: accent,
-            seed: song.artworkSeed,
-            isPlaying: state.playing,
-            bookmarkFractions: bookmarkFracs,
-            abPointA: abFracA,
-            abPointB: abFracB,
-            onLongPress: (position) =>
-                _cycleAbRepeat(ref, song, position),
-          ),
-
-          _TransportRow(state: state, accent: accent),
-          const SizedBox(height: SpacingTokens.sm),
-
-          _UtilityRow(song: song),
-          const SizedBox(height: SpacingTokens.sm),
-        ],
+        ),
       ),
+    );
+  }
+}
+
+class _LyricsHeroLine extends StatelessWidget {
+  const _LyricsHeroLine({
+    required this.text,
+    required this.isActive,
+    required this.distance,
+    required this.accent,
+    required this.onTap,
+  });
+
+  final String text;
+  final bool isActive;
+  final int distance;
+  final Color accent;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final d = distance.clamp(0, 4);
+    final opacity = isActive
+        ? 1.0
+        : lerpDouble(0.55, 0.20, (d - 1).clamp(0, 3) / 3.0)!;
+    final fontSize = isActive
+        ? 22.0
+        : lerpDouble(17.0, 13.0, (d - 1).clamp(0, 3) / 3.0)!;
+    final color = isActive ? accent : colors.onSurface;
+
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+            horizontal: SpacingTokens.xl, vertical: 4),
+        child: AnimatedDefaultTextStyle(
+          duration: const Duration(milliseconds: 420),
+          style: TextStyle(
+            color: color.withOpacity(opacity),
+            fontSize: fontSize,
+            fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+            letterSpacing: -0.3,
+            height: 1.38,
+          ),
+          child: Text(
+            text,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Simplified transport (portrait: prev · play/pause · next) ─────────────────
+
+/// Portrait-only transport: skip-back · play/pause · skip-forward.
+/// Shuffle and repeat move to [_NpActionRow] below so the row is easy to
+/// reach one-handed and visually uncluttered.
+class _NpTransport extends ConsumerWidget {
+  const _NpTransport({required this.state, required this.accent});
+
+  final PlaybackState state;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final ctrl = ref.read(audioControllerProvider);
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _SkipButton(
+          icon: PhosphorIconsRegular.skipBack,
+          tooltip: l10n.previousTrack,
+          onTap: state.hasPrevious ? ctrl.skipToPrevious : null,
+        ),
+        const SizedBox(width: 38),
+        PlayPauseButton(
+          playing: state.playing,
+          onTap: ctrl.togglePlayPause,
+          semanticLabel: state.playing ? l10n.pause : l10n.play,
+          size: 68,
+        ),
+        const SizedBox(width: 38),
+        _SkipButton(
+          icon: PhosphorIconsRegular.skipForward,
+          tooltip: l10n.nextTrack,
+          onTap: state.hasNext ? ctrl.skipToNext : null,
+        ),
+      ],
+    );
+  }
+}
+
+// ── Action row (portrait: shuffle · repeat · queue · lyrics) ─────────────────
+
+/// Secondary action row below the transport. Shuffle/repeat live here (moved
+/// from the transport so the main controls stay minimal) alongside quick
+/// access to the queue and lyrics page.
+class _NpActionRow extends ConsumerWidget {
+  const _NpActionRow({
+    required this.state,
+    required this.song,
+    required this.accent,
+  });
+
+  final PlaybackState state;
+  final Song song;
+  final Color accent;
+
+  RepeatMode _nextRepeat(RepeatMode m) => switch (m) {
+        RepeatMode.off => RepeatMode.all,
+        RepeatMode.all => RepeatMode.one,
+        RepeatMode.one => RepeatMode.off,
+      };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final ctrl = ref.read(audioControllerProvider);
+    final repeatOne = state.repeatMode == RepeatMode.one;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        _PlayerToggle(
+          icon: PhosphorIconsRegular.shuffle,
+          tooltip: l10n.shuffle,
+          active: state.shuffleEnabled,
+          accent: accent,
+          onTap: () => ctrl.setShuffle(!state.shuffleEnabled),
+        ),
+        _PlayerToggle(
+          icon: repeatOne
+              ? PhosphorIconsRegular.repeatOnce
+              : PhosphorIconsRegular.repeat,
+          tooltip: repeatOne ? l10n.repeatOne : l10n.repeat,
+          active: state.repeatMode != RepeatMode.off,
+          accent: accent,
+          onTap: () => ctrl.setRepeat(_nextRepeat(state.repeatMode)),
+        ),
+        _UtilTile(
+          icon: PhosphorIconsRegular.queue,
+          label: l10n.queueTitle,
+          onTap: () => showQueueSheet(context),
+        ),
+        _UtilTile(
+          icon: PhosphorIconsRegular.quotes,
+          label: l10n.lyrics,
+          highlight: song.hasLyrics,
+          onTap: () => openLyrics(context),
+        ),
+      ],
     );
   }
 }
