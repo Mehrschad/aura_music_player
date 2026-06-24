@@ -90,10 +90,10 @@ class AppColors extends ThemeExtension<AppColors> {
     onSurface: Color(0xFFF5F5F7),
     onSurfaceMuted: Color(0xFF9A9AA0),
     onSurfaceFaint: Color(0xFF6A6A70),
-    accent: Color(0xFFE6E6EA),
-    onAccent: Color(0xFF0A0A0C),
+    accent: Color(0xFF5FC6BC), // brand teal — the single desaturated accent
+    onAccent: Color(0xFF04201D), // deep teal complement
     divider: Color(0xFF1C1C1F),
-    glassTint: Color(0x22FFFFFF), // ~13% white for richer glass
+    glassTint: Color(0x0FFFFFFF), // ~6% white — refractive, not frosted
     glassBorder: Color(0x2AFFFFFF), // ~16% white inner highlight
     scrim: Color(0xB3000000), // 70% black
     danger: Color(0xFFFF6B6B), // soft coral red, legible on black
@@ -109,10 +109,10 @@ class AppColors extends ThemeExtension<AppColors> {
     onSurface: Color(0xFFF5F5F7),
     onSurfaceMuted: Color(0xFF9A9AA0),
     onSurfaceFaint: Color(0xFF6A6A70),
-    accent: Color(0xFFE6E6EA),
-    onAccent: Color(0xFF0A0A0C),
+    accent: Color(0xFF5FC6BC), // brand teal
+    onAccent: Color(0xFF04201D), // deep teal complement
     divider: Color(0xFF222226),
-    glassTint: Color(0x22FFFFFF),
+    glassTint: Color(0x0FFFFFFF), // ~6% white — refractive, not frosted
     glassBorder: Color(0x2AFFFFFF),
     scrim: Color(0xB3000000),
     danger: Color(0xFFFF6B6B),

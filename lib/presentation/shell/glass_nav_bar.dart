@@ -301,7 +301,7 @@ class _NavItemState extends State<_NavItem> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final color = widget.selected ? colors.onSurface : colors.onSurfaceFaint;
+    final color = widget.selected ? colors.accent : colors.onSurfaceFaint;
 
     return Semantics(
       button: true,

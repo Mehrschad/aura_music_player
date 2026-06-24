@@ -229,40 +229,66 @@ class _AmbientPainter extends CustomPainter {
     final h = size.height;
     final rect = Offset.zero & size;
 
-    // Base fill.
+    // Base fill — always the full screen.
     canvas.drawRect(rect, Paint()..color = colors.base);
 
     final tau = 2 * math.pi;
     final r = math.max(w, h);
 
-    // Each blob drifts on its own slow Lissajous path.
+    // ── Ambient floor: colour lives only in the bottom 55% (spec §2.4) ──────
+    // Blobs drift in the lower portion of the screen. A dstIn gradient mask
+    // fades them out above the 55%-from-bottom threshold so the top of the
+    // screen stays dark/clean and glass surfaces only pick up colour at the
+    // bottom — matching the LinearGradient(bottomCenter→topCenter, stops
+    // [0.0, 0.22, 0.55]) from the design spec.
+    canvas.saveLayer(rect, Paint());
+
+    // Blob A — bottom-left, drifts gently.
     _blob(
       canvas,
       center: Offset(
         w * (0.22 + 0.10 * math.sin(t * tau)),
-        h * (0.18 + 0.08 * math.cos(t * tau)),
+        h * (0.68 + 0.08 * math.cos(t * tau)),
       ),
-      radius: r * 0.85,
+      radius: r * 0.80,
       color: colors.a.withOpacity(colors.opacity),
     );
+    // Blob B — bottom-right.
     _blob(
       canvas,
       center: Offset(
         w * (0.82 + 0.08 * math.cos(t * tau * 0.8 + 1.3)),
-        h * (0.42 + 0.10 * math.sin(t * tau * 0.8 + 1.3)),
+        h * (0.72 + 0.10 * math.sin(t * tau * 0.8 + 1.3)),
       ),
-      radius: r * 0.78,
+      radius: r * 0.72,
       color: colors.b.withOpacity(colors.opacity * 0.92),
     );
+    // Blob C — bottom-center anchor, largest bloom.
     _blob(
       canvas,
       center: Offset(
         w * (0.50 + 0.12 * math.sin(t * tau * 1.2 + 2.6)),
-        h * (0.92 + 0.06 * math.cos(t * tau * 1.2 + 2.6)),
+        h * (0.94 + 0.04 * math.cos(t * tau * 1.2 + 2.6)),
       ),
-      radius: r * 0.95,
+      radius: r * 0.92,
       color: colors.c.withOpacity(colors.opacity * 0.78),
     );
+
+    // Vertical gradient mask: transparent above 40% from top, fades in by 55%.
+    // dstIn keeps the layer pixels only where this gradient is opaque.
+    canvas.drawRect(
+      rect,
+      Paint()
+        ..blendMode = BlendMode.dstIn
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Colors.transparent, Colors.black],
+          stops: [0.40, 0.55],
+        ).createShader(rect),
+    );
+
+    canvas.restore();
 
     // Edge vignette for depth (dark grounds only).
     if (isDark) {

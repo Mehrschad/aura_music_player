@@ -82,11 +82,9 @@ class _PlayPauseButtonState extends State<PlayPauseButton>
             return Stack(
               alignment: Alignment.center,
               children: [
-                _rippleRing(colors.onSurface, t, delay: 0.00),
-                _rippleRing(colors.onSurface, t, delay: 0.15),
-                // Glass-prominent disc: a top-lit fill with a soft white rim and
-                // a floating shadow, so the primary control reads as polished
-                // lit glass rather than a flat monochrome puck (iOS 26).
+                _rippleRing(colors.accent, t, delay: 0.00),
+                _rippleRing(colors.accent, t, delay: 0.15),
+                // Teal-filled disc: the single bold accent in the product.
                 Container(
                   width: widget.size,
                   height: widget.size,
@@ -96,21 +94,21 @@ class _PlayPauseButtonState extends State<PlayPauseButton>
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        Color.lerp(colors.onSurface, Colors.white, 0.20)!,
-                        colors.onSurface,
-                        Color.lerp(colors.onSurface, Colors.black, 0.12)!,
+                        Color.lerp(colors.accent, Colors.white, 0.18)!,
+                        colors.accent,
+                        Color.lerp(colors.accent, Colors.black, 0.14)!,
                       ],
                       stops: const [0.0, 0.55, 1.0],
                     ),
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.25),
+                      color: Colors.white.withOpacity(0.22),
                       width: 1,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.28),
-                        blurRadius: 18,
-                        spreadRadius: -4,
+                        color: colors.accent.withOpacity(0.38),
+                        blurRadius: 22,
+                        spreadRadius: -3,
                         offset: const Offset(0, 6),
                       ),
                     ],
@@ -120,7 +118,7 @@ class _PlayPauseButtonState extends State<PlayPauseButton>
                     icon: AnimatedIcons.play_pause,
                     progress: _morphCtrl,
                     size: widget.size * 0.44,
-                    color: colors.background,
+                    color: colors.onAccent,
                   ),
                 ),
               ],

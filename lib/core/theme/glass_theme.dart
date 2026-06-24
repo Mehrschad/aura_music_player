@@ -34,10 +34,10 @@ enum GlassIntensity {
 /// the user's [GlassIntensity] (see [GlassLevel.sigmaFor]), so the global
 /// control still attenuates every surface — and `off` collapses to opaque.
 enum GlassLevel {
-  ultraThin(14, 0.08),
-  thin(22, 0.11),
-  regular(30, 0.13),
-  thick(42, 0.16);
+  ultraThin(6, 0.04),
+  thin(10, 0.06),
+  regular(14, 0.08),
+  thick(20, 0.10);
 
   const GlassLevel(this.sigma, this.fillOpacity);
 
