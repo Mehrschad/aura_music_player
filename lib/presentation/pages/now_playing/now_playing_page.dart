@@ -1610,12 +1610,9 @@ class _UtilityRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final hasLyrics = song.hasLyrics;
-    final intensity = ref.watch(settingsProvider.select((s) => s.glassIntensity));
-    // The four utilities float together inside one Liquid-Glass capsule, the
-    // way iOS 26 groups secondary controls into a glass panel.
-    return GlassSurface(
-      borderRadius: RadiusTokens.brPill,
-      intensity: intensity,
+    // The four utilities sit as bare icon-tiles directly on the ambient
+    // background — no glass capsule — so they feel light and uncluttered.
+    return Padding(
       padding: const EdgeInsets.symmetric(vertical: SpacingTokens.xs),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
