@@ -756,7 +756,7 @@ class _NpLyricsHeroState extends ConsumerState<_NpLyricsHero> {
     if (!pos.hasContentDimensions) return;
     final vp = pos.viewportDimension;
     final offset = line * _lineH - (vp / 2.0 - _lineH / 2.0);
-    final clamped = offset.clamp(0.0, math.max(0.0, pos.maxScrollExtent));
+    final clamped = offset.clamp(0.0, math.max(0.0, pos.maxScrollExtent)).toDouble();
     if (animated) {
       _scroll.animateTo(
         clamped,
@@ -769,7 +769,7 @@ class _NpLyricsHeroState extends ConsumerState<_NpLyricsHero> {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final lyricsAsync = ref.watch(currentLyricsProvider).unwrapPrevious();
 
     ref.listen<int>(currentLyricLineProvider, (_, next) {
