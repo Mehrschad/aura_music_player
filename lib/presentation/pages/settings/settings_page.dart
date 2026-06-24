@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_info.dart';
-import '../../../core/constants/aurora_colors.dart';
 import '../../../core/constants/radius_tokens.dart';
 import '../../../core/constants/spacing_tokens.dart';
 import '../../../core/l10n/app_localizations.dart';
@@ -460,12 +459,13 @@ class _GroupTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, SpacingTokens.xxl, 4, SpacingTokens.sm),
       child: Text(
         title.toUpperCase(),
         style: AppTextTheme.caption.copyWith(
-          color: AuroraColors.c2,
+          color: colors.accent,
           letterSpacing: 0.3,
           fontWeight: FontWeight.w600,
         ),
@@ -546,20 +546,15 @@ class _Chips<T> extends StatelessWidget {
                         horizontal: SpacingTokens.md,
                         vertical: SpacingTokens.sm),
                     decoration: BoxDecoration(
-                      // Selected chips use the aurora-2 accent per the DS.
-                      color: v == current
-                          ? AuroraColors.c2
-                          : colors.surface,
+                      color: v == current ? colors.accent : colors.surface,
                       borderRadius: RadiusTokens.brPill,
                       border: Border.all(
-                          color: v == current
-                              ? AuroraColors.c2
-                              : colors.divider),
+                          color: v == current ? colors.accent : colors.divider),
                     ),
                     child: Text(labelFor(v),
                         style: AppTextTheme.caption.copyWith(
                             color: v == current
-                                ? AuroraColors.onAurora
+                                ? colors.onAccent
                                 : colors.onSurfaceMuted)),
                   ),
                 ),
@@ -596,9 +591,8 @@ class _SwitchTile extends StatelessWidget {
               style: AppTextTheme.caption
                   .copyWith(color: colors.onSurfaceFaint)),
       value: value,
-      // Switch tracks/thumbs use the aurora-2 accent per the DS.
-      activeColor: AuroraColors.onAurora,
-      activeTrackColor: AuroraColors.c2,
+      activeColor: colors.onAccent,
+      activeTrackColor: colors.accent,
       onChanged: (v) {
         HapticFeedback.selectionClick();
         onChanged(v);
@@ -644,13 +638,12 @@ class _SliderTile extends StatelessWidget {
                       .copyWith(color: colors.onSurfaceMuted)),
             ],
           ),
-          // Slider track/thumb use the aurora-2 accent per the DS.
           SliderTheme(
             data: SliderTheme.of(context).copyWith(
-              activeTrackColor: AuroraColors.c2,
-              thumbColor: AuroraColors.c2,
+              activeTrackColor: colors.accent,
+              thumbColor: colors.accent,
               inactiveTrackColor: colors.divider,
-              overlayColor: AuroraColors.c2.withOpacity(0.18),
+              overlayColor: colors.accent.withOpacity(0.18),
             ),
             child: Slider(
               value: value,

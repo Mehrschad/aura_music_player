@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/constants/aurora_colors.dart';
+import '../../../core/theme/color_scheme.dart';
 import '../../../domain/models/lyrics.dart';
 
 /// Renders a word-timed lyric line with a left-to-right karaoke fill: the line
@@ -66,6 +66,7 @@ class KaraokeLine extends StatelessWidget {
   Widget build(BuildContext context) {
     final fraction = _fillFraction();
     final text = _text;
+    final accent = context.colors.accent;
     return Stack(
       children: [
         // Dimmed base copy of the full line.
@@ -73,13 +74,19 @@ class KaraokeLine extends StatelessWidget {
             textAlign: TextAlign.center,
             textDirection: textDirection,
             style: style.copyWith(color: base)),
-        // Aurora-gradient copy, clipped to the sung fraction (left→right; RTL
+        // Accent-tinted fill, clipped to the sung fraction (left→right; RTL
         // fills from the right). srcIn paints the gradient through the glyphs.
         ClipRect(
           clipper: _FractionClipper(fraction, textDirection),
           child: ShaderMask(
-            shaderCallback: (bounds) =>
-                AuroraColors.gradient.createShader(bounds),
+            shaderCallback: (bounds) => LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color.lerp(accent, Colors.white, 0.28)!,
+                accent,
+              ],
+            ).createShader(bounds),
             blendMode: BlendMode.srcIn,
             child: Text(text,
                 textAlign: TextAlign.center,
