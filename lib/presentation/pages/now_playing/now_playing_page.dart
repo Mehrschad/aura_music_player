@@ -42,6 +42,7 @@ import '../artists/artist_detail_page.dart';
 import '../equalizer/equalizer_page.dart';
 import '../lyrics/lyrics_page.dart';
 import '../settings/settings_page.dart';
+import '../../widgets/artwork/aura_artwork.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/player/pitch_speed_sheet.dart';
 import '../../widgets/player/breathing_artwork.dart';
@@ -782,16 +783,40 @@ class _NpLyricsHeroState extends ConsumerState<_NpLyricsHero> {
     final hasLines = lyrics != null && !lyrics.isEmpty && lyrics.synced;
 
     if (!hasLines) {
-      // Fallback: large artwork fills the center
+      // Spec: "when no lyrics this zone shows the big artwork."
+      // We cannot reuse _ArtworkWithGlow here because BreathingArtwork wraps
+      // in Hero(kNowPlayingHeroTag) — duplicating it on the same screen crashes
+      // Flutter ("multiple heroes with the same tag"). Use AuraArtwork directly
+      // (no Hero, no breathing) so the header's Hero lands on the compact art.
+      if (lyricsAsync.isLoading) {
+        return Center(child: _DotsPlaceholder(accent: widget.accent));
+      }
       return Center(
         child: LayoutBuilder(builder: (ctx, c) {
-          final side = math.min(c.maxWidth * 0.76, c.maxHeight * 0.90);
-          return _ArtworkWithGlow(
-            song: widget.song,
-            size: side,
-            accent: widget.accent,
-            state: widget.state,
-            slideDirection: widget.slideDirection,
+          final side = math.min(c.maxWidth * 0.72, c.maxHeight * 0.85);
+          return Container(
+            width: side,
+            height: side,
+            decoration: BoxDecoration(
+              borderRadius: RadiusTokens.brLg,
+              boxShadow: [
+                BoxShadow(
+                  color: widget.accent.withOpacity(0.22),
+                  blurRadius: side * 0.18,
+                  spreadRadius: side * 0.004,
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: RadiusTokens.brLg,
+              child: AuraArtwork(
+                seed: widget.song.artworkSeed,
+                size: side,
+                borderRadius: RadiusTokens.brLg,
+                hasArtwork: widget.song.hasArtwork,
+                artworkId: int.tryParse(widget.song.id),
+              ),
+            ),
           );
         }),
       );
