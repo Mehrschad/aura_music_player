@@ -40,7 +40,10 @@ abstract final class AppTheme {
       brightness: brightness,
       fontFamily: AppTextTheme.fontFamily,
       colorScheme: scheme,
-      scaffoldBackgroundColor: colors.background,
+      // Transparent so the app-wide AuraAmbientBackground (a living, cover-
+      // tinted gradient) shows through every screen. The ambient layer always
+      // paints an opaque base, so nothing renders see-through.
+      scaffoldBackgroundColor: Colors.transparent,
       canvasColor: colors.background,
       dividerColor: colors.divider,
       splashFactory: NoSplash.splashFactory,

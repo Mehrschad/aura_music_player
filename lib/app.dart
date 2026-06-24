@@ -5,6 +5,7 @@ import 'core/l10n/app_localizations.dart';
 import 'core/theme/app_theme.dart';
 import 'presentation/providers/settings_providers.dart';
 import 'presentation/shell/app_shell.dart';
+import 'presentation/widgets/ambient/aura_ambient_background.dart';
 
 /// Root widget. Theme, locale, density and text scale are driven by
 /// [settingsProvider], so changes in Settings apply app-wide immediately.
@@ -37,7 +38,15 @@ class AuraApp extends ConsumerWidget {
             disableAnimations:
                 settings.reduceMotion || mq.disableAnimations,
           ),
-          child: child ?? const SizedBox.shrink(),
+          // The living gradient backdrop sits behind the whole navigator;
+          // every (transparent) scaffold shows it through, and every glass
+          // surface now blurs colour instead of flat black.
+          child: Stack(
+            children: [
+              const Positioned.fill(child: AuraAmbientBackground()),
+              child ?? const SizedBox.shrink(),
+            ],
+          ),
         );
       },
       home: const AppShell(),
