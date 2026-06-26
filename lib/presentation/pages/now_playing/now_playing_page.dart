@@ -42,7 +42,6 @@ import '../artists/artist_detail_page.dart';
 import '../equalizer/equalizer_page.dart';
 import '../lyrics/lyrics_page.dart';
 import '../settings/settings_page.dart';
-import '../../widgets/artwork/aura_artwork.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/player/pitch_speed_sheet.dart';
 import '../../widgets/player/breathing_artwork.dart';
@@ -53,6 +52,13 @@ import '../../widgets/player/sleep_timer_chip.dart';
 import '../../widgets/library/star_rating.dart';
 import '../../widgets/player/song_actions_sheet.dart';
 import '../../widgets/waveform/waveform_scrubber.dart';
+
+/// Whether the portrait Now Playing surface is in **Lyrics Mode** (artwork
+/// shrunk to a header thumbnail, time-synced lyrics expanded) instead of the
+/// default **Artwork Mode** (large centred album art). A single shared flag so
+/// the screen's drag gestures, the lyrics toggle, and the morphing body all
+/// agree. Reset to Artwork Mode every time the screen is opened.
+final nowPlayingLyricsModeProvider = StateProvider<bool>((ref) => false);
 
 class NowPlayingPage extends ConsumerStatefulWidget {
   const NowPlayingPage({super.key});
@@ -129,6 +135,10 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
   void initState() {
     super.initState();
     _beatTicker = createTicker(_onBeatTick)..start();
+    // Always open in Artwork Mode; the shared flag persists across opens.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.read(nowPlayingLyricsModeProvider.notifier).state = false;
+    });
   }
 
   @override
@@ -343,7 +353,24 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
 
     return GestureDetector(
       onVerticalDragEnd: (d) {
-        if ((d.primaryVelocity ?? 0) > 600) Navigator.of(context).maybePop();
+        final v = d.primaryVelocity ?? 0;
+        final lyricsMode = ref.read(nowPlayingLyricsModeProvider);
+        if (v > 600) {
+          // Swipe down: leave Lyrics Mode first, otherwise dismiss the screen.
+          if (lyricsMode && !isLandscape) {
+            HapticFeedback.selectionClick();
+            ref.read(nowPlayingLyricsModeProvider.notifier).state = false;
+          } else {
+            Navigator.of(context).maybePop();
+          }
+        } else if (v < -600 && !lyricsMode && !isLandscape) {
+          // Swipe up: reveal lyrics, but only when synced lyrics exist.
+          final lyr = ref.read(currentLyricsProvider).valueOrNull;
+          if (lyr != null && !lyr.isEmpty && lyr.synced) {
+            HapticFeedback.selectionClick();
+            ref.read(nowPlayingLyricsModeProvider.notifier).state = true;
+          }
+        }
       },
       onHorizontalDragEnd: (d) {
         final v = d.primaryVelocity ?? 0;
@@ -504,7 +531,7 @@ Color _orbWash(Color wash, bool isDark) {
 
 // ── Portrait layout ──────────────────────────────────────────────────────────
 
-class _PortraitBody extends ConsumerWidget {
+class _PortraitBody extends ConsumerStatefulWidget {
   const _PortraitBody({
     required this.state,
     required this.song,
@@ -518,7 +545,68 @@ class _PortraitBody extends ConsumerWidget {
   final int slideDirection;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_PortraitBody> createState() => _PortraitBodyState();
+}
+
+/// The adaptive portrait surface. A single [_modeCtrl] (0 = Artwork Mode,
+/// 1 = Lyrics Mode) morphs three things together so the two modes read as one
+/// fluid surface — the iOS-grade shared-element transition:
+///   • the album art shrinks + flies from a large centred square to a small
+///     header thumbnail,
+///   • the title/artist block reflows from beneath the art to beside the thumb,
+///   • the time-synced lyrics fade and rise to fill the vacated space.
+/// The glass control deck stays docked at the bottom in both modes.
+class _PortraitBodyState extends ConsumerState<_PortraitBody>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _modeCtrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 460), // SwiftUI .smooth ≈ 0.5s
+  );
+  late final Animation<double> _mode =
+      CurvedAnimation(parent: _modeCtrl, curve: Curves.easeInOutCubic);
+
+  @override
+  void initState() {
+    super.initState();
+    _modeCtrl.value = ref.read(nowPlayingLyricsModeProvider) ? 1.0 : 0.0;
+  }
+
+  @override
+  void dispose() {
+    _modeCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final song = widget.song;
+    final accent = widget.accent;
+    final state = widget.state;
+
+    // Drive the morph from the shared mode flag.
+    ref.listen<bool>(nowPlayingLyricsModeProvider, (_, next) {
+      if (MediaQuery.disableAnimationsOf(context)) {
+        _modeCtrl.value = next ? 1.0 : 0.0;
+      } else if (next) {
+        _modeCtrl.forward();
+      } else {
+        _modeCtrl.reverse();
+      }
+    });
+
+    // No synced lyrics for this track → force Artwork Mode and keep it there.
+    final lyrics =
+        ref.watch(currentLyricsProvider).unwrapPrevious().valueOrNull;
+    final canLyrics = lyrics != null && !lyrics.isEmpty && lyrics.synced;
+    if (!canLyrics && ref.read(nowPlayingLyricsModeProvider)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ref.read(nowPlayingLyricsModeProvider.notifier).state = false;
+        }
+      });
+    }
+
+    // ── Control-deck data (bookmarks + A-B markers) ───────────────────────
     final bookmarkFracs = ref.watch(songBookmarksProvider(song.id)).map((b) {
       final total = song.duration.inMilliseconds;
       return total > 0 ? b.positionMs / total : 0.0;
@@ -536,29 +624,100 @@ class _PortraitBody extends ConsumerWidget {
 
     return Column(
       children: [
-        // ── Zone 1: compact header (fixed) ──────────────────────────────
+        // ── Top bar (always) ──────────────────────────────────────────────
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.xl),
-          child: _NpCompactHeader(
-            song: song,
-            accent: accent,
-            state: state,
-            slideDirection: slideDirection,
-          ),
+          child: _NpTopRow(song: song, accent: accent),
         ),
         SleepTimerChip(accent: accent),
 
-        // ── Zone 2: lyrics hero (flex — the centerpiece) ─────────────────
+        // ── Morph region: artwork ⇄ lyrics ────────────────────────────────
         Expanded(
-          child: _NpLyricsHero(
-            accent: accent,
-            song: song,
-            state: state,
-            slideDirection: slideDirection,
-          ),
+          child: LayoutBuilder(builder: (ctx, c) {
+            final w = c.maxWidth;
+            final hm = c.maxHeight;
+            const sideMargin = SpacingTokens.xl;
+            const thumbSide = 52.0;
+            const thumbTop = 6.0;
+            const titleBlockH = 58.0;
+
+            // Big artwork: centred in the region above the title block.
+            final bigSide = math
+                .min(w - sideMargin * 2, hm - titleBlockH - 28)
+                .clamp(96.0, w - sideMargin * 2)
+                .toDouble();
+            final bigLeft = (w - bigSide) / 2;
+            final bigTop = math.max(0.0, ((hm - titleBlockH - 18) - bigSide) / 2);
+
+            // Built once per layout (its props don't depend on the morph), so
+            // referencing this identical instance inside the per-frame builder
+            // lets Flutter skip rebuilding the lyrics list during the morph.
+            final lyricsChild = _NpLyricsHero(
+              accent: accent,
+              song: song,
+              state: state,
+              slideDirection: widget.slideDirection,
+            );
+
+            return AnimatedBuilder(
+              animation: _mode,
+              builder: (_, __) {
+                final m = _mode.value;
+                final artRect = Rect.lerp(
+                  Rect.fromLTWH(bigLeft, bigTop, bigSide, bigSide),
+                  const Rect.fromLTWH(sideMargin, thumbTop, thumbSide, thumbSide),
+                  m,
+                )!;
+                final titleRect = Rect.lerp(
+                  Rect.fromLTWH(
+                      sideMargin, bigTop + bigSide + 18, w - sideMargin * 2, titleBlockH),
+                  Rect.fromLTWH(sideMargin + thumbSide + 12, thumbTop,
+                      w - sideMargin * 2 - thumbSide - 12, thumbSide),
+                  m,
+                )!;
+                const lyricsTop = thumbTop + thumbSide + 14;
+
+                return Stack(
+                  children: [
+                    // Lyrics — fade + rise in as the art seats into the thumb.
+                    if (m > 0.001)
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        top: lyricsTop,
+                        bottom: 0,
+                        child: IgnorePointer(
+                          ignoring: m < 0.5,
+                          child: Opacity(
+                            opacity: Curves.easeIn.transform(m.clamp(0.0, 1.0)),
+                            child: lyricsChild,
+                          ),
+                        ),
+                      ),
+                    // Album art — the shared element that shrinks + travels.
+                    Positioned.fromRect(
+                      rect: artRect,
+                      child: _ArtworkWithGlow(
+                        song: song,
+                        size: artRect.width,
+                        accent: accent,
+                        state: state,
+                        slideDirection: widget.slideDirection,
+                      ),
+                    ),
+                    // Title / artist (+ like, fading out in Lyrics Mode).
+                    Positioned.fromRect(
+                      rect: titleRect,
+                      child: _MorphHeader(song: song, accent: accent, m: m),
+                    ),
+                  ],
+                );
+              },
+            );
+          }),
         ),
 
-        // ── Zone 3: docked controls (fixed) ─────────────────────────────
+        // ── Control deck (always docked) ──────────────────────────────────
         Padding(
           padding: const EdgeInsets.fromLTRB(
             SpacingTokens.xl, 0, SpacingTokens.xl, SpacingTokens.sm,
@@ -574,8 +733,7 @@ class _PortraitBody extends ConsumerWidget {
                 bookmarkFractions: bookmarkFracs,
                 abPointA: abFracA,
                 abPointB: abFracB,
-                onLongPress: (position) =>
-                    _cycleAbRepeat(ref, song, position),
+                onLongPress: (position) => _cycleAbRepeat(ref, song, position),
               ),
               const SizedBox(height: SpacingTokens.sm),
               _NpTransport(state: state, accent: accent),
@@ -590,116 +748,122 @@ class _PortraitBody extends ConsumerWidget {
   }
 }
 
-// ── Now Playing compact header (portrait) ────────────────────────────────────
+// ── Now Playing top bar (portrait) ───────────────────────────────────────────
 
-/// Fixed header zone: dismiss button · grabber · compact artwork · title + heart.
-/// The artwork sits at ~42 % of width — enough to read at a glance without
-/// stealing the screen from the lyrics.
-class _NpCompactHeader extends ConsumerWidget {
-  const _NpCompactHeader({
-    required this.song,
-    required this.accent,
-    required this.state,
-    required this.slideDirection,
-  });
+/// Grabber + dismiss + overflow. Sits above the morph region in both modes.
+class _NpTopRow extends ConsumerWidget {
+  const _NpTopRow({required this.song, required this.accent});
 
   final Song song;
   final Color accent;
-  final PlaybackState state;
-  final int slideDirection;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
     final l10n = AppLocalizations.of(context);
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Dismiss / grabber / overflow row
-        SizedBox(
-          height: 44,
-          child: Stack(
-            alignment: Alignment.center,
+    return SizedBox(
+      height: 44,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+              color: colors.onSurfaceFaint.withOpacity(0.36),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          Row(
             children: [
-              Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: colors.onSurfaceFaint.withOpacity(0.36),
-                  borderRadius: BorderRadius.circular(2),
+              _PressIcon(
+                icon: PhosphorIconsRegular.caretDown,
+                size: IconSizes.xl,
+                color: colors.onSurface,
+                onTap: () => Navigator.of(context).maybePop(),
+              ),
+              const Spacer(),
+              _PressIcon(
+                icon: PhosphorIconsRegular.dotsThreeVertical,
+                tooltip: l10n.moreActions,
+                color: colors.onSurfaceMuted,
+                onTap: () => showNowPlayingMenu(context, song, accent),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Morphing title / artist block (portrait) ─────────────────────────────────
+
+/// Title + artist (+ like button), left-aligned in both modes. Font sizes lerp
+/// down and the like button fades out as [m] → 1 (Lyrics Mode), so the block
+/// reads as the same element reflowing from beneath the big art to beside the
+/// header thumbnail.
+class _MorphHeader extends ConsumerWidget {
+  const _MorphHeader({
+    required this.song,
+    required this.accent,
+    required this.m,
+  });
+
+  final Song song;
+  final Color accent;
+  final double m;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final titleSize = lerpDouble(22.0, 17.0, m)!;
+    final artistSize = lerpDouble(15.0, 13.0, m)!;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                song.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextTheme.title.copyWith(
+                  color: colors.onSurface,
+                  fontWeight: FontWeight.w700,
+                  fontSize: titleSize,
+                  letterSpacing: -0.3,
                 ),
               ),
-              Row(
-                children: [
-                  _PressIcon(
-                    icon: PhosphorIconsRegular.caretDown,
-                    size: IconSizes.xl,
-                    color: colors.onSurface,
-                    onTap: () => Navigator.of(context).maybePop(),
-                  ),
-                  const Spacer(),
-                  _PressIcon(
-                    icon: PhosphorIconsRegular.dotsThreeVertical,
-                    tooltip: l10n.moreActions,
+              const SizedBox(height: 2),
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => openArtistForSong(context, ref, song),
+                child: Text(
+                  song.artist,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextTheme.body.copyWith(
                     color: colors.onSurfaceMuted,
-                    onTap: () => showNowPlayingMenu(context, song, accent),
+                    fontSize: artistSize,
                   ),
-                ],
+                ),
               ),
             ],
           ),
         ),
-        // Compact artwork — 42 % of width, centered, breathing on play
-        LayoutBuilder(builder: (ctx, c) {
-          final side = c.maxWidth * 0.42;
-          return _ArtworkWithGlow(
-            song: song,
-            size: side,
-            accent: accent,
-            state: state,
-            slideDirection: slideDirection,
-          );
-        }),
-        const SizedBox(height: SpacingTokens.md),
-        // Track title + artist (tap → artist page) + like button
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    song.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTextTheme.title.copyWith(
-                      color: colors.onSurface,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.3,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => openArtistForSong(context, ref, song),
-                    child: Text(
-                      song.artist,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTextTheme.body.copyWith(
-                        color: colors.onSurfaceMuted,
-                        fontSize: 15,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+        if (m < 0.99)
+          Opacity(
+            opacity: (1.0 - m).clamp(0.0, 1.0),
+            child: IgnorePointer(
+              ignoring: m > 0.5,
+              child: _LikeButton(songId: song.id),
             ),
-            _LikeButton(songId: song.id),
-          ],
-        ),
+          ),
       ],
     );
   }
@@ -784,42 +948,13 @@ class _NpLyricsHeroState extends ConsumerState<_NpLyricsHero> {
     final hasLines = lyrics != null && !lyrics.isEmpty && lyrics.synced;
 
     if (!hasLines) {
-      // Spec: "when no lyrics this zone shows the big artwork."
-      // We cannot reuse _ArtworkWithGlow here because BreathingArtwork wraps
-      // in Hero(kNowPlayingHeroTag) — duplicating it on the same screen crashes
-      // Flutter ("multiple heroes with the same tag"). Use AuraArtwork directly
-      // (no Hero, no breathing) so the header's Hero lands on the compact art.
-      if (lyricsAsync.isLoading) {
-        return Center(child: _DotsPlaceholder(accent: widget.accent));
-      }
+      // The album art is now drawn by the morphing element in _PortraitBody, so
+      // the lyrics zone only renders a load/placeholder state. This is rarely
+      // seen: Lyrics Mode is gated on synced lyrics existing.
       return Center(
-        child: LayoutBuilder(builder: (ctx, c) {
-          final side = math.min(c.maxWidth * 0.72, c.maxHeight * 0.85);
-          return Container(
-            width: side,
-            height: side,
-            decoration: BoxDecoration(
-              borderRadius: RadiusTokens.brLg,
-              boxShadow: [
-                BoxShadow(
-                  color: widget.accent.withOpacity(0.22),
-                  blurRadius: side * 0.18,
-                  spreadRadius: side * 0.004,
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: RadiusTokens.brLg,
-              child: AuraArtwork(
-                seed: widget.song.artworkSeed,
-                size: side,
-                borderRadius: RadiusTokens.brLg,
-                hasArtwork: widget.song.hasArtwork,
-                artworkId: int.tryParse(widget.song.id),
-              ),
-            ),
-          );
-        }),
+        child: lyricsAsync.isLoading
+            ? _DotsPlaceholder(accent: widget.accent)
+            : const SizedBox.shrink(),
       );
     }
 
@@ -994,6 +1129,14 @@ class _NpActionRow extends ConsumerWidget {
     final ctrl = ref.read(audioControllerProvider);
     final repeatOne = state.repeatMode == RepeatMode.one;
 
+    // Lyrics toggle: when synced lyrics exist the quote tile flips the screen
+    // between Artwork and Lyrics Mode (and highlights while in Lyrics Mode);
+    // otherwise it falls back to opening the full lyrics page.
+    final lyricsMode = ref.watch(nowPlayingLyricsModeProvider);
+    final lyrics =
+        ref.watch(currentLyricsProvider).unwrapPrevious().valueOrNull;
+    final canLyrics = lyrics != null && !lyrics.isEmpty && lyrics.synced;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
@@ -1021,8 +1164,11 @@ class _NpActionRow extends ConsumerWidget {
         _UtilTile(
           icon: PhosphorIconsRegular.quotes,
           label: l10n.lyrics,
-          highlight: song.hasLyrics,
-          onTap: () => openLyrics(context),
+          highlight: canLyrics ? lyricsMode : song.hasLyrics,
+          onTap: canLyrics
+              ? () => ref.read(nowPlayingLyricsModeProvider.notifier).state =
+                  !lyricsMode
+              : () => openLyrics(context),
         ),
       ],
     );
