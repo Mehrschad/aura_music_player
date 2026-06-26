@@ -6,13 +6,13 @@
 /// Medium / Strong) resolves to a real value here.
 enum GlassIntensity {
   off(0),
-  subtle(16),
-  medium(22),
-  strong(32),
+  subtle(4),
+  medium(8),
+  strong(12),
 
-  /// The deepest, most liquid setting — a heavier blur with a richer tint
-  /// boost so surfaces read as thick frosted crystal floating over content.
-  ultra(48);
+  /// The deepest, most liquid setting — still very light but the maximum
+  /// available; surfaces read as water-clear glass, not frosted crystal.
+  ultra(18);
 
   const GlassIntensity(this.sigma);
 
@@ -34,10 +34,10 @@ enum GlassIntensity {
 /// the user's [GlassIntensity] (see [GlassLevel.sigmaFor]), so the global
 /// control still attenuates every surface — and `off` collapses to opaque.
 enum GlassLevel {
-  ultraThin(6, 0.04),
-  thin(10, 0.06),
-  regular(14, 0.08),
-  thick(20, 0.10);
+  ultraThin(1, 0.02),
+  thin(2, 0.03),
+  regular(3, 0.04),
+  thick(4, 0.05);
 
   const GlassLevel(this.sigma, this.fillOpacity);
 

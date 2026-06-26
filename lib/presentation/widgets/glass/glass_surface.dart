@@ -75,7 +75,7 @@ class GlassSurface extends StatelessWidget {
     // the glass picks up the track's colour the way Liquid Glass tints from the
     // content behind it — present but never enough to drown legibility.
     if (tint != null) {
-      glassTint = Color.alphaBlend(tint!.withOpacity(isDark ? 0.11 : 0.10), glassTint);
+      glassTint = Color.alphaBlend(tint!.withOpacity(isDark ? 0.05 : 0.04), glassTint);
     }
 
     return RepaintBoundary(

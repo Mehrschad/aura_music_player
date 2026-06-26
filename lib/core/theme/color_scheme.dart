@@ -93,7 +93,7 @@ class AppColors extends ThemeExtension<AppColors> {
     accent: Color(0xFF5FC6BC), // brand teal — the single desaturated accent
     onAccent: Color(0xFF04201D), // deep teal complement
     divider: Color(0xFF1C1C1F),
-    glassTint: Color(0x0FFFFFFF), // ~6% white — refractive, not frosted
+    glassTint: Color(0x04FFFFFF), // ~1.6% white — water-clear, not frosted
     glassBorder: Color(0x2AFFFFFF), // ~16% white inner highlight
     scrim: Color(0xB3000000), // 70% black
     danger: Color(0xFFFF6B6B), // soft coral red, legible on black
@@ -112,7 +112,7 @@ class AppColors extends ThemeExtension<AppColors> {
     accent: Color(0xFF5FC6BC), // brand teal
     onAccent: Color(0xFF04201D), // deep teal complement
     divider: Color(0xFF222226),
-    glassTint: Color(0x0FFFFFFF), // ~6% white — refractive, not frosted
+    glassTint: Color(0x04FFFFFF), // ~1.6% white — water-clear, not frosted
     glassBorder: Color(0x2AFFFFFF),
     scrim: Color(0xB3000000),
     danger: Color(0xFFFF6B6B),

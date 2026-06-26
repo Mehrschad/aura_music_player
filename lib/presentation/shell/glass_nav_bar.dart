@@ -20,6 +20,10 @@ import 'nav_provider.dart';
 /// it. While the user scrolls down through content the whole bar fades out and
 /// collapses away (the mini player above it then drops to the bottom edge);
 /// scrolling back up brings it smoothly back.
+///
+/// Liquid drag gesture: long-press (~500 ms) anywhere on the main pill →
+/// a ripple wave spawns → drag horizontally to stretch the selection capsule
+/// across tabs → release to commit. Haptic tick on each tab boundary crossed.
 class GlassNavBar extends ConsumerStatefulWidget {
   const GlassNavBar({super.key});
 
@@ -28,10 +32,7 @@ class GlassNavBar extends ConsumerStatefulWidget {
 }
 
 class _GlassNavBarState extends ConsumerState<GlassNavBar>
-    with SingleTickerProviderStateMixin {
-  /// 0 = fully shown (expanded), 1 = fully hidden (collapsed + faded). Matches
-  /// the mini player's collapse timing so the bar folding away and the mini
-  /// player dropping to the edge read as one continuous motion.
+    with TickerProviderStateMixin {
   late final AnimationController _hide = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 440),
@@ -39,8 +40,20 @@ class _GlassNavBarState extends ConsumerState<GlassNavBar>
   late final Animation<double> _t =
       CurvedAnimation(parent: _hide, curve: Curves.easeInOutCubic);
 
-  /// Primary tabs in the main pill. Search is intentionally excluded — it gets
-  /// its own bubble, mirroring the iOS 26 Music / App Store layout.
+  // Ripple that fires when the liquid drag is recognised.
+  late final AnimationController _rippleCtrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 380),
+  );
+
+  // Liquid-drag state.
+  bool _liquidActive = false;
+  double _liquidX = 0; // current finger X within the main-pill coordinate space
+  int _liquidTargetIdx = 0; // which tab index the finger is over
+  // Cached item width — updated on every LayoutBuilder pass, read from
+  // gesture callbacks (which run outside the builder closure).
+  double _itemWidth = 0;
+
   static const List<TabSpec> _mainTabs = [
     TabSpec(AppTab.library, Icons.library_music_outlined, Icons.library_music),
     TabSpec(AppTab.artists, Icons.person_outline, Icons.person),
@@ -51,8 +64,56 @@ class _GlassNavBarState extends ConsumerState<GlassNavBar>
   @override
   void dispose() {
     _hide.dispose();
+    _rippleCtrl.dispose();
     super.dispose();
   }
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+
+  void _selectTab(AppTab tab) {
+    HapticFeedback.selectionClick();
+    ref.read(selectedTabProvider.notifier).state = tab;
+  }
+
+  // ── Liquid drag callbacks ─────────────────────────────────────────────────
+
+  void _onLiquidStart(LongPressStartDetails d) {
+    HapticFeedback.mediumImpact();
+    _rippleCtrl.forward(from: 0);
+    final w = _itemWidth.clamp(1.0, double.infinity);
+    setState(() {
+      _liquidActive = true;
+      _liquidX = d.localPosition.dx;
+      _liquidTargetIdx = (d.localPosition.dx / w)
+          .clamp(0.0, (_mainTabs.length - 1).toDouble())
+          .round()
+          .toInt();
+    });
+  }
+
+  void _onLiquidMove(LongPressMoveUpdateDetails d) {
+    if (_itemWidth <= 0) return;
+    final newIdx = (d.localPosition.dx / _itemWidth)
+        .clamp(0.0, (_mainTabs.length - 1).toDouble())
+        .round()
+        .toInt();
+    if (newIdx != _liquidTargetIdx) HapticFeedback.selectionClick();
+    setState(() {
+      _liquidX = d.localPosition.dx;
+      _liquidTargetIdx = newIdx;
+    });
+  }
+
+  void _onLiquidEnd(LongPressEndDetails d) {
+    if (_liquidTargetIdx >= 0 && _liquidTargetIdx < _mainTabs.length) {
+      _selectTab(_mainTabs[_liquidTargetIdx].tab);
+    }
+    setState(() => _liquidActive = false);
+  }
+
+  void _onLiquidCancel() => setState(() => _liquidActive = false);
+
+  // ── Label helpers ─────────────────────────────────────────────────────────
 
   String _labelFor(AppTab tab, AppLocalizations l10n) => switch (tab) {
         AppTab.library => l10n.tabLibrary,
@@ -62,6 +123,8 @@ class _GlassNavBarState extends ConsumerState<GlassNavBar>
         AppTab.search => l10n.tabSearch,
       };
 
+  // ── Build ─────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
     final selected = ref.watch(selectedTabProvider);
@@ -70,7 +133,6 @@ class _GlassNavBarState extends ConsumerState<GlassNavBar>
     final intensity = ref.watch(settingsProvider.select((s) => s.glassIntensity));
     final colors = context.colors;
 
-    // Drive the hide/show animation off the scroll-minimize signal.
     ref.listen<bool>(navMinimizedProvider, (_, next) {
       if (MediaQuery.disableAnimationsOf(context)) {
         _hide.value = next ? 1.0 : 0.0;
@@ -81,8 +143,6 @@ class _GlassNavBarState extends ConsumerState<GlassNavBar>
       }
     });
 
-    // Dynamic accent from the currently playing track — makes the active tab
-    // pill visibly coloured even on a black background.
     final song = ref.watch(currentSongProvider);
     final trackAccent = song == null
         ? null
@@ -95,15 +155,8 @@ class _GlassNavBarState extends ConsumerState<GlassNavBar>
             .valueOrNull
             ?.accent;
 
-    // Icon-only tabs read cleaner, so the bar can sit tighter than the old
-    // icon+label height.
     const barHeight = 58.0;
     final mainIndex = _mainTabs.indexWhere((t) => t.tab == selected);
-
-    void selectTab(AppTab tab) {
-      HapticFeedback.selectionClick();
-      ref.read(selectedTabProvider.notifier).state = tab;
-    }
 
     final bar = Padding(
       padding: EdgeInsets.only(
@@ -113,59 +166,119 @@ class _GlassNavBarState extends ConsumerState<GlassNavBar>
       ),
       child: Row(
         children: [
-          // ── Main pill: the four primary tabs ──────────────────────────────
+          // ── Main pill: four primary tabs ──────────────────────────────────
           Expanded(
             child: GlassSurface(
               borderRadius: RadiusTokens.brPill,
               intensity: intensity,
               child: SizedBox(
                 height: barHeight,
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final itemWidth = constraints.maxWidth / _mainTabs.length;
-                    final pillWidth = itemWidth - 14;
-                    const pillHeight = barHeight - 18;
-                    final pillLeft = (mainIndex < 0 ? 0 : mainIndex) * itemWidth +
-                        (itemWidth - pillWidth) / 2;
+                child: GestureDetector(
+                  // Long-press + drag to liquid-switch tabs.
+                  onLongPressStart: _onLiquidStart,
+                  onLongPressMoveUpdate: _onLiquidMove,
+                  onLongPressEnd: _onLiquidEnd,
+                  onLongPressCancel: _onLiquidCancel,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      // Cache item width so gesture callbacks can use it.
+                      _itemWidth = constraints.maxWidth / _mainTabs.length;
+                      final pillWidth = _itemWidth - 14;
+                      const pillHeight = barHeight - 18;
 
-                    return Stack(
-                      children: [
-                        // Glossy selected capsule. Positioned by `start` so it
-                        // mirrors correctly in RTL (fa/ar). Fades out when the
-                        // Search bubble owns the selection instead.
-                        AnimatedPositionedDirectional(
-                          duration: MotionTokens.screen,
-                          curve: MotionTokens.spring,
-                          start: pillLeft,
-                          top: (barHeight - pillHeight) / 2,
-                          width: pillWidth,
-                          height: pillHeight,
-                          child: AnimatedOpacity(
-                            duration: MotionTokens.micro,
-                            opacity: mainIndex < 0 ? 0.0 : 1.0,
-                            child: _GlossyPill(
-                              colors: colors,
-                              accent: trackAccent,
+                      final srcIdx = mainIndex < 0 ? 0 : mainIndex;
+                      final pillLeft =
+                          srcIdx * _itemWidth + (_itemWidth - pillWidth) / 2;
+
+                      // During liquid drag the pill stretches to cover
+                      // source → target, giving a satisfying elastic pull.
+                      final double effectivePillLeft;
+                      final double effectivePillWidth;
+                      if (_liquidActive) {
+                        final srcLeft = srcIdx * _itemWidth +
+                            (_itemWidth - pillWidth) / 2;
+                        final dstLeft = _liquidTargetIdx * _itemWidth +
+                            (_itemWidth - pillWidth) / 2;
+                        final leftmost =
+                            srcLeft < dstLeft ? srcLeft : dstLeft;
+                        final rightmost =
+                            (srcLeft + pillWidth) > (dstLeft + pillWidth)
+                                ? (srcLeft + pillWidth)
+                                : (dstLeft + pillWidth);
+                        effectivePillLeft = leftmost;
+                        effectivePillWidth = rightmost - leftmost;
+                      } else {
+                        effectivePillLeft = pillLeft;
+                        effectivePillWidth = pillWidth;
+                      }
+
+                      return Stack(
+                        children: [
+                          // Glossy selected capsule — always pill-shaped via
+                          // AnimatedContainer.decoration (BoxDecoration.lerp).
+                          AnimatedPositionedDirectional(
+                            duration: _liquidActive
+                                ? Duration.zero
+                                : MotionTokens.screen,
+                            curve: MotionTokens.spring,
+                            start: effectivePillLeft,
+                            top: (barHeight - pillHeight) / 2,
+                            width: effectivePillWidth,
+                            height: pillHeight,
+                            child: AnimatedOpacity(
+                              duration: MotionTokens.micro,
+                              // Visible when a main tab is active OR during
+                              // liquid drag (even when starting from Search).
+                              opacity: (mainIndex >= 0 || _liquidActive)
+                                  ? 1.0
+                                  : 0.0,
+                              child: _GlossyPill(
+                                colors: colors,
+                                accent: trackAccent,
+                              ),
                             ),
                           ),
-                        ),
-                        Row(
-                          children: [
-                            for (final spec in _mainTabs)
-                              SizedBox(
-                                width: itemWidth,
-                                child: _NavItem(
-                                  spec: spec,
-                                  label: _labelFor(spec.tab, l10n),
-                                  selected: spec.tab == selected,
-                                  onTap: () => selectTab(spec.tab),
+                          // Tab icons — during drag the target tab previews
+                          // as "selected" so the icon lifts before commit.
+                          Row(
+                            children: [
+                              for (final spec in _mainTabs)
+                                SizedBox(
+                                  width: _itemWidth,
+                                  child: _NavItem(
+                                    spec: spec,
+                                    label: _labelFor(spec.tab, l10n),
+                                    selected: _liquidActive
+                                        ? spec.tab ==
+                                            _mainTabs[_liquidTargetIdx].tab
+                                        : spec.tab == selected,
+                                    onTap: () => _selectTab(spec.tab),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          // Liquid spawn ripple — brief expanding ring that
+                          // confirms the long-press was recognised.
+                          if (_liquidActive)
+                            Positioned.fill(
+                              child: IgnorePointer(
+                                child: AnimatedBuilder(
+                                  animation: _rippleCtrl,
+                                  builder: (_, __) => CustomPaint(
+                                    painter: _LiquidRipplePainter(
+                                      localX: _liquidX.clamp(
+                                          0.0, constraints.maxWidth),
+                                      barHeight: barHeight,
+                                      progress: _rippleCtrl.value,
+                                    ),
+                                  ),
                                 ),
                               ),
-                          ],
-                        ),
-                      ],
-                    );
-                  },
+                            ),
+                        ],
+                      );
+                    },
+                  ),
                 ),
               ),
             ),
@@ -178,15 +291,12 @@ class _GlassNavBarState extends ConsumerState<GlassNavBar>
             intensity: intensity,
             size: barHeight,
             accent: trackAccent,
-            onTap: () => selectTab(AppTab.search),
+            onTap: () => _selectTab(AppTab.search),
           ),
         ],
       ),
     );
 
-    // Collapse + fade + slide-down as the bar hides. `heightFactor` shrinks the
-    // vertical space it occupies (so the mini player above slides to the
-    // bottom), `Opacity` makes it vanish, and the translate adds a gentle drop.
     return AnimatedBuilder(
       animation: _t,
       builder: (context, child) {
@@ -213,72 +323,105 @@ class _GlassNavBarState extends ConsumerState<GlassNavBar>
 
 /// The glossy selected-tab capsule.
 ///
-/// When a track is playing, [accent] fills the capsule with the album's
-/// dominant colour — making the active tab immediately recognisable.
-/// Without a track, it falls back to a neutral white-tinted frosted glass.
+/// Uses [AnimatedContainer] so the entire [BoxDecoration] — gradient, border,
+/// and box shadow — animates via [BoxDecoration.lerp]. This keeps
+/// [borderRadius] equal to [RadiusTokens.brPill] at **every** animation frame,
+/// eliminating the rectangular-glow glitch that appeared when [TweenAnimationBuilder]
+/// toggled the `hasColor` branch mid-transition (which previously split the
+/// decoration into independently animated parts).
 class _GlossyPill extends StatelessWidget {
   const _GlossyPill({required this.colors, this.accent});
   final AppColors colors;
-
-  /// Dynamic accent from the current track's artwork (may be null).
   final Color? accent;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final base = accent;
-    return TweenAnimationBuilder<Color?>(
-      tween: ColorTween(end: base),
+    final c = accent;
+    return AnimatedContainer(
       duration: const Duration(milliseconds: 500),
       curve: Curves.easeInOut,
-      builder: (context, color, _) {
-        final hasColor = color != null;
-        return DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: RadiusTokens.brPill,
-            gradient: hasColor
-                ? LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      color.withOpacity(isDark ? 0.55 : 0.45),
-                      color.withOpacity(isDark ? 0.30 : 0.20),
-                    ],
-                  )
-                : LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      colors.onSurface.withOpacity(0.16),
-                      colors.onSurface.withOpacity(0.07),
-                    ],
-                  ),
-            border: Border.all(
-              color: hasColor
-                  ? color.withOpacity(0.45)
-                  : Colors.white.withOpacity(0.12),
-              width: 1,
-            ),
-            boxShadow: hasColor
-                ? [
-                    BoxShadow(
-                      color: color.withOpacity(isDark ? 0.40 : 0.25),
-                      blurRadius: 12,
-                      spreadRadius: -2,
-                    ),
-                  ]
-                : [
-                    BoxShadow(
-                      color: Colors.white.withOpacity(0.05),
-                      blurRadius: 6,
-                      spreadRadius: -2,
-                    ),
-                  ],
+      decoration: BoxDecoration(
+        borderRadius: RadiusTokens.brPill,
+        gradient: c != null
+            ? LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  c.withOpacity(isDark ? 0.55 : 0.45),
+                  c.withOpacity(isDark ? 0.30 : 0.20),
+                ],
+              )
+            : LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  colors.onSurface.withOpacity(0.16),
+                  colors.onSurface.withOpacity(0.07),
+                ],
+              ),
+        border: Border.all(
+          color: c != null
+              ? c.withOpacity(0.45)
+              : Colors.white.withOpacity(0.12),
+          width: 1.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: c != null
+                ? c.withOpacity(isDark ? 0.40 : 0.25)
+                : Colors.white.withOpacity(0.05),
+            blurRadius: c != null ? 12.0 : 6.0,
+            spreadRadius: -2.0,
           ),
-        );
-      },
+        ],
+      ),
     );
   }
+}
+
+/// Expanding-ring ripple that plays once when the liquid drag is recognised.
+class _LiquidRipplePainter extends CustomPainter {
+  const _LiquidRipplePainter({
+    required this.localX,
+    required this.barHeight,
+    required this.progress,
+  });
+  final double localX;
+  final double barHeight;
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (progress <= 0 || progress >= 1.0) return;
+    final center = Offset(localX, barHeight / 2);
+    // Outer ring
+    final radius = 30.0 * Curves.easeOut.transform(progress);
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..color = Colors.white.withOpacity((1.0 - progress) * 0.45)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5,
+    );
+    // Inner ring — offset by 20 % so it trails behind the outer
+    if (progress > 0.20) {
+      final p2 = ((progress - 0.20) / 0.80).clamp(0.0, 1.0);
+      canvas.drawCircle(
+        center,
+        18.0 * Curves.easeOut.transform(p2),
+        Paint()
+          ..color = Colors.white.withOpacity((1.0 - p2) * 0.25)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.0,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_LiquidRipplePainter o) =>
+      o.localX != localX || o.progress != progress;
 }
 
 class _NavItem extends StatefulWidget {
@@ -323,8 +466,6 @@ class _NavItemState extends State<_NavItem> {
           scale: _pressed ? 0.86 : 1.0,
           duration: MotionTokens.press,
           curve: MotionTokens.standard,
-          // Icon-only: a single centred glyph, no label. The active glyph swaps
-          // to its filled variant and lifts to the brand accent.
           child: SizedBox(
             height: 58,
             child: Center(
@@ -349,8 +490,7 @@ class _NavItemState extends State<_NavItem> {
   }
 }
 
-/// The standalone circular Search bubble. When selected it fills with the same
-/// glossy Liquid-Glass capsule used by the active tab.
+/// The standalone circular Search bubble.
 class _SearchBubble extends StatefulWidget {
   const _SearchBubble({
     required this.label,
@@ -408,40 +548,39 @@ class _SearchBubbleState extends State<_SearchBubble> {
                 children: [
                   if (widget.selected)
                     Positioned.fill(
-                      child: TweenAnimationBuilder<Color?>(
-                        tween: ColorTween(end: widget.accent),
+                      child: AnimatedContainer(
                         duration: const Duration(milliseconds: 500),
-                        builder: (context, color, _) {
-                          final isDark = Theme.of(context).brightness == Brightness.dark;
-                          return DecoratedBox(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: color != null
-                                  ? LinearGradient(
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                      colors: [
-                                        color.withOpacity(isDark ? 0.55 : 0.45),
-                                        color.withOpacity(isDark ? 0.30 : 0.20),
-                                      ],
-                                    )
-                                  : LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: [
-                                        colors.onSurface.withOpacity(0.16),
-                                        colors.onSurface.withOpacity(0.07),
-                                      ],
-                                    ),
-                              border: Border.all(
-                                color: color != null
-                                    ? color.withOpacity(0.45)
-                                    : Colors.white.withOpacity(0.12),
-                                width: 1,
-                              ),
-                            ),
-                          );
-                        },
+                        curve: Curves.easeInOut,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: widget.accent != null
+                              ? RadialGradient(
+                                  colors: [
+                                    widget.accent!.withOpacity(
+                                        Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? 0.55
+                                            : 0.45),
+                                    widget.accent!.withOpacity(
+                                        Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? 0.30
+                                            : 0.20),
+                                  ],
+                                )
+                              : RadialGradient(
+                                  colors: [
+                                    colors.onSurface.withOpacity(0.16),
+                                    colors.onSurface.withOpacity(0.07),
+                                  ],
+                                ),
+                          border: Border.all(
+                            color: widget.accent != null
+                                ? widget.accent!.withOpacity(0.45)
+                                : Colors.white.withOpacity(0.12),
+                            width: 1.0,
+                          ),
+                        ),
                       ),
                     ),
                   Icon(
