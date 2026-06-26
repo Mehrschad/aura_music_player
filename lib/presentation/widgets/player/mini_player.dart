@@ -1,3 +1,5 @@
+import 'dart:ui' show lerpDouble;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,6 +21,13 @@ import '../artwork/aura_artwork.dart';
 import '../glass/glass_surface.dart';
 import '../player_bar_inset.dart';
 import 'now_playing_route.dart';
+
+/// One shared timing for the whole collapse morph (size, position, artwork and
+/// corner radius), so the mini player contracts to the screen edge as a single
+/// fluid piece the way an iOS 26 Liquid-Glass bar does — never a set of
+/// independently-timed jumps.
+const Duration _kCollapseDuration = Duration(milliseconds: 440);
+const Curve _kCollapseCurve = Curves.easeInOutCubic;
 
 /// The mini player: a Liquid Glass card above the nav bar whenever a track is
 /// loaded, with artwork, title/artist, play-pause and skip, and a thin progress
@@ -44,14 +53,14 @@ class MiniPlayer extends ConsumerWidget {
     final safeBottom = MediaQuery.viewPaddingOf(context).bottom;
 
     return AnimatedSize(
-      duration: MotionTokens.micro,
-      curve: MotionTokens.emphasized,
+      duration: _kCollapseDuration,
+      curve: _kCollapseCurve,
       alignment: Alignment.bottomCenter,
       child: song == null
           ? const SizedBox(width: double.infinity)
           : AnimatedPadding(
-              duration: const Duration(milliseconds: 320),
-              curve: Curves.easeInOutCubic,
+              duration: _kCollapseDuration,
+              curve: _kCollapseCurve,
               padding: EdgeInsets.only(
                 left: compact
                     ? SpacingTokens.sm
@@ -82,11 +91,22 @@ class _Card extends ConsumerStatefulWidget {
 }
 
 class _CardState extends ConsumerState<_Card>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _bounceCtrl = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 560),
   );
+
+  // 0 = expanded (resting above the nav bar), 1 = collapsed (slim, dropped to
+  // the screen edge). A single controller drives height, padding, artwork size
+  // and the progress inset together, so the whole card morphs as one piece.
+  late final AnimationController _collapseCtrl = AnimationController(
+    vsync: this,
+    duration: _kCollapseDuration,
+    value: widget.compact ? 1.0 : 0.0,
+  );
+  late final Animation<double> _collapse =
+      CurvedAnimation(parent: _collapseCtrl, curve: _kCollapseCurve);
 
   // Bounce sequence: the mini player "catches" the Now Playing page as it
   // collapses back into it — compressing under the impact, then springing
@@ -125,8 +145,21 @@ class _CardState extends ConsumerState<_Card>
   ]).animate(_bounceCtrl);
 
   @override
+  void didUpdateWidget(_Card old) {
+    super.didUpdateWidget(old);
+    if (widget.compact != old.compact) {
+      if (widget.compact) {
+        _collapseCtrl.forward();
+      } else {
+        _collapseCtrl.reverse();
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _bounceCtrl.dispose();
+    _collapseCtrl.dispose();
     super.dispose();
   }
 
@@ -136,11 +169,59 @@ class _CardState extends ConsumerState<_Card>
     if (mounted) _bounceCtrl.forward(from: 0);
   }
 
+  /// Morphs the shared-element cover between a soft-rounded square (Now Playing)
+  /// and a full disc (mini player) over the flight: leaving Now Playing the
+  /// artwork stays a gently-rounded square for most of the trip, then rounds
+  /// the rest of the way and settles as a circle in the mini player. A single
+  /// builder serves both push and pop (Flutter reuses it in both directions).
+  Widget _artworkFlightShuttle(
+    BuildContext flightContext,
+    Animation<double> animation,
+    HeroFlightDirection direction,
+    BuildContext fromHeroContext,
+    BuildContext toHeroContext,
+  ) {
+    final song = widget.state.currentSong;
+    if (song == null) return const SizedBox.shrink();
+    final id = int.tryParse(song.id);
+    final isPush = direction == HeroFlightDirection.push;
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, _) {
+        // miniWeight: 0 at the Now Playing end, 1 at the mini-player end.
+        final miniWeight =
+            (isPush ? 1.0 - animation.value : animation.value).clamp(0.0, 1.0);
+        // Corner radius as a fraction of the live (Hero-sized) box: a gently
+        // rounded square (~0.14) held for most of the trip, easing up to a full
+        // circle (0.5) only at the very end — easeInCubic keeps it square-ish
+        // until the cover is nearly seated in the mini player.
+        final frac =
+            lerpDouble(0.14, 0.5, Curves.easeInCubic.transform(miniWeight))!;
+        return LayoutBuilder(
+          builder: (ctx, c) {
+            final side = c.biggest.shortestSide.isFinite &&
+                    c.biggest.shortestSide > 0
+                ? c.biggest.shortestSide
+                : RadiusTokens.lg * 2;
+            return AuraArtwork(
+              seed: song.artworkSeed,
+              fill: true,
+              borderRadius: BorderRadius.circular(side * frac),
+              hasArtwork: song.hasArtwork,
+              artworkId: id,
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final song = widget.state.currentSong!;
     final controller = ref.read(audioControllerProvider);
+    final l10n = AppLocalizations.of(context);
     // The glass shell refracts the current track's dominant hue (spec §4).
     final tint = ref
         .watch(coverPaletteProvider((
@@ -150,127 +231,148 @@ class _CardState extends ConsumerState<_Card>
         )))
         .valueOrNull
         ?.accent;
+    // Read settings here (in build) — never inside the AnimatedBuilder, which
+    // re-fires every frame and must not re-subscribe to providers.
+    final glassIntensity =
+        ref.watch(settingsProvider.select((s) => s.glassIntensity));
 
     return AnimatedBuilder(
-      animation: _bounceCtrl,
-      builder: (context, child) => Transform.translate(
-        offset: Offset(0, _bounceLift.value),
-        child: Transform.scale(scale: _bounceScale.value, child: child),
-      ),
-      child: GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => _openNowPlaying(context),
-      onHorizontalDragEnd: (details) {
-        final v = details.primaryVelocity ?? 0;
-        if (v < -200 && widget.state.hasNext) {
-          HapticFeedback.selectionClick();
-          controller.skipToNext();
-        } else if (v > 200 && widget.state.hasPrevious) {
-          HapticFeedback.selectionClick();
-          controller.skipToPrevious();
-        }
-      },
-      onVerticalDragEnd: (details) {
-        if ((details.primaryVelocity ?? 0) > 250) {
-          HapticFeedback.lightImpact();
-          controller.stop();
-        }
-      },
-      child: GlassSurface(
-        // Fully-rounded stadium shell — matched to the nav bar below it.
-        borderRadius: RadiusTokens.brPill,
-        level: GlassLevel.thin, // mini player = thin material (spec §2)
-        tint: tint,
-        intensity: ref.watch(settingsProvider.select((s) => s.glassIntensity)),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 320),
-          curve: Curves.easeInOutCubic,
-          height: widget.compact ? 52 : MiniPlayerMetrics.height,
-          child: Stack(
-            children: [
-              Padding(
-                padding: EdgeInsets.only(
-                  left: SpacingTokens.md,
-                  right: SpacingTokens.xs,
-                  top: widget.compact ? 4 : SpacingTokens.sm,
-                  bottom: widget.compact ? 4 : SpacingTokens.sm,
-                ),
-                child: Row(
-                  children: [
-                    Hero(
-                      tag: kNowPlayingHeroTag,
-                      child: AuraArtwork(
-                        seed: song.artworkSeed,
-                        size: widget.compact ? 36 : 42,
-                        borderRadius: RadiusTokens.brXs,
-                        hasArtwork: song.hasArtwork,
-                        artworkId: int.tryParse(song.id),
+      animation: Listenable.merge([_bounceCtrl, _collapse]),
+      builder: (context, _) {
+        final t = _collapse.value; // 0 expanded → 1 collapsed
+        final cardHeight = lerpDouble(MiniPlayerMetrics.height, 50.0, t)!;
+        final artSize = lerpDouble(44.0, 32.0, t)!;
+        final vPad = lerpDouble(SpacingTokens.sm, 5.0, t)!;
+        // The artist line dissolves first as the card slims, leaving the title.
+        final artistOpacity = (1.0 - t * 1.7).clamp(0.0, 1.0);
+
+        return Transform.translate(
+          offset: Offset(0, _bounceLift.value),
+          child: Transform.scale(
+            scale: _bounceScale.value,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _openNowPlaying(context),
+              onHorizontalDragEnd: (details) {
+                final v = details.primaryVelocity ?? 0;
+                if (v < -200 && widget.state.hasNext) {
+                  HapticFeedback.selectionClick();
+                  controller.skipToNext();
+                } else if (v > 200 && widget.state.hasPrevious) {
+                  HapticFeedback.selectionClick();
+                  controller.skipToPrevious();
+                }
+              },
+              onVerticalDragEnd: (details) {
+                if ((details.primaryVelocity ?? 0) > 250) {
+                  HapticFeedback.lightImpact();
+                  controller.stop();
+                }
+              },
+              child: GlassSurface(
+                // Fully-rounded stadium shell — matched to the nav bar below it.
+                borderRadius: RadiusTokens.brPill,
+                level: GlassLevel.thin, // mini player = thin material (spec §2)
+                tint: tint,
+                intensity: glassIntensity,
+                child: SizedBox(
+                  height: cardHeight,
+                  child: Stack(
+                    children: [
+                      Padding(
+                        padding: EdgeInsets.only(
+                          left: SpacingTokens.md,
+                          right: SpacingTokens.xs,
+                          top: vPad,
+                          bottom: vPad,
+                        ),
+                        child: Row(
+                          children: [
+                            // Circular cover — the disc the Now Playing art
+                            // settles into when the page collapses (Hero morph).
+                            Hero(
+                              tag: kNowPlayingHeroTag,
+                              flightShuttleBuilder: _artworkFlightShuttle,
+                              child: AuraArtwork(
+                                seed: song.artworkSeed,
+                                size: artSize,
+                                borderRadius:
+                                    BorderRadius.circular(artSize / 2),
+                                hasArtwork: song.hasArtwork,
+                                artworkId: int.tryParse(song.id),
+                              ),
+                            ),
+                            const SizedBox(width: SpacingTokens.md),
+                            Expanded(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    song.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppTextTheme.title
+                                        .copyWith(color: colors.onSurface),
+                                  ),
+                                  if (artistOpacity > 0.01)
+                                    Opacity(
+                                      opacity: artistOpacity,
+                                      child: Text(
+                                        song.artist,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: AppTextTheme.caption.copyWith(
+                                            color: colors.onSurfaceMuted),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            _MiniIconButton(
+                              icon: Icons.skip_previous_rounded,
+                              tooltip: l10n.previousTrack,
+                              onTap: widget.state.hasPrevious
+                                  ? () {
+                                      HapticFeedback.selectionClick();
+                                      controller.skipToPrevious();
+                                    }
+                                  : null,
+                            ),
+                            _PlayPauseButton(
+                              playing: widget.state.playing,
+                              onTap: controller.togglePlayPause,
+                            ),
+                            _MiniIconButton(
+                              icon: Icons.skip_next_rounded,
+                              tooltip: l10n.nextTrack,
+                              onTap: widget.state.hasNext
+                                  ? () {
+                                      HapticFeedback.selectionClick();
+                                      controller.skipToNext();
+                                    }
+                                  : null,
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: SpacingTokens.md),
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            song.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTextTheme.title
-                                .copyWith(color: colors.onSurface),
-                          ),
-                          Text(
-                            song.artist,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTextTheme.caption
-                                .copyWith(color: colors.onSurfaceMuted),
-                          ),
-                        ],
+                      // A slim, inset rounded progress capsule that sits cleanly
+                      // within the pill — clear of the rounded ends.
+                      Positioned(
+                        left: SpacingTokens.xl,
+                        right: SpacingTokens.xl,
+                        bottom: lerpDouble(6.0, 4.0, t)!,
+                        child: _ProgressLine(duration: widget.state.duration),
                       ),
-                    ),
-                    _MiniIconButton(
-                      icon: Icons.skip_previous_rounded,
-                      tooltip: AppLocalizations.of(context).previousTrack,
-                      onTap: widget.state.hasPrevious
-                          ? () {
-                              HapticFeedback.selectionClick();
-                              controller.skipToPrevious();
-                            }
-                          : null,
-                    ),
-                    _PlayPauseButton(
-                      playing: widget.state.playing,
-                      onTap: controller.togglePlayPause,
-                    ),
-                    _MiniIconButton(
-                      icon: Icons.skip_next_rounded,
-                      tooltip: AppLocalizations.of(context).nextTrack,
-                      onTap: widget.state.hasNext
-                          ? () {
-                              HapticFeedback.selectionClick();
-                              controller.skipToNext();
-                            }
-                          : null,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-              // A slim, inset rounded progress capsule that sits cleanly within
-              // the pill — far enough from the rounded ends to never clip.
-              Positioned(
-                left: SpacingTokens.xl,
-                right: SpacingTokens.xl,
-                bottom: 6,
-                child: _ProgressLine(duration: widget.state.duration),
-              ),
-            ],
+            ),
           ),
-        ),
-      ),
-    ),  // closes GestureDetector (AnimatedBuilder.child)
-    );  // closes AnimatedBuilder
+        );
+      },
+    );
   }
 }
 

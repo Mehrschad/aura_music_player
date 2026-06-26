@@ -463,14 +463,15 @@ double _glassBlur(GlassIntensity g) => switch (g) {
       GlassIntensity.ultra => 52.0,
     };
 
-/// How matte (frosted) the glass reads. Kept translucent so the colour orbs
-/// show through clearly — the glass is a sheer veil, not an opaque panel.
+/// How matte (frosted) the glass reads. Kept deliberately sheer — Liquid Glass
+/// is translucent like water, not an opaque frosted panel — so the colour orbs
+/// read clearly through it while the lyrics stay legible above.
 double _glassFrost(GlassIntensity g) => switch (g) {
-      GlassIntensity.off => 0.06,
-      GlassIntensity.subtle => 0.09,
-      GlassIntensity.medium => 0.13,
-      GlassIntensity.strong => 0.17,
-      GlassIntensity.ultra => 0.22,
+      GlassIntensity.off => 0.05,
+      GlassIntensity.subtle => 0.07,
+      GlassIntensity.medium => 0.10,
+      GlassIntensity.strong => 0.13,
+      GlassIntensity.ultra => 0.18,
     };
 
 // ── Orb colour helpers — light-mode contrast fix ─────────────────────────────

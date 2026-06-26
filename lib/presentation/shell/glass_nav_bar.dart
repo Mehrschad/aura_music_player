@@ -8,7 +8,6 @@ import '../../core/constants/spacing_tokens.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/color_scheme.dart';
 import '../../core/theme/glass_theme.dart';
-import '../../core/theme/typography.dart';
 import '../../core/utils/seed_color.dart';
 import '../providers/cover_palette_provider.dart';
 import '../providers/playback_providers.dart';
@@ -30,10 +29,12 @@ class GlassNavBar extends ConsumerStatefulWidget {
 
 class _GlassNavBarState extends ConsumerState<GlassNavBar>
     with SingleTickerProviderStateMixin {
-  /// 0 = fully shown (expanded), 1 = fully hidden (collapsed + faded).
+  /// 0 = fully shown (expanded), 1 = fully hidden (collapsed + faded). Matches
+  /// the mini player's collapse timing so the bar folding away and the mini
+  /// player dropping to the edge read as one continuous motion.
   late final AnimationController _hide = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 320),
+    duration: const Duration(milliseconds: 440),
   );
   late final Animation<double> _t =
       CurvedAnimation(parent: _hide, curve: Curves.easeInOutCubic);
@@ -94,7 +95,9 @@ class _GlassNavBarState extends ConsumerState<GlassNavBar>
             .valueOrNull
             ?.accent;
 
-    const barHeight = 64.0;
+    // Icon-only tabs read cleaner, so the bar can sit tighter than the old
+    // icon+label height.
+    const barHeight = 58.0;
     final mainIndex = _mainTabs.indexWhere((t) => t.tab == selected);
 
     void selectTab(AppTab tab) {
@@ -317,38 +320,27 @@ class _NavItemState extends State<_NavItem> {
           widget.onTap();
         },
         child: AnimatedScale(
-          scale: _pressed ? 0.88 : 1.0,
+          scale: _pressed ? 0.86 : 1.0,
           duration: MotionTokens.press,
           curve: MotionTokens.standard,
+          // Icon-only: a single centred glyph, no label. The active glyph swaps
+          // to its filled variant and lifts to the brand accent.
           child: SizedBox(
-            height: 64,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                AnimatedSwitcher(
-                  duration: MotionTokens.micro,
-                  transitionBuilder: (child, anim) => ScaleTransition(
-                    scale: anim,
-                    child: FadeTransition(opacity: anim, child: child),
-                  ),
-                  child: Icon(
-                    widget.selected ? widget.spec.activeIcon : widget.spec.icon,
-                    key: ValueKey(widget.selected),
-                    size: 22,
-                    color: color,
-                  ),
+            height: 58,
+            child: Center(
+              child: AnimatedSwitcher(
+                duration: MotionTokens.micro,
+                transitionBuilder: (child, anim) => ScaleTransition(
+                  scale: anim,
+                  child: FadeTransition(opacity: anim, child: child),
                 ),
-                const SizedBox(height: 3),
-                AnimatedDefaultTextStyle(
-                  duration: MotionTokens.micro,
-                  style: AppTextTheme.navLabel.copyWith(
-                    color: color,
-                    fontWeight:
-                        widget.selected ? FontWeight.w600 : FontWeight.w400,
-                  ),
-                  child: Text(widget.label),
+                child: Icon(
+                  widget.selected ? widget.spec.activeIcon : widget.spec.icon,
+                  key: ValueKey(widget.selected),
+                  size: 26,
+                  color: color,
                 ),
-              ],
+              ),
             ),
           ),
         ),

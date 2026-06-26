@@ -71,9 +71,11 @@ class GlassSurface extends StatelessWidget {
         ? Color.alphaBlend(
             Colors.white.withOpacity(intensity.extraTint), colors.glassTint)
         : colors.glassTint;
-    // Dynamic-colour wash: pull the surface gently toward the artwork hue.
+    // Dynamic-colour wash: pull the surface *softly* toward the artwork hue, so
+    // the glass picks up the track's colour the way Liquid Glass tints from the
+    // content behind it — present but never enough to drown legibility.
     if (tint != null) {
-      glassTint = Color.alphaBlend(tint!.withOpacity(isDark ? 0.16 : 0.10), glassTint);
+      glassTint = Color.alphaBlend(tint!.withOpacity(isDark ? 0.11 : 0.10), glassTint);
     }
 
     return RepaintBoundary(
@@ -88,8 +90,27 @@ class GlassSurface extends StatelessWidget {
               children: [
                 // ── content defines the surface size ──────────────────────────
                 Padding(padding: padding, child: child),
-                // ── specular sheen: a soft light wash from the top-left with a
-                //    faint pickup bottom-right — glassy, not a flat fill ─────────
+                // ── top specular: a crisp bright catch along the upper lip that
+                //    fades fast — the signature Liquid-Glass light edge ──────────
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.white.withOpacity(isDark ? 0.22 : 0.40),
+                            Colors.white.withOpacity(0.0),
+                          ],
+                          stops: const [0.0, 0.30],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                // ── soft diagonal sheen: a gentle light wash from the top-left
+                //    with a faint pickup bottom-right — glassy depth, not a fill ─
                 Positioned.fill(
                   child: IgnorePointer(
                     child: DecoratedBox(
@@ -98,18 +119,18 @@ class GlassSurface extends StatelessWidget {
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [
-                            Colors.white.withOpacity(isDark ? 0.14 : 0.30),
+                            Colors.white.withOpacity(isDark ? 0.06 : 0.16),
                             Colors.white.withOpacity(0.0),
                             Colors.white.withOpacity(0.0),
-                            Colors.white.withOpacity(isDark ? 0.05 : 0.10),
+                            Colors.white.withOpacity(isDark ? 0.04 : 0.08),
                           ],
-                          stops: const [0.0, 0.34, 0.68, 1.0],
+                          stops: const [0.0, 0.32, 0.66, 1.0],
                         ),
                       ),
                     ),
                   ),
                 ),
-                // ── luminous rim (drawn last so it stays crisp over content) ────
+                // ── luminous lens rim (drawn last so it stays crisp over content)
                 Positioned.fill(
                   child: IgnorePointer(
                     child: CustomPaint(
@@ -149,13 +170,15 @@ class _LiquidRimPainter extends CustomPainter {
       bottomLeft: borderRadius.bottomLeft,
       bottomRight: borderRadius.bottomRight,
     );
+    // Outer luminous rim — bright across the top, nearly gone at the sides, a
+    // soft glow along the bottom: light catching the lip of a glass panel.
     final shader = LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
       colors: [
-        Colors.white.withOpacity(isDark ? 0.55 : 0.85),
-        Colors.white.withOpacity(isDark ? 0.06 : 0.10),
-        Colors.white.withOpacity(isDark ? 0.12 : 0.22),
+        Colors.white.withOpacity(isDark ? 0.58 : 0.85),
+        Colors.white.withOpacity(isDark ? 0.05 : 0.10),
+        Colors.white.withOpacity(isDark ? 0.14 : 0.22),
       ],
       stops: const [0.0, 0.5, 1.0],
     ).createShader(rect);
@@ -163,8 +186,36 @@ class _LiquidRimPainter extends CustomPainter {
       rrect,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
+        ..strokeWidth = 1.2
         ..shader = shader,
+    );
+
+    // Inner refraction hairline — a faint dark line just inside the lower half
+    // of the rim, reading as the lensed *thickness* of the glass (the way the
+    // far wall of a water droplet darkens). This is the tell that separates
+    // Liquid Glass from a flat frosted panel.
+    final inner = RRect.fromRectAndCorners(
+      rect.deflate(2.2),
+      topLeft: borderRadius.topLeft,
+      topRight: borderRadius.topRight,
+      bottomLeft: borderRadius.bottomLeft,
+      bottomRight: borderRadius.bottomRight,
+    );
+    final innerShader = LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [
+        Colors.white.withOpacity(0.0),
+        Colors.black.withOpacity(isDark ? 0.10 : 0.05),
+      ],
+      stops: const [0.55, 1.0],
+    ).createShader(rect);
+    canvas.drawRRect(
+      inner,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0
+        ..shader = innerShader,
     );
   }
 
