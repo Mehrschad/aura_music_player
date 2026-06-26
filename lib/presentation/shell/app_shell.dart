@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -22,6 +21,11 @@ import '../widgets/player/mini_player.dart';
 import '../widgets/player/playback_persistor.dart';
 import 'glass_nav_bar.dart';
 import 'nav_provider.dart';
+
+/// Sustained vertical travel (px) required before the floating nav bar toggles
+/// its minimized state — high enough to ignore jitter, low enough to feel
+/// responsive to a deliberate scroll.
+const double _kScrollToggleThreshold = 40;
 
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
@@ -150,8 +154,8 @@ class _AppShellState extends ConsumerState<AppShell>
         extendBody: true,
         // Watch vertical scrolling anywhere in the page content to minimize /
         // expand the floating nav bar the way iOS 26 tab bars do.
-        body: NotificationListener<UserScrollNotification>(
-          onNotification: _onUserScroll,
+        body: NotificationListener<ScrollNotification>(
+          onNotification: _onScroll,
           child: AnimatedBuilder(
           animation: _tabCtrl,
           builder: (context, _) {
@@ -195,16 +199,49 @@ class _AppShellState extends ConsumerState<AppShell>
     );
   }
 
+  /// Accumulated same-direction scroll distance, used to gate the minimize /
+  /// expand toggle behind a small threshold so the bar doesn't flicker on tiny
+  /// finger jitters. Reset whenever the scroll direction reverses.
+  double _scrollAccum = 0;
+
   /// Minimizes the floating nav bar while scrolling down through vertical
   /// content and expands it again on scroll up — the iOS 26 tab-bar behaviour.
-  /// Horizontal scrollers (album carousels) are ignored.
-  bool _onUserScroll(UserScrollNotification n) {
+  ///
+  /// Rather than flipping on the slightest direction change (which felt twitchy),
+  /// the toggle requires a sustained [_kScrollToggleThreshold] px of travel in
+  /// one direction, and the bar always re-expands the moment the content reaches
+  /// the very top. Horizontal scrollers (album carousels) are ignored.
+  bool _onScroll(ScrollNotification n) {
     if (n.metrics.axis != Axis.vertical) return false;
-    final notifier = ref.read(navMinimizedProvider.notifier);
-    if (n.direction == ScrollDirection.reverse) {
-      if (!ref.read(navMinimizedProvider)) notifier.state = true;
-    } else if (n.direction == ScrollDirection.forward) {
-      if (ref.read(navMinimizedProvider)) notifier.state = false;
+
+    // At (or above) the top, always reveal the bar — no threshold needed.
+    if (n.metrics.pixels <= 0.5) {
+      _scrollAccum = 0;
+      if (ref.read(navMinimizedProvider)) {
+        ref.read(navMinimizedProvider.notifier).state = false;
+      }
+      return false;
+    }
+
+    if (n is! ScrollUpdateNotification) return false;
+    final delta = n.scrollDelta ?? 0;
+    if (delta == 0) return false;
+
+    final goingDown = delta > 0;
+    // Reset the run when the user reverses direction, so a flick the other way
+    // responds promptly instead of fighting the previous run's accumulation.
+    if ((goingDown && _scrollAccum < 0) || (!goingDown && _scrollAccum > 0)) {
+      _scrollAccum = 0;
+    }
+    _scrollAccum += delta;
+
+    final minimized = ref.read(navMinimizedProvider);
+    if (_scrollAccum > _kScrollToggleThreshold && !minimized) {
+      ref.read(navMinimizedProvider.notifier).state = true;
+      _scrollAccum = 0;
+    } else if (_scrollAccum < -_kScrollToggleThreshold && minimized) {
+      ref.read(navMinimizedProvider.notifier).state = false;
+      _scrollAccum = 0;
     }
     return false;
   }

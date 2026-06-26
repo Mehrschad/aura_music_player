@@ -52,6 +52,10 @@ class MiniPlayer extends ConsumerWidget {
     final compact = song != null && ref.watch(navMinimizedProvider);
     final safeBottom = MediaQuery.viewPaddingOf(context).bottom;
 
+    // Only the vertical drop is handled here; the horizontal pull-in (the card
+    // narrowing to a centred capsule) is driven inside [_Card] off the same
+    // collapse controller, so width, height, artwork and corner radius all
+    // morph together as one fluid piece.
     return AnimatedSize(
       duration: _kCollapseDuration,
       curve: _kCollapseCurve,
@@ -62,12 +66,6 @@ class MiniPlayer extends ConsumerWidget {
               duration: _kCollapseDuration,
               curve: _kCollapseCurve,
               padding: EdgeInsets.only(
-                left: compact
-                    ? SpacingTokens.sm
-                    : MiniPlayerMetrics.horizontalMargin,
-                right: compact
-                    ? SpacingTokens.sm
-                    : MiniPlayerMetrics.horizontalMargin,
                 bottom: compact
                     ? (safeBottom + 6)
                     : MiniPlayerMetrics.gapToNavBar,
@@ -236,21 +234,38 @@ class _CardState extends ConsumerState<_Card>
     final glassIntensity =
         ref.watch(settingsProvider.select((s) => s.glassIntensity));
 
-    return AnimatedBuilder(
-      animation: Listenable.merge([_bounceCtrl, _collapse]),
-      builder: (context, _) {
-        final t = _collapse.value; // 0 expanded → 1 collapsed
-        final cardHeight = lerpDouble(MiniPlayerMetrics.height, 50.0, t)!;
-        final artSize = lerpDouble(44.0, 32.0, t)!;
-        final vPad = lerpDouble(SpacingTokens.sm, 5.0, t)!;
-        // The artist line dissolves first as the card slims, leaving the title.
-        final artistOpacity = (1.0 - t * 1.7).clamp(0.0, 1.0);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Expanded: full width inset by the shared margin (matches the nav bar).
+        // Collapsed: a slim capsule pulled well in from both edges and centred.
+        final fullWidth = constraints.maxWidth;
+        final expandedWidth =
+            fullWidth - MiniPlayerMetrics.horizontalMargin * 2;
+        final collapsedWidth = (fullWidth * 0.58).clamp(208.0, expandedWidth);
 
-        return Transform.translate(
-          offset: Offset(0, _bounceLift.value),
-          child: Transform.scale(
-            scale: _bounceScale.value,
-            child: GestureDetector(
+        return AnimatedBuilder(
+          animation: Listenable.merge([_bounceCtrl, _collapse]),
+          builder: (context, _) {
+            final t = _collapse.value; // 0 expanded → 1 collapsed
+            final cardWidth = lerpDouble(expandedWidth, collapsedWidth, t)!;
+            final cardHeight = lerpDouble(MiniPlayerMetrics.height, 50.0, t)!;
+            final artSize = lerpDouble(44.0, 34.0, t)!;
+            final vPad = lerpDouble(SpacingTokens.sm, 5.0, t)!;
+            // The artist line dissolves first as the card slims, leaving title.
+            final artistOpacity = (1.0 - t * 1.7).clamp(0.0, 1.0);
+            // Prev/next fade out *and* collapse their width together over the
+            // first half of the morph, so the row pulls tight to a centred
+            // art · title · play capsule before the capsule finishes narrowing.
+            final side = (1.0 - t * 1.8).clamp(0.0, 1.0);
+
+            return Center(
+              child: SizedBox(
+                width: cardWidth,
+                child: Transform.translate(
+                  offset: Offset(0, _bounceLift.value),
+                  child: Transform.scale(
+                    scale: _bounceScale.value,
+                    child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: () => _openNowPlaying(context),
               onHorizontalDragEnd: (details) {
@@ -329,29 +344,35 @@ class _CardState extends ConsumerState<_Card>
                                 ],
                               ),
                             ),
-                            _MiniIconButton(
-                              icon: Icons.skip_previous_rounded,
-                              tooltip: l10n.previousTrack,
-                              onTap: widget.state.hasPrevious
-                                  ? () {
-                                      HapticFeedback.selectionClick();
-                                      controller.skipToPrevious();
-                                    }
-                                  : null,
+                            _Collapsible(
+                              factor: side,
+                              child: _MiniIconButton(
+                                icon: Icons.skip_previous_rounded,
+                                tooltip: l10n.previousTrack,
+                                onTap: widget.state.hasPrevious
+                                    ? () {
+                                        HapticFeedback.selectionClick();
+                                        controller.skipToPrevious();
+                                      }
+                                    : null,
+                              ),
                             ),
                             _PlayPauseButton(
                               playing: widget.state.playing,
                               onTap: controller.togglePlayPause,
                             ),
-                            _MiniIconButton(
-                              icon: Icons.skip_next_rounded,
-                              tooltip: l10n.nextTrack,
-                              onTap: widget.state.hasNext
-                                  ? () {
-                                      HapticFeedback.selectionClick();
-                                      controller.skipToNext();
-                                    }
-                                  : null,
+                            _Collapsible(
+                              factor: side,
+                              child: _MiniIconButton(
+                                icon: Icons.skip_next_rounded,
+                                tooltip: l10n.nextTrack,
+                                onTap: widget.state.hasNext
+                                    ? () {
+                                        HapticFeedback.selectionClick();
+                                        controller.skipToNext();
+                                      }
+                                    : null,
+                              ),
                             ),
                           ],
                         ),
@@ -370,8 +391,37 @@ class _CardState extends ConsumerState<_Card>
               ),
             ),
           ),
+                  ),
+                ),
+            );
+          },
         );
       },
+    );
+  }
+}
+
+/// Collapses its child's horizontal footprint as [factor] goes 1 → 0: the slot
+/// width shrinks and the child fades, clipped cleanly so neighbours slide in to
+/// fill the gap. Used to fold the prev/next transport buttons away as the mini
+/// player contracts to its centred capsule.
+class _Collapsible extends StatelessWidget {
+  const _Collapsible({required this.factor, required this.child});
+
+  /// 1 = fully shown, 0 = fully collapsed (zero width, invisible).
+  final double factor;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final f = factor.clamp(0.0, 1.0);
+    if (f <= 0.001) return const SizedBox.shrink();
+    return ClipRect(
+      child: Align(
+        alignment: Alignment.center,
+        widthFactor: f,
+        child: Opacity(opacity: f, child: child),
+      ),
     );
   }
 }
