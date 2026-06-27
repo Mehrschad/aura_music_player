@@ -93,38 +93,14 @@ class NeteaseLyricsRepository implements LyricsRepository {
     try {
       final res = await _dio.get<Map<String, dynamic>>(
         '/api/song/lyric',
-        // `yv` requests the word-by-word (YRC) lyric alongside the line-level
-        // LRC, so one round-trip can yield true karaoke when it exists.
-        queryParameters: {
-          'os': 'pc',
-          'id': id,
-          'lv': -1,
-          'kv': -1,
-          'tv': -1,
-          'yv': -1,
-        },
+        queryParameters: {'os': 'pc', 'id': id, 'lv': -1, 'kv': -1, 'tv': -1},
       );
       final data = res.data;
       if (data == null) return null;
-
-      // 1. Word-level (yrc) — the richest, drives per-word karaoke fill.
-      final yrc = (data['yrc'] as Map<String, dynamic>?)?['lyric'] as String?;
-      if (yrc != null && yrc.trim().isNotEmpty) {
-        final word = await runOffMainThread(parseYrc, yrc);
-        if (!word.isEmpty && word.hasWordTimings) {
-          final yt =
-              (data['ytlrc'] as Map<String, dynamic>?)?['lyric'] as String? ??
-                  (data['tlyric'] as Map<String, dynamic>?)?['lyric'] as String?;
-          if (yt != null && yt.trim().isNotEmpty) {
-            return _withTranslations(word, await runOffMainThread(parseLyrics, yt));
-          }
-          return word;
-        }
-      }
-
-      // 2. Standard line-level synced LRC (parse off the main isolate).
       final lrc = (data['lrc'] as Map<String, dynamic>?)?['lyric'] as String?;
       if (lrc == null || lrc.trim().isEmpty) return null;
+
+      // Parse off the main isolate — synced LRC can be large.
       final base = await runOffMainThread(parseLyrics, lrc);
       if (base.isEmpty) return null;
 
@@ -159,49 +135,4 @@ class NeteaseLyricsRepository implements LyricsRepository {
     ];
     return Lyrics(lines: merged, synced: base.synced, offset: base.offset);
   }
-}
-
-/// Line head of a YRC line: `[lineStartMs,lineDurationMs]`.
-final RegExp _yrcLineHead = RegExp(r'^\[(\d+),(\d+)\]');
-
-/// A YRC word timing tag: `(wordStartMs,wordDurationMs,0)`.
-final RegExp _yrcWordTag = RegExp(r'\((\d+),(\d+),\d+\)');
-
-/// Parses NetEase **YRC** (word-by-word) lyrics into timed lines with per-word
-/// timings — the source for true karaoke fill. Each line is
-/// `[start,dur](wStart,wDur,0)word(wStart,wDur,0)word…`; non-`[` lines (JSON
-/// metadata) are skipped. Top-level + isolate-safe for `runOffMainThread`.
-Lyrics parseYrc(String raw) {
-  final out = <LyricsLine>[];
-  for (final rawLine in raw.split('\n')) {
-    final line = rawLine.trim();
-    if (line.isEmpty || !line.startsWith('[')) continue;
-    final head = _yrcLineHead.firstMatch(line);
-    if (head == null) continue;
-    final lineStart = int.parse(head.group(1)!);
-    final body = line.substring(head.end);
-
-    final tags = _yrcWordTag.allMatches(body).toList();
-    if (tags.isEmpty) continue;
-    final words = <LyricWord>[];
-    final buffer = StringBuffer();
-    for (var i = 0; i < tags.length; i++) {
-      final m = tags[i];
-      final wStart = int.parse(m.group(1)!);
-      final textEnd = i + 1 < tags.length ? tags[i + 1].start : body.length;
-      final text = body.substring(m.end, textEnd);
-      if (text.isEmpty) continue;
-      words.add(LyricWord(start: Duration(milliseconds: wStart), text: text));
-      buffer.write(text);
-    }
-    final full = buffer.toString().trim();
-    if (full.isEmpty) continue;
-    out.add(LyricsLine(
-      time: Duration(milliseconds: lineStart),
-      text: full,
-      words: words,
-    ));
-  }
-  out.sort((a, b) => a.time.compareTo(b.time));
-  return Lyrics(lines: out, synced: out.isNotEmpty);
 }

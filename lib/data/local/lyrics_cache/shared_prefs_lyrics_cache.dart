@@ -78,12 +78,6 @@ class SharedPrefsLyricsCache {
                   'ms': l.time.inMilliseconds,
                   'text': l.text,
                   if (l.translation != null) 'tr': l.translation,
-                  // Per-word timings (karaoke) — persisted so word-level lyrics
-                  // survive caching instead of degrading to line-level.
-                  if (l.words.isNotEmpty)
-                    'w': l.words
-                        .map((w) => {'ms': w.start.inMilliseconds, 't': w.text})
-                        .toList(),
                 })
             .toList(),
       };
@@ -95,15 +89,6 @@ class SharedPrefsLyricsCache {
               time: Duration(milliseconds: (l['ms'] as num).toInt()),
               text: l['text'] as String,
               translation: l['tr'] as String?,
-              words: (l['w'] as List?)
-                      ?.cast<Map<String, dynamic>>()
-                      .map((w) => LyricWord(
-                            start:
-                                Duration(milliseconds: (w['ms'] as num).toInt()),
-                            text: w['t'] as String,
-                          ))
-                      .toList() ??
-                  const [],
             ))
         .toList();
     return Lyrics(
