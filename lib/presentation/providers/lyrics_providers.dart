@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/local/lyrics_cache/shared_prefs_lyrics_cache.dart';
 import '../../data/remote/lyrics_api/lrclib_lyrics_repository.dart';
+import '../../data/remote/lyrics_api/netease_lyrics_repository.dart';
+import '../../data/repositories/composite_lyrics_repository.dart';
 import '../../data/repositories/sample_lyrics_repository.dart';
 import '../../domain/lyrics/lrc_parser.dart';
 import '../../domain/models/lyrics.dart';
@@ -17,11 +19,20 @@ final lyricsCacheProvider = Provider<SharedPrefsLyricsCache>((ref) {
   return SharedPrefsLyricsCache();
 });
 
-/// The active lyrics source. Uses LRCLIB when auto-fetch is enabled in settings,
-/// falls back to sample data otherwise (also keeps tests fast).
+/// The active lyrics source. With auto-fetch enabled, a composite resolver
+/// checks a local sidecar `.lrc` first, then races LRCLIB and NetEase in
+/// parallel and returns the richest match (synced › word-level › translated).
+/// With auto-fetch disabled it falls back to bundled sample data (also keeps
+/// tests fast and offline).
 final lyricsRepositoryProvider = Provider<LyricsRepository>((ref) {
   final autoFetch = ref.watch(settingsProvider.select((s) => s.lyricsAutoFetch));
-  return autoFetch ? LrcLibLyricsRepository() : const SampleLyricsRepository();
+  if (!autoFetch) return const SampleLyricsRepository();
+  return CompositeLyricsRepository(
+    network: [
+      LrcLibLyricsRepository(),
+      NeteaseLyricsRepository(),
+    ],
+  );
 });
 
 /// User-saved lyrics overrides, keyed by song id (e.g. results of the tap-to-
