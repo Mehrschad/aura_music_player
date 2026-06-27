@@ -134,3 +134,18 @@ double matchScore({
 /// Minimum blended score to accept a fuzzy candidate. Below this we'd rather
 /// show nothing than the wrong song's lyrics.
 const double kMatchAcceptThreshold = 0.55;
+
+/// A stable, content-addressed cache key derived from the *normalized* artist
+/// and title — so the same song shares one cached entry across different files,
+/// re-scans, and changing library ids. Uses a deterministic 32-bit FNV-1a hash
+/// (NOT `String.hashCode`, which may be randomized between runs and would break
+/// persisted lookups).
+String lyricsContentKey(String artist, String title) {
+  final s = '${normalizeArtist(artist)}|${normalizeTitle(title)}';
+  var hash = 0x811c9dc5;
+  for (final c in s.codeUnits) {
+    hash = (hash ^ c) & 0xFFFFFFFF;
+    hash = (hash * 0x01000193) & 0xFFFFFFFF;
+  }
+  return 'c_${hash.toRadixString(16)}';
+}

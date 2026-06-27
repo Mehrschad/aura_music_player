@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../domain/lyrics/lyrics_match.dart';
 import '../../../domain/models/song.dart';
 import '../../providers/artist_bio_providers.dart';
 import '../../providers/library_providers.dart';
@@ -67,15 +68,18 @@ class _OfflinePrefetcherState extends ConsumerState<OfflinePrefetcher> {
     for (final song in songs) {
       if (!mounted) return;
       try {
-        if (await cache.contains(song.id)) continue;
-        if (await cache.hasFreshMiss(song.id)) continue;
+        // Content-addressed key, consistent with currentLyricsProvider, so a
+        // song cached here is found by the player (and shared across files).
+        final key = lyricsContentKey(song.artist, song.title);
+        if (await cache.contains(key)) continue;
+        if (await cache.hasFreshMiss(key)) continue;
 
         final lyrics =
             await ref.read(lyricsRepositoryProvider).lyricsFor(song);
         if (lyrics != null) {
-          await cache.write(song.id, lyrics);
+          await cache.write(key, lyrics);
         } else {
-          await cache.markMiss(song.id);
+          await cache.markMiss(key);
         }
         await Future<void>.delayed(_betweenRequests);
       } catch (_) {

@@ -6,6 +6,7 @@ import '../../data/remote/lyrics_api/netease_lyrics_repository.dart';
 import '../../data/repositories/composite_lyrics_repository.dart';
 import '../../data/repositories/sample_lyrics_repository.dart';
 import '../../domain/lyrics/lrc_parser.dart';
+import '../../domain/lyrics/lyrics_match.dart';
 import '../../domain/models/lyrics.dart';
 import '../../domain/repositories/lyrics_repository.dart';
 import 'playback_providers.dart';
@@ -64,14 +65,17 @@ final currentLyricsProvider = FutureProvider<Lyrics?>((ref) async {
   if (override != null) return override;
 
   final cache = ref.read(lyricsCacheProvider);
+  // Content-addressed key: the same song shares one cached entry regardless of
+  // which file/library id it came from (see lyricsContentKey).
+  final key = lyricsContentKey(song.artist, song.title);
 
   // 2. Persistent cache — works offline.
-  final cached = await cache.read(song.id);
+  final cached = await cache.read(key);
   if (cached != null) return cached;
 
-  // 3. Remote repository — fetch and cache the result.
+  // 3. Resolver chain (local → network race) — fetch and cache the result.
   final result = await ref.watch(lyricsRepositoryProvider).lyricsFor(song);
-  if (result != null) await cache.write(song.id, result);
+  if (result != null) await cache.write(key, result);
   return result;
 });
 
