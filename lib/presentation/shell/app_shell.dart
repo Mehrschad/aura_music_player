@@ -1,3 +1,6 @@
+import 'dart:math';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,10 +11,8 @@ import '../pages/library/library_page.dart';
 import '../pages/onboarding/onboarding_page.dart';
 import '../pages/playlists/playlists_page.dart';
 import '../pages/search/search_page.dart';
-import '../providers/cover_palette_provider.dart';
 import '../providers/engine_bridge_provider.dart';
 import '../providers/home_widget_providers.dart';
-import '../providers/playback_providers.dart';
 import '../providers/scrobbler_provider.dart';
 import '../providers/selection_providers.dart';
 import '../providers/settings_providers.dart';
@@ -121,19 +122,6 @@ class _AppShellState extends ConsumerState<AppShell>
     final tab = ref.watch(selectedTabProvider);
     final tabIndex = tab.index;
 
-    // Current track palette for ambient colour behind the glass layer.
-    final song = ref.watch(currentSongProvider);
-    final ambientWash = song == null
-        ? null
-        : ref
-            .watch(coverPaletteProvider((
-              seed: song.artworkSeed,
-              hasArtwork: song.hasArtwork,
-              artworkId: int.tryParse(song.id),
-            )))
-            .valueOrNull
-            ?.wash;
-
     // Listen for tab changes to drive the directional slide animation, and
     // expand the floating nav bar (a fresh tab always starts at the top).
     ref.listen(selectedTabProvider, (prev, next) {
@@ -164,21 +152,15 @@ class _AppShellState extends ConsumerState<AppShell>
             final W = MediaQuery.sizeOf(context).width * 0.25;
             return Stack(
               children: [
+                // Subtle film-grain texture over the near-black canvas — a quiet
+                // sense of depth and craft in place of the old colour wash.
+                const Positioned.fill(
+                  child: IgnorePointer(child: _GrainOverlay()),
+                ),
                 for (var i = 0; i < AppTab.values.length; i++)
                   Positioned.fill(
                     child: _buildTabSlot(i, tabIndex, t, isAnim, W),
                   ),
-                // Ambient colour glow: the current track's wash bleeds
-                // through the bottom glass (mini player + nav bar) so the
-                // frosting becomes obvious even over a near-black background.
-                // This is the "Apple Music whole-page tint" effect.
-                Positioned(
-                  bottom: 0, left: 0, right: 0,
-                  height: 260,
-                  child: IgnorePointer(
-                    child: _AmbientGlow(wash: ambientWash),
-                  ),
-                ),
               ],
             );
           },
@@ -305,45 +287,48 @@ class _TabNavigator extends StatelessWidget {
   }
 }
 
-/// The colour glow behind the glass nav bar + mini player.
+/// A whisper-quiet film-grain texture laid over the near-black canvas.
 ///
-/// When a track is playing, the artwork's `wash` colour bleeds upward as a
-/// translucent gradient so the [GlassSurface] backdrop-filter has colourful
-/// content to blur — making the frosted-glass look clearly visible even over
-/// a uniform near-black or white page background.
-///
-/// Animates smoothly between colours as the track changes.
-class _AmbientGlow extends StatelessWidget {
-  const _AmbientGlow({this.wash});
-  final Color? wash;
+/// Replaces the old colour wash: instead of bleeding the track's hue up from
+/// the bottom, the whole page gets a faint, even speckle that reads as paper /
+/// sensor grain — depth and craft without any colour, true to the AMOLED
+/// "mature minimalism" language. Static (seeded), painted once into a cached
+/// layer, so it costs nothing per frame.
+class _GrainOverlay extends StatelessWidget {
+  const _GrainOverlay();
 
   @override
   Widget build(BuildContext context) {
-    final target = wash ?? Colors.transparent;
-    return TweenAnimationBuilder<Color?>(
-      tween: ColorTween(end: target),
-      duration: const Duration(milliseconds: 900),
-      curve: Curves.easeInOut,
-      builder: (context, color, _) {
-        final c = color ?? Colors.transparent;
-        if (c == Colors.transparent) return const SizedBox.expand();
-        return DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                c.withOpacity(0),
-                c.withOpacity(0.22),
-                c.withOpacity(0.44),
-              ],
-              stops: const [0.0, 0.55, 1.0],
-            ),
-          ),
-        );
-      },
+    return const RepaintBoundary(
+      child: CustomPaint(painter: _GrainPainter(), size: Size.infinite),
     );
   }
+}
+
+class _GrainPainter extends CustomPainter {
+  const _GrainPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+    // Deterministic seed → the grain never shifts between rebuilds (which would
+    // read as flicker); ~one speck per 130 px² is a fine, even film grain.
+    final rnd = Random(0x6B7A1F);
+    final count =
+        (size.width * size.height / 130).clamp(0, 9000).toInt();
+    final points = <Offset>[
+      for (var i = 0; i < count; i++)
+        Offset(rnd.nextDouble() * size.width, rnd.nextDouble() * size.height),
+    ];
+    final paint = Paint()
+      ..color = const Color(0x07FFFFFF) // ~2.7% white — barely there
+      ..strokeWidth = 1.0
+      ..strokeCap = StrokeCap.round;
+    canvas.drawPoints(ui.PointMode.points, points, paint);
+  }
+
+  @override
+  bool shouldRepaint(_GrainPainter oldDelegate) => false;
 }
 
 /// Invisible bridge: pushes the live [HomeWidgetState] to the native home-screen

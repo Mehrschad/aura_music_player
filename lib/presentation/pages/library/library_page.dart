@@ -16,8 +16,8 @@ import '../../providers/async_value_x.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../providers/selection_providers.dart';
+import '../../widgets/artwork/aura_artwork.dart';
 import '../../widgets/async_state_view.dart';
-import '../../widgets/aurora_mark.dart';
 import '../../widgets/library/album_grid_tile.dart';
 import '../../widgets/library/artist_list_tile.dart';
 import '../../widgets/library/genre_list_tile.dart';
@@ -66,8 +66,17 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
         selectionProvider(LibraryPage._listId).select((s) => s.active));
     final allSongs = songsAsync.valueOrNull ?? const <Song>[];
 
-    // Collapsed = title at headline (17pt); expanded = display (24pt).
+    // Collapsed = title at headline; expanded = big editorial display title.
     final collapsed = _scrolled && !selecting;
+
+    // Editorial header stat line + the "Recently played" shelf, both derived
+    // from the loaded library (no extra provider needed).
+    final albumCount = allSongs.map((s) => s.albumId).toSet().length;
+    final recent = <Song>[
+      for (final s in allSongs)
+        if (s.lastPlayed != null) s,
+    ]..sort((a, b) => b.lastPlayed!.compareTo(a.lastPlayed!));
+    final recents = recent.take(12).toList();
 
     return NotificationListener<ScrollUpdateNotification>(
       onNotification: (n) {
@@ -83,76 +92,106 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
             if (selecting)
               SelectionBar(listId: LibraryPage._listId, allSongs: allSongs)
             else
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOut,
-                height: collapsed ? 44 : 58,
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    SpacingTokens.lg,
-                    collapsed ? 6 : SpacingTokens.sm,
-                    SpacingTokens.sm,
-                    0,
-                  ),
-                  child: Row(
-                    children: [
-                      // Logo fades out as the header collapses.
-                      AnimatedOpacity(
-                        duration: const Duration(milliseconds: 180),
-                        opacity: collapsed ? 0 : 1,
-                        child: IgnorePointer(
-                          ignoring: collapsed,
-                          child: Row(mainAxisSize: MainAxisSize.min, children: [
-                            const AuraMark(size: 26),
-                            const SizedBox(width: SpacingTokens.sm + 1),
-                          ]),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    SpacingTokens.lg, SpacingTokens.sm, SpacingTokens.sm, 0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Big wordmark + trailing actions. The title morphs down to
+                    // a compact headline as the page scrolls (iOS large-title).
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: AnimatedDefaultTextStyle(
+                            duration: const Duration(milliseconds: 240),
+                            curve: Curves.easeOut,
+                            style: collapsed
+                                ? AppTextTheme.headline
+                                    .copyWith(color: colors.onSurface)
+                                : AppTextTheme.display.copyWith(
+                                    color: colors.onSurface,
+                                    fontSize: 34,
+                                    height: 1.0,
+                                    letterSpacing: -1.2,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            child: const Text('Aura'),
+                          ),
                         ),
-                      ),
-                      // Title morphs from 24pt → 17pt as the header collapses.
-                      AnimatedDefaultTextStyle(
-                        duration: const Duration(milliseconds: 220),
+                        DisplayModeButton(
+                          mode: mode,
+                          onChanged: (m) => ref
+                              .read(libraryDisplayModeProvider.notifier)
+                              .state = m,
+                        ),
+                        IconButton(
+                          tooltip: l10n.folders,
+                          onPressed: () => openFolderBrowser(context),
+                          icon: const Icon(Icons.folder_outlined),
+                        ),
+                        IconButton(
+                          tooltip: l10n.sortLabel,
+                          onPressed: () => showSortSheet(
+                            context,
+                            current: sort,
+                            onChanged: (s) => ref
+                                .read(librarySortProvider.notifier)
+                                .state = s,
+                          ),
+                          icon: const Icon(Icons.sort),
+                        ),
+                        IconButton(
+                          tooltip: l10n.settings,
+                          onPressed: () => openSettings(context),
+                          icon: const Icon(Icons.settings_outlined),
+                        ),
+                      ],
+                    ),
+                    // Eyebrow stat line — collapses away as the page scrolls.
+                    ClipRect(
+                      child: AnimatedAlign(
+                        duration: const Duration(milliseconds: 240),
                         curve: Curves.easeOut,
-                        style: collapsed
-                            ? AppTextTheme.headline
-                                .copyWith(color: colors.onSurface)
-                            : AppTextTheme.display.copyWith(
-                                color: colors.onSurface,
-                                fontSize: 24,
-                                letterSpacing: -0.8,
+                        alignment: Alignment.topLeft,
+                        heightFactor: collapsed ? 0.0 : 1.0,
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 160),
+                          opacity: collapsed ? 0.0 : 1.0,
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 1, bottom: 6),
+                            child: Text(
+                              '${l10n.songsCount(allSongs.length)} · '
+                                      '${l10n.albumsCount(albumCount)}'
+                                  .toUpperCase(),
+                              style: AppTextTheme.caption.copyWith(
+                                color: colors.onSurfaceFaint,
+                                letterSpacing: 1.4,
+                                fontWeight: FontWeight.w600,
                               ),
-                        child: const Text('Aura'),
-                      ),
-                      const Spacer(),
-                      DisplayModeButton(
-                        mode: mode,
-                        onChanged: (m) =>
-                            ref
-                                .read(libraryDisplayModeProvider.notifier)
-                                .state = m,
-                      ),
-                      IconButton(
-                        tooltip: l10n.folders,
-                        onPressed: () => openFolderBrowser(context),
-                        icon: const Icon(Icons.folder_outlined),
-                      ),
-                      IconButton(
-                        tooltip: l10n.sortLabel,
-                        onPressed: () => showSortSheet(
-                          context,
-                          current: sort,
-                          onChanged: (s) =>
-                              ref.read(librarySortProvider.notifier).state = s,
+                            ),
+                          ),
                         ),
-                        icon: const Icon(Icons.sort),
                       ),
-                      IconButton(
-                        tooltip: l10n.settings,
-                        onPressed: () => openSettings(context),
-                        icon: const Icon(Icons.settings_outlined),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
+              ),
+            // "Recently played" shelf — a horizontal row of recent covers that
+            // tucks away the moment the user scrolls into the content.
+            if (!selecting && recents.isNotEmpty)
+              AnimatedSize(
+                duration: const Duration(milliseconds: 260),
+                curve: Curves.easeOut,
+                alignment: Alignment.topCenter,
+                child: collapsed
+                    ? const SizedBox(width: double.infinity)
+                    : _ContinueListeningShelf(
+                        songs: recents,
+                        onPlayAt: (i) => _play(recents, i),
+                      ),
               ),
             if (!selecting) _SegmentRow(selected: segment),
             Expanded(
@@ -468,6 +507,103 @@ class _GenresBody extends ConsumerWidget {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// The "Recently played" shelf at the top of the Library — a section label over
+/// a horizontal row of recent album covers. Tapping a cover starts playback
+/// from that track through the recent list.
+class _ContinueListeningShelf extends StatelessWidget {
+  const _ContinueListeningShelf({required this.songs, required this.onPlayAt});
+
+  final List<Song> songs;
+  final ValueChanged<int> onPlayAt;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final colors = context.colors;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(SpacingTokens.lg, SpacingTokens.sm,
+              SpacingTokens.lg, SpacingTokens.sm),
+          child: Text(
+            l10n.autoRecentlyPlayed,
+            style: AppTextTheme.title.copyWith(
+              color: colors.onSurface,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.3,
+            ),
+          ),
+        ),
+        SizedBox(
+          height: 176,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.lg),
+            itemCount: songs.length,
+            separatorBuilder: (_, __) => const SizedBox(width: SpacingTokens.md),
+            itemBuilder: (_, i) =>
+                _RecentCard(song: songs[i], onTap: () => onPlayAt(i)),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// One cover card in the "Recently played" shelf.
+class _RecentCard extends StatelessWidget {
+  const _RecentCard({required this.song, required this.onTap});
+
+  final Song song;
+  final VoidCallback onTap;
+
+  static const double _w = 124;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return PressScale(
+      onTap: onTap,
+      pressedScale: 0.97,
+      semanticLabel: song.title,
+      child: SizedBox(
+        width: _w,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AuraArtwork(
+              seed: song.artworkSeed,
+              size: _w,
+              borderRadius: RadiusTokens.brMd,
+              hasArtwork: song.hasArtwork,
+              artworkId: int.tryParse(song.id),
+            ),
+            const SizedBox(height: SpacingTokens.sm),
+            Text(
+              song.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextTheme.body.copyWith(
+                color: colors.onSurface,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            Text(
+              song.artist,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextTheme.caption.copyWith(color: colors.onSurfaceMuted),
+            ),
+          ],
+        ),
       ),
     );
   }
