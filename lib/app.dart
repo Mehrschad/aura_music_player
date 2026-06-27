@@ -3,9 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/l10n/app_localizations.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/color_scheme.dart';
 import 'presentation/providers/settings_providers.dart';
 import 'presentation/shell/app_shell.dart';
-import 'presentation/widgets/ambient/aura_ambient_background.dart';
 
 /// Root widget. Theme, locale, density and text scale are driven by
 /// [settingsProvider], so changes in Settings apply app-wide immediately.
@@ -38,12 +38,14 @@ class AuraApp extends ConsumerWidget {
             disableAnimations:
                 settings.reduceMotion || mq.disableAnimations,
           ),
-          // The living gradient backdrop sits behind the whole navigator;
-          // every (transparent) scaffold shows it through, and every glass
-          // surface now blurs colour instead of flat black.
+          // Flat, solid backdrop behind the whole navigator — pure AMOLED black
+          // in the dark/amoled theme (paper-white in light). No gradient, no
+          // living wash: every (transparent) scaffold shows this single colour.
           child: Stack(
             children: [
-              const Positioned.fill(child: AuraAmbientBackground()),
+              Positioned.fill(
+                child: ColoredBox(color: context.colors.background),
+              ),
               child ?? const SizedBox.shrink(),
             ],
           ),

@@ -16,13 +16,12 @@ import '../../providers/async_value_x.dart';
 import '../../../domain/taste/smart_collection.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
-import '../../providers/playlist_providers.dart';
 import '../../providers/selection_providers.dart';
 import '../../providers/smart_collections_provider.dart';
-import '../../widgets/artwork/aura_artwork.dart';
 import '../../widgets/async_state_view.dart';
 import '../../widgets/library/album_grid_tile.dart';
 import '../../widgets/library/artist_list_tile.dart';
+import '../../widgets/library/collection_cover.dart';
 import '../../widgets/library/genre_list_tile.dart';
 import '../../widgets/library/library_controls.dart';
 import '../../widgets/library/selection_bar.dart';
@@ -37,6 +36,7 @@ import '../artists/artist_detail_page.dart';
 import '../folders/folder_browser_page.dart';
 import '../genres/genre_detail_page.dart';
 import '../settings/settings_page.dart';
+import 'collection_detail_page.dart';
 
 class LibraryPage extends ConsumerStatefulWidget {
   const LibraryPage({super.key});
@@ -77,6 +77,10 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
 
     return NotificationListener<ScrollUpdateNotification>(
       onNotification: (n) {
+        // Only the page's *vertical* scroll drives the collapse — ignore the
+        // horizontal "For You" / shelf rails, which otherwise made the header
+        // and shelves vanish as you swiped a rail sideways.
+        if (n.metrics.axis != Axis.vertical) return false;
         final scrolled = n.metrics.pixels > 20;
         if (scrolled != _scrolled) setState(() => _scrolled = scrolled);
         return false; // don't absorb — let the scroll view handle it too
@@ -538,7 +542,7 @@ class _ForYouSection extends ConsumerWidget {
           ),
         ),
         SizedBox(
-          height: 232,
+          height: 188,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.fromLTRB(
@@ -553,196 +557,24 @@ class _ForYouSection extends ConsumerWidget {
   }
 }
 
-/// One "For You" card: a 2×2 cover mosaic with a kind glyph, a teal play disc,
-/// and a glass save badge, over a title + subtitle. Tapping the body plays the
-/// collection; tapping the badge saves it to the user's playlists.
-class _CollectionCard extends ConsumerWidget {
+/// One "For You" card: the generated solid-colour [CollectionCover]. Tapping it
+/// opens the collection (its song list); saving happens in there.
+class _CollectionCard extends StatelessWidget {
   const _CollectionCard({required this.collection});
 
   final SmartCollection collection;
 
-  static const double _w = 172;
-
-  IconData get _kindIcon => switch (collection.kind) {
-        SmartCollectionKind.forYou => Icons.auto_awesome,
-        SmartCollectionKind.heavyRotation => Icons.local_fire_department_rounded,
-        SmartCollectionKind.hiddenGems => Icons.diamond_outlined,
-        SmartCollectionKind.rediscover => Icons.history_rounded,
-        SmartCollectionKind.artist => Icons.person_rounded,
-      };
-
-  Future<void> _save(BuildContext context, WidgetRef ref) async {
-    HapticFeedback.mediumImpact();
-    final repo = ref.read(playlistRepositoryProvider);
-    final messenger = ScaffoldMessenger.of(context);
-    final created = await repo.create(collection.title);
-    await repo.addSongs(created.id, collection.songIds);
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text('Saved "${collection.title}" to your playlists'),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
-  void _play(WidgetRef ref) {
-    HapticFeedback.selectionClick();
-    ref.read(audioControllerProvider).playQueue(collection.songs, startIndex: 0);
-  }
-
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.colors;
-    final songs = collection.songs;
+  Widget build(BuildContext context) {
     return PressScale(
-      onTap: () => _play(ref),
-      pressedScale: 0.97,
-      semanticLabel: collection.title,
-      child: SizedBox(
-        width: _w,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Cover mosaic + overlays.
-            SizedBox(
-              width: _w,
-              height: _w,
-              child: Stack(
-                children: [
-                  // 2×2 mosaic of the first four covers.
-                  ClipRRect(
-                    borderRadius: RadiusTokens.brLg,
-                    child: Column(
-                      children: [
-                        for (var row = 0; row < 2; row++)
-                          Expanded(
-                            child: Row(
-                              children: [
-                                for (var col = 0; col < 2; col++)
-                                  Expanded(
-                                    child: _MosaicTile(
-                                        song: songs[(row * 2 + col) % songs.length]),
-                                  ),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  // Crisp inner hairline for a glass-edge feel.
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          borderRadius: RadiusTokens.brLg,
-                          border: Border.all(
-                              color: Colors.white.withOpacity(0.08), width: 1),
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Kind glyph — a small dark chip, top-left.
-                  Positioned(
-                    top: 8,
-                    left: 8,
-                    child: _GlyphChip(icon: _kindIcon),
-                  ),
-                  // Save badge — glass "+", top-right.
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => _save(context, ref),
-                      child: _GlyphChip(icon: Icons.add_rounded),
-                    ),
-                  ),
-                  // Teal play disc, bottom-right.
-                  Positioned(
-                    bottom: 8,
-                    right: 8,
-                    child: Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        color: colors.accent,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: colors.accent.withOpacity(0.42),
-                            blurRadius: 12,
-                            spreadRadius: -2,
-                          ),
-                        ],
-                      ),
-                      child: Icon(Icons.play_arrow_rounded,
-                          color: colors.onAccent, size: 24),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: SpacingTokens.sm),
-            Text(
-              collection.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextTheme.body.copyWith(
-                color: colors.onSurface,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            Text(
-              collection.subtitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextTheme.caption.copyWith(color: colors.onSurfaceMuted),
-            ),
-          ],
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => CollectionDetailPage(collection: collection),
         ),
       ),
-    );
-  }
-}
-
-/// A single cover tile inside a collection mosaic (square, seamless).
-class _MosaicTile extends StatelessWidget {
-  const _MosaicTile({required this.song});
-  final Song song;
-
-  @override
-  Widget build(BuildContext context) {
-    return AspectRatio(
-      aspectRatio: 1,
-      child: AuraArtwork(
-        seed: song.artworkSeed,
-        fill: true,
-        borderRadius: BorderRadius.zero,
-        hasArtwork: song.hasArtwork,
-        artworkId: int.tryParse(song.id),
-      ),
-    );
-  }
-}
-
-/// A small rounded dark chip holding a single glyph (kind marker / save badge).
-class _GlyphChip extends StatelessWidget {
-  const _GlyphChip({required this.icon});
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 30,
-      height: 30,
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.42),
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white.withOpacity(0.14), width: 0.5),
-      ),
-      child: Icon(icon, color: Colors.white.withOpacity(0.92), size: 17),
+      pressedScale: 0.97,
+      semanticLabel: collection.title,
+      child: CollectionCover(collection: collection, size: 172),
     );
   }
 }
