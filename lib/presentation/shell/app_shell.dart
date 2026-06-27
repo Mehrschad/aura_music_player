@@ -1,6 +1,3 @@
-import 'dart:math';
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -152,11 +149,6 @@ class _AppShellState extends ConsumerState<AppShell>
             final W = MediaQuery.sizeOf(context).width * 0.25;
             return Stack(
               children: [
-                // Subtle film-grain texture over the near-black canvas — a quiet
-                // sense of depth and craft in place of the old colour wash.
-                const Positioned.fill(
-                  child: IgnorePointer(child: _GrainOverlay()),
-                ),
                 for (var i = 0; i < AppTab.values.length; i++)
                   Positioned.fill(
                     child: _buildTabSlot(i, tabIndex, t, isAnim, W),
@@ -285,50 +277,6 @@ class _TabNavigator extends StatelessWidget {
       onGenerateRoute: (_) => MaterialPageRoute<void>(builder: (_) => root),
     );
   }
-}
-
-/// A whisper-quiet film-grain texture laid over the near-black canvas.
-///
-/// Replaces the old colour wash: instead of bleeding the track's hue up from
-/// the bottom, the whole page gets a faint, even speckle that reads as paper /
-/// sensor grain — depth and craft without any colour, true to the AMOLED
-/// "mature minimalism" language. Static (seeded), painted once into a cached
-/// layer, so it costs nothing per frame.
-class _GrainOverlay extends StatelessWidget {
-  const _GrainOverlay();
-
-  @override
-  Widget build(BuildContext context) {
-    return const RepaintBoundary(
-      child: CustomPaint(painter: _GrainPainter(), size: Size.infinite),
-    );
-  }
-}
-
-class _GrainPainter extends CustomPainter {
-  const _GrainPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (size.isEmpty) return;
-    // Deterministic seed → the grain never shifts between rebuilds (which would
-    // read as flicker); ~one speck per 130 px² is a fine, even film grain.
-    final rnd = Random(0x6B7A1F);
-    final count =
-        (size.width * size.height / 130).clamp(0, 9000).toInt();
-    final points = <Offset>[
-      for (var i = 0; i < count; i++)
-        Offset(rnd.nextDouble() * size.width, rnd.nextDouble() * size.height),
-    ];
-    final paint = Paint()
-      ..color = const Color(0x07FFFFFF) // ~2.7% white — barely there
-      ..strokeWidth = 1.0
-      ..strokeCap = StrokeCap.round;
-    canvas.drawPoints(ui.PointMode.points, points, paint);
-  }
-
-  @override
-  bool shouldRepaint(_GrainPainter oldDelegate) => false;
 }
 
 /// Invisible bridge: pushes the live [HomeWidgetState] to the native home-screen
