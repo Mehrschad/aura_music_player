@@ -41,6 +41,8 @@ class CollectionCover extends StatelessWidget {
 
   IconData get _glyph => switch (collection.kind) {
         SmartCollectionKind.forYou => Icons.auto_awesome,
+        SmartCollectionKind.mix => Icons.equalizer_rounded,
+        SmartCollectionKind.mood => Icons.waves_rounded,
         SmartCollectionKind.heavyRotation => Icons.local_fire_department_rounded,
         SmartCollectionKind.hiddenGems => Icons.diamond_outlined,
         SmartCollectionKind.rediscover => Icons.history_rounded,
