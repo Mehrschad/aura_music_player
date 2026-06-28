@@ -45,9 +45,17 @@ final tasteProfileProvider = Provider<TasteProfile>((ref) {
 /// The ranked, diversified, lightly-explored recommendation list scored from
 /// the user's *own library* against [tasteProfileProvider]. Each entry carries
 /// a score and a human-readable reason ("Because you listen to …").
+/// Minimum completed plays before any recommendations are produced — the
+/// cold-start gate shared by everything downstream (For You, Hidden Gems,
+/// Suggested Artists), so a brand-new install sees none of it until enough
+/// listening data has accrued.
+const int kMinPlaysForRecommendations = 20;
+
 final recommendationsProvider = Provider<List<ScoredSong>>((ref) {
   final profile = ref.watch(tasteProfileProvider);
-  if (profile.isEmpty) return const [];
+  if (profile.isEmpty || profile.playCount < kMinPlaysForRecommendations) {
+    return const [];
+  }
   final songs = ref.watch(songsProvider).valueOrNull ?? const <Song>[];
   if (songs.isEmpty) return const [];
 
@@ -55,9 +63,9 @@ final recommendationsProvider = Provider<List<ScoredSong>>((ref) {
   final ratings = ref.watch(songRatingsProvider);
 
   final now = DateTime.now();
-  // Stable within a day so the "For You" mix doesn't reshuffle on every rebuild,
-  // but refreshes tomorrow.
-  final daySeed = now.year * 10000 + now.month * 100 + now.day;
+  // Refresh the mix every 3 days for variety — stable within each 3-day window
+  // so it doesn't reshuffle on every rebuild, then rotates.
+  final daySeed = now.difference(DateTime(2020)).inDays ~/ 3;
 
   return TasteEngine.recommend(
     library: songs,

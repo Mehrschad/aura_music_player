@@ -15,7 +15,10 @@ final smartCollectionsProvider = Provider<List<SmartCollection>>((ref) {
   if (library.isEmpty) return const [];
 
   final profile = ref.watch(tasteProfileProvider);
-  if (profile.isEmpty) return const [];
+  // Cold start: stay quiet until we actually know the user's taste. A brand-new
+  // install with no listening data shows no "For You" — it appears once enough
+  // completed plays have accumulated.
+  if (profile.playCount < kMinPlaysForRecommendations) return const [];
 
   final recommendations = ref.watch(recommendationsProvider);
   final history = ref.watch(playHistoryProvider);

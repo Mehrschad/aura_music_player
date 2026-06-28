@@ -58,6 +58,19 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
     ref.read(audioControllerProvider).playQueue(queue, startIndex: index);
   }
 
+  PopupMenuItem<String> _menuItem(String value, IconData icon, String label) {
+    return PopupMenuItem<String>(
+      value: value,
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: context.colors.onSurfaceMuted),
+          const SizedBox(width: 12),
+          Text(label),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -124,32 +137,33 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                             child: const Text('Aura'),
                           ),
                         ),
-                        DisplayModeButton(
-                          mode: mode,
-                          onChanged: (m) => ref
-                              .read(libraryDisplayModeProvider.notifier)
-                              .state = m,
-                        ),
-                        IconButton(
-                          tooltip: l10n.folders,
-                          onPressed: () => openFolderBrowser(context),
-                          icon: const Icon(Icons.folder_outlined),
-                        ),
-                        IconButton(
-                          tooltip: l10n.sortLabel,
-                          onPressed: () => showSortSheet(
-                            context,
-                            current: sort,
-                            onChanged: (s) => ref
-                                .read(librarySortProvider.notifier)
-                                .state = s,
-                          ),
-                          icon: const Icon(Icons.sort),
-                        ),
-                        IconButton(
-                          tooltip: l10n.settings,
-                          onPressed: () => openSettings(context),
-                          icon: const Icon(Icons.settings_outlined),
+                        // A single overflow menu holds sort / folders /
+                        // settings — the dedicated grid-toggle and folder icons
+                        // are gone for a cleaner header.
+                        PopupMenuButton<String>(
+                          icon: Icon(Icons.more_vert, color: colors.onSurface),
+                          onSelected: (v) {
+                            if (v == 'sort') {
+                              showSortSheet(
+                                context,
+                                current: sort,
+                                onChanged: (s) => ref
+                                    .read(librarySortProvider.notifier)
+                                    .state = s,
+                              );
+                            } else if (v == 'folders') {
+                              openFolderBrowser(context);
+                            } else if (v == 'settings') {
+                              openSettings(context);
+                            }
+                          },
+                          itemBuilder: (_) => [
+                            _menuItem('sort', Icons.sort, l10n.sortLabel),
+                            _menuItem(
+                                'folders', Icons.folder_outlined, l10n.folders),
+                            _menuItem('settings', Icons.settings_outlined,
+                                l10n.settings),
+                          ],
                         ),
                       ],
                     ),
@@ -410,6 +424,7 @@ class _DiscoveryHeader extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _ForYouSection(),
+        _SuggestedArtistsBox(),
         _TopArtistsShelf(),
         _TopTracksShelf(),
         _TopAlbumsShelf(),
@@ -826,15 +841,17 @@ class _ForYouSection extends ConsumerWidget {
   }
 }
 
-/// One "For You" card: the generated solid-colour [CollectionCover]. Tapping it
-/// opens the collection (its song list); saving happens in there.
-class _CollectionCard extends StatelessWidget {
+/// One "For You" card: the generated solid-colour [CollectionCover] with a teal
+/// play disc. Tapping the body opens the collection (its song list); tapping the
+/// disc plays it straight away without leaving the home.
+class _CollectionCard extends ConsumerWidget {
   const _CollectionCard({required this.collection});
 
   final SmartCollection collection;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
     return PressScale(
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute<void>(
@@ -843,7 +860,147 @@ class _CollectionCard extends StatelessWidget {
       ),
       pressedScale: 0.97,
       semanticLabel: collection.title,
-      child: CollectionCover(collection: collection, size: 172),
+      child: SizedBox(
+        width: 172,
+        height: 172,
+        child: Stack(
+          children: [
+            Positioned.fill(child: CollectionCover(collection: collection)),
+            Positioned(
+              right: 10,
+              bottom: 10,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  ref
+                      .read(audioControllerProvider)
+                      .playQueue(collection.songs, startIndex: 0);
+                },
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: colors.accent,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.30),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Icon(Icons.play_arrow_rounded,
+                      color: colors.onAccent, size: 26),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// "Suggested Artists" — a visually distinct boxed rail of artists the taste
+/// engine recommends (discovery, not the user's already-top artists). Hidden
+/// until recommendations exist.
+class _SuggestedArtistsBox extends ConsumerWidget {
+  const _SuggestedArtistsBox();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final artists = ref.watch(suggestedArtistsProvider);
+    if (artists.isEmpty) return const SizedBox.shrink();
+    final colors = context.colors;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          SpacingTokens.lg, SpacingTokens.md, SpacingTokens.lg, 0),
+      child: Container(
+        decoration: BoxDecoration(
+          color: colors.surfaceElevated,
+          borderRadius: RadiusTokens.brLg,
+          border: Border.all(color: colors.divider),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: SpacingTokens.md),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: SpacingTokens.lg),
+              child: Row(
+                children: [
+                  Icon(Icons.auto_awesome, size: 16, color: colors.accent),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Suggested Artists',
+                    style: AppTextTheme.title.copyWith(
+                      color: colors.onSurface,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: SpacingTokens.sm),
+            SizedBox(
+              height: 116,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: SpacingTokens.lg),
+                itemCount: artists.length,
+                separatorBuilder: (_, __) =>
+                    const SizedBox(width: SpacingTokens.md),
+                itemBuilder: (_, i) {
+                  final a = artists[i];
+                  return PressScale(
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ArtistDetailPage(artist: a),
+                      ),
+                    ),
+                    pressedScale: 0.96,
+                    semanticLabel: a.name,
+                    child: SizedBox(
+                      width: 80,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ClipOval(
+                            child: AuraArtwork(
+                              seed: a.artworkSeed,
+                              size: 72,
+                              borderRadius: BorderRadius.circular(36),
+                              hasArtwork: a.hasArtwork,
+                              artworkId: a.firstSongId,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            a.name,
+                            maxLines: 1,
+                            textAlign: TextAlign.center,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextTheme.caption.copyWith(
+                              color: colors.onSurface,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

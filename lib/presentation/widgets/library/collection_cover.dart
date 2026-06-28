@@ -47,50 +47,65 @@ class CollectionCover extends StatelessWidget {
         SmartCollectionKind.artist => Icons.person_rounded,
       };
 
+  /// Platform monospace — gives the labels their modern, editorial feel.
+  static const String _mono = 'monospace';
+
   @override
   Widget build(BuildContext context) {
     final edge = size ?? 172;
-    final titleSize = (edge * 0.13).clamp(16.0, 30.0).toDouble();
-    final pad = (edge * 0.085).clamp(12.0, 22.0).toDouble();
+    final titleSize = (edge * 0.135).clamp(15.0, 28.0).toDouble();
+    final pad = (edge * 0.085).clamp(12.0, 20.0).toDouble();
 
-    final cover = DecoratedBox(
-      decoration: BoxDecoration(
-        color: _color,
-        borderRadius: BorderRadius.circular(radius),
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(pad),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(_glyph, color: Colors.white.withOpacity(0.85), size: 18),
-            const Spacer(),
-            Text(
-              '${collection.songs.length} SONGS',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.62),
-                fontSize: 10.5,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.4,
-              ),
+    final cover = ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: Stack(
+        children: [
+          Positioned.fill(child: ColoredBox(color: _color)),
+          // Oversized translucent glyph watermark, bleeding off the corner.
+          Positioned(
+            right: -edge * 0.14,
+            bottom: -edge * 0.16,
+            child: Icon(
+              _glyph,
+              size: edge * 0.66,
+              color: Colors.white.withOpacity(0.08),
             ),
-            const SizedBox(height: 3),
-            Text(
-              collection.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: titleSize,
-                height: 1.04,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.5,
-              ),
+          ),
+          Padding(
+            padding: EdgeInsets.all(pad),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${collection.songs.length} TRACKS',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: _mono,
+                    color: Colors.white.withOpacity(0.66),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.6,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  collection.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: _mono,
+                    color: Colors.white,
+                    fontSize: titleSize,
+                    height: 1.12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.4,
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
 

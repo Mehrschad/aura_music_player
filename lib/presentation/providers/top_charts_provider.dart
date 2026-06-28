@@ -4,6 +4,7 @@ import '../../domain/models/album.dart';
 import '../../domain/models/artist.dart';
 import '../../domain/models/song.dart';
 import 'library_providers.dart';
+import 'taste_providers.dart';
 
 /// Most-played tracks (by lifetime play count), highest first.
 final topTracksProvider = Provider<List<Song>>((ref) {
@@ -44,4 +45,32 @@ final topArtistsProvider = Provider<List<Artist>>((ref) {
   final ranked = plays.entries.where((e) => byId.containsKey(e.key)).toList()
     ..sort((a, b) => b.value.compareTo(a.value));
   return [for (final e in ranked.take(15)) byId[e.key]!];
+});
+
+/// **Suggested** artists — drawn from the recommendation engine (artists whose
+/// tracks the taste model surfaces) but *excluding* the user's already-top
+/// artists, so this rail is about discovery, not repetition. Empty until there
+/// is enough taste data for recommendations to exist.
+final suggestedArtistsProvider = Provider<List<Artist>>((ref) {
+  final recs = ref.watch(recommendationsProvider);
+  if (recs.isEmpty) return const [];
+  final artists = ref.watch(artistsProvider).valueOrNull ?? const <Artist>[];
+  if (artists.isEmpty) return const [];
+
+  final topIds = {for (final a in ref.watch(topArtistsProvider)) a.id};
+  final byId = <String, Artist>{for (final a in artists) a.id: a};
+
+  final seen = <String>{};
+  final out = <Artist>[];
+  for (final r in recs) {
+    final id = r.song.artistId;
+    if (id.isEmpty || topIds.contains(id) || seen.contains(id)) continue;
+    seen.add(id);
+    final artist = byId[id];
+    if (artist != null) {
+      out.add(artist);
+      if (out.length >= 12) break;
+    }
+  }
+  return out;
 });

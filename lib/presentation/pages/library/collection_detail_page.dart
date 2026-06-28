@@ -27,14 +27,20 @@ class CollectionDetailPage extends ConsumerWidget {
   }
 
   Future<void> _save(BuildContext context, WidgetRef ref) async {
-    HapticFeedback.mediumImpact();
-    final repo = ref.read(playlistRepositoryProvider);
+    HapticFeedback.selectionClick();
     final messenger = ScaffoldMessenger.of(context);
-    final created = await repo.create(collection.title);
+    // Let the user name the playlist (prefilled with the collection title).
+    final name = await showDialog<String>(
+      context: context,
+      builder: (_) => _PlaylistNameDialog(initial: collection.title),
+    );
+    if (name == null || name.trim().isEmpty) return;
+    final repo = ref.read(playlistRepositoryProvider);
+    final created = await repo.create(name.trim());
     await repo.addSongs(created.id, collection.songIds);
     messenger.showSnackBar(
       SnackBar(
-        content: Text('Saved "${collection.title}" to your playlists'),
+        content: Text('Saved "${name.trim()}" to your playlists'),
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ),
@@ -157,6 +163,58 @@ class CollectionDetailPage extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Prompts for a playlist name when saving a collection (prefilled with the
+/// collection's title). Returns the entered name via [Navigator.pop], or null
+/// on cancel.
+class _PlaylistNameDialog extends StatefulWidget {
+  const _PlaylistNameDialog({required this.initial});
+
+  final String initial;
+
+  @override
+  State<_PlaylistNameDialog> createState() => _PlaylistNameDialogState();
+}
+
+class _PlaylistNameDialogState extends State<_PlaylistNameDialog> {
+  late final TextEditingController _ctrl =
+      TextEditingController(text: widget.initial);
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return AlertDialog(
+      title: const Text('Save playlist'),
+      content: TextField(
+        controller: _ctrl,
+        autofocus: true,
+        textCapitalization: TextCapitalization.words,
+        decoration: const InputDecoration(hintText: 'Playlist name'),
+        onSubmitted: (v) => Navigator.of(context).pop(v),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(_ctrl.text),
+          style: FilledButton.styleFrom(
+            backgroundColor: colors.accent,
+            foregroundColor: colors.onAccent,
+          ),
+          child: const Text('Save'),
+        ),
+      ],
     );
   }
 }
