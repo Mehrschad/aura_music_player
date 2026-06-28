@@ -21,6 +21,7 @@ import '../../providers/selection_providers.dart';
 import '../../providers/smart_collections_provider.dart';
 import '../../providers/taste_providers.dart';
 import '../../providers/top_charts_provider.dart';
+import '../../providers/weekly_recap_provider.dart';
 import '../../widgets/artwork/aura_artwork.dart';
 import '../../widgets/async_state_view.dart';
 import '../../widgets/library/album_grid_tile.dart';
@@ -463,6 +464,7 @@ class _DiscoveryHeader extends StatelessWidget {
         _JumpBackInShelf(),
         _ForYouSection(),
         _OnThisDayShelf(),
+        _WeeklyRecapCard(),
         _SuggestedArtistsBox(),
         _TopArtistsShelf(),
         _TopTracksShelf(),
@@ -1196,8 +1198,9 @@ class _CollectionCard extends ConsumerWidget {
             Positioned(
               right: 10,
               bottom: 10,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
+              child: PressScale(
+                pressedScale: 0.84,
+                semanticLabel: 'Play ${collection.title}',
                 onTap: () {
                   HapticFeedback.selectionClick();
                   ref
@@ -1225,6 +1228,95 @@ class _CollectionCard extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// "Your week in music" — a mini wrapped: a boxed recap of the last 7 days.
+class _WeeklyRecapCard extends ConsumerWidget {
+  const _WeeklyRecapCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final recap = ref.watch(weeklyRecapProvider);
+    if (!recap.hasData) return const SizedBox.shrink();
+    final colors = context.colors;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          SpacingTokens.lg, SpacingTokens.md, SpacingTokens.lg, 0),
+      child: Container(
+        padding: const EdgeInsets.all(SpacingTokens.lg),
+        decoration: BoxDecoration(
+          color: colors.surfaceElevated,
+          borderRadius: RadiusTokens.brLg,
+          border: Border.all(color: colors.divider),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.insights_rounded, size: 16, color: colors.accent),
+                const SizedBox(width: 8),
+                Text('YOUR WEEK',
+                    style: _monoLabel(colors.onSurfaceMuted, spacing: 1.8)),
+              ],
+            ),
+            const SizedBox(height: SpacingTokens.md),
+            Row(
+              children: [
+                _RecapStat(value: '${recap.plays}', label: 'PLAYS'),
+                _RecapStat(value: '${recap.minutes}', label: 'MINUTES'),
+                _RecapStat(
+                    value: '${recap.distinctArtists}', label: 'ARTISTS'),
+              ],
+            ),
+            if (recap.topArtist != null) ...[
+              const SizedBox(height: SpacingTokens.md),
+              Text(
+                'Most played · ${recap.topArtist}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextTheme.body.copyWith(color: colors.onSurfaceMuted),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// One big-number stat inside the weekly recap card.
+class _RecapStat extends StatelessWidget {
+  const _RecapStat({required this.value, required this.label});
+
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: colors.onSurface,
+              fontSize: 26,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.5,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(label, style: _monoLabel(colors.onSurfaceFaint, size: 9)),
+        ],
       ),
     );
   }
