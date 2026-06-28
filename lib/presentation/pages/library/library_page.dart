@@ -23,6 +23,7 @@ import '../../widgets/artwork/aura_artwork.dart';
 import '../../widgets/async_state_view.dart';
 import '../../widgets/library/album_grid_tile.dart';
 import '../../widgets/library/artist_list_tile.dart';
+import '../../widgets/library/collection_actions.dart';
 import '../../widgets/library/collection_cover.dart';
 import '../../widgets/library/genre_list_tile.dart';
 import '../../widgets/library/library_controls.dart';
@@ -808,6 +809,14 @@ class _ForYouSection extends ConsumerWidget {
     final collections = ref.watch(smartCollectionsProvider);
     if (collections.isEmpty) return const SizedBox(width: double.infinity);
     final colors = context.colors;
+
+    // How long until the 3-day mix rotates (matches taste_providers' daySeed).
+    final daysIntoWindow =
+        DateTime.now().difference(DateTime(2020)).inDays % 3;
+    final daysLeft = 3 - daysIntoWindow;
+    final refreshLabel =
+        daysLeft <= 1 ? 'Refreshes tomorrow' : 'Refreshes in $daysLeft days';
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -815,14 +824,26 @@ class _ForYouSection extends ConsumerWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(
               SpacingTokens.lg, SpacingTokens.sm, SpacingTokens.lg, 2),
-          child: Text(
-            'For You',
-            style: AppTextTheme.display.copyWith(
-              color: colors.onSurface,
-              fontSize: 21,
-              letterSpacing: -0.5,
-              fontWeight: FontWeight.w700,
-            ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                'For You',
+                style: AppTextTheme.display.copyWith(
+                  color: colors.onSurface,
+                  fontSize: 21,
+                  letterSpacing: -0.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                refreshLabel,
+                style: AppTextTheme.caption.copyWith(
+                  color: colors.onSurfaceFaint,
+                ),
+              ),
+            ],
           ),
         ),
         SizedBox(
@@ -858,6 +879,7 @@ class _CollectionCard extends ConsumerWidget {
           builder: (_) => CollectionDetailPage(collection: collection),
         ),
       ),
+      onLongPress: () => showCollectionQuickActions(context, ref, collection),
       pressedScale: 0.97,
       semanticLabel: collection.title,
       child: SizedBox(

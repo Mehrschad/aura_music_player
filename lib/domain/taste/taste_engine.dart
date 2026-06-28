@@ -42,6 +42,7 @@ class TasteEngine {
     required Map<String, Song> songsById,
     Set<String> favoriteArtists = const {},
     Set<String> favoriteGenres = const {},
+    Set<String> dislikedArtists = const {},
     DateTime? now,
     Duration halfLife = defaultHalfLife,
   }) {
@@ -91,6 +92,11 @@ class TasteEngine {
     }
     for (final g in favoriteGenres) {
       genre[g] = (genre[g] ?? 0) + 2.0;
+    }
+    // "Not interested" pushes an artist's affinity down so similar tracks drop
+    // too — the engine learns from the rejection, not just hides one song.
+    for (final a in dislikedArtists) {
+      artist[a] = (artist[a] ?? 0) - 2.0;
     }
 
     return TasteProfile(

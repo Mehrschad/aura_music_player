@@ -8,13 +8,12 @@ import '../../../core/theme/color_scheme.dart';
 import '../../../core/theme/typography.dart';
 import '../../../domain/taste/smart_collection.dart';
 import '../../providers/playback_providers.dart';
-import '../../providers/playlist_providers.dart';
+import '../../widgets/library/collection_actions.dart';
 import '../../widgets/library/collection_cover.dart';
 import '../../widgets/library/song_list_tile.dart';
-import '../../widgets/player/song_actions_sheet.dart';
 
-/// Opens a smart "For You" collection: its generated cover, a play / save
-/// header, and the full song list. The collection is still ephemeral — it is
+/// Opens a smart "For You" collection: its generated cover, play / shuffle /
+/// save actions, and the full song list. The collection stays ephemeral — it is
 /// only written to the user's playlists if they tap **Save**.
 class CollectionDetailPage extends ConsumerWidget {
   const CollectionDetailPage({super.key, required this.collection});
@@ -23,28 +22,15 @@ class CollectionDetailPage extends ConsumerWidget {
 
   void _play(WidgetRef ref, int index) {
     HapticFeedback.selectionClick();
-    ref.read(audioControllerProvider).playQueue(collection.songs, startIndex: index);
+    ref
+        .read(audioControllerProvider)
+        .playQueue(collection.songs, startIndex: index);
   }
 
-  Future<void> _save(BuildContext context, WidgetRef ref) async {
+  void _shuffle(WidgetRef ref) {
     HapticFeedback.selectionClick();
-    final messenger = ScaffoldMessenger.of(context);
-    // Let the user name the playlist (prefilled with the collection title).
-    final name = await showDialog<String>(
-      context: context,
-      builder: (_) => _PlaylistNameDialog(initial: collection.title),
-    );
-    if (name == null || name.trim().isEmpty) return;
-    final repo = ref.read(playlistRepositoryProvider);
-    final created = await repo.create(name.trim());
-    await repo.addSongs(created.id, collection.songIds);
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text('Saved "${name.trim()}" to your playlists'),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    final list = [...collection.songs]..shuffle();
+    ref.read(audioControllerProvider).playQueue(list, startIndex: 0);
   }
 
   @override
@@ -69,7 +55,8 @@ class CollectionDetailPage extends ConsumerWidget {
                   ),
                   const Spacer(),
                   TextButton.icon(
-                    onPressed: () => _save(context, ref),
+                    onPressed: () =>
+                        saveCollectionAsPlaylist(context, ref, collection),
                     icon: const Icon(Icons.add_rounded, size: 20),
                     label: const Text('Save'),
                     style: TextButton.styleFrom(foregroundColor: colors.accent),
@@ -124,29 +111,51 @@ class CollectionDetailPage extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: SpacingTokens.md),
-            // Play action.
+            // Play + Shuffle.
             Padding(
               padding:
                   const EdgeInsets.symmetric(horizontal: SpacingTokens.lg),
-              child: SizedBox(
-                height: 50,
-                child: FilledButton.icon(
-                  onPressed: songs.isEmpty ? null : () => _play(ref, 0),
-                  icon: const Icon(Icons.play_arrow_rounded),
-                  label: const Text('Play'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: colors.accent,
-                    foregroundColor: colors.onAccent,
-                    shape: const RoundedRectangleBorder(
-                        borderRadius: RadiusTokens.brPill),
-                    textStyle: AppTextTheme.title
-                        .copyWith(fontWeight: FontWeight.w700),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 50,
+                      child: FilledButton.icon(
+                        onPressed: songs.isEmpty ? null : () => _play(ref, 0),
+                        icon: const Icon(Icons.play_arrow_rounded),
+                        label: const Text('Play'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: colors.accent,
+                          foregroundColor: colors.onAccent,
+                          shape: const RoundedRectangleBorder(
+                              borderRadius: RadiusTokens.brPill),
+                          textStyle: AppTextTheme.title
+                              .copyWith(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(width: SpacingTokens.sm),
+                  SizedBox(
+                    height: 50,
+                    width: 58,
+                    child: OutlinedButton(
+                      onPressed: songs.isEmpty ? null : () => _shuffle(ref),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: colors.onSurface,
+                        side: BorderSide(color: colors.divider),
+                        shape: const RoundedRectangleBorder(
+                            borderRadius: RadiusTokens.brPill),
+                        padding: EdgeInsets.zero,
+                      ),
+                      child: const Icon(Icons.shuffle_rounded),
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: SpacingTokens.sm),
-            // Song list.
+            // Song list — each row's actions include "Not interested".
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.fromLTRB(
@@ -155,66 +164,16 @@ class CollectionDetailPage extends ConsumerWidget {
                 itemBuilder: (_, i) => SongListTile(
                   song: songs[i],
                   onTap: () => _play(ref, i),
-                  onLongPress: () => showSongActions(context, songs[i]),
-                  onMore: () => showSongActions(context, songs[i]),
+                  onLongPress: () =>
+                      showRecommendationSongActions(context, ref, songs[i]),
+                  onMore: () =>
+                      showRecommendationSongActions(context, ref, songs[i]),
                 ),
               ),
             ),
           ],
         ),
       ),
-    );
-  }
-}
-
-/// Prompts for a playlist name when saving a collection (prefilled with the
-/// collection's title). Returns the entered name via [Navigator.pop], or null
-/// on cancel.
-class _PlaylistNameDialog extends StatefulWidget {
-  const _PlaylistNameDialog({required this.initial});
-
-  final String initial;
-
-  @override
-  State<_PlaylistNameDialog> createState() => _PlaylistNameDialogState();
-}
-
-class _PlaylistNameDialogState extends State<_PlaylistNameDialog> {
-  late final TextEditingController _ctrl =
-      TextEditingController(text: widget.initial);
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    return AlertDialog(
-      title: const Text('Save playlist'),
-      content: TextField(
-        controller: _ctrl,
-        autofocus: true,
-        textCapitalization: TextCapitalization.words,
-        decoration: const InputDecoration(hintText: 'Playlist name'),
-        onSubmitted: (v) => Navigator.of(context).pop(v),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(_ctrl.text),
-          style: FilledButton.styleFrom(
-            backgroundColor: colors.accent,
-            foregroundColor: colors.onAccent,
-          ),
-          child: const Text('Save'),
-        ),
-      ],
     );
   }
 }

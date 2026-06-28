@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/models/song.dart';
 import '../../domain/taste/smart_collection.dart';
+import 'discovery_prefs_provider.dart';
 import 'favorites_providers.dart';
 import 'library_providers.dart';
 import 'stats_providers.dart';
@@ -24,11 +25,16 @@ final smartCollectionsProvider = Provider<List<SmartCollection>>((ref) {
   final history = ref.watch(playHistoryProvider);
   final favorites = ref.watch(favoritesProvider);
 
-  return buildSmartCollections(
+  final built = buildSmartCollections(
     library: library,
     profile: profile,
     recommendations: recommendations,
     history: history,
     favoriteIds: favorites,
   );
+
+  // Drop collections the user has hidden from the home.
+  final hidden = ref.watch(hiddenCollectionsProvider);
+  if (hidden.isEmpty) return built;
+  return [for (final c in built) if (!hidden.contains(c.id)) c];
 });

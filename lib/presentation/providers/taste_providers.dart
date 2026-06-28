@@ -4,6 +4,7 @@ import '../../domain/models/song.dart';
 import '../../domain/taste/taste_engine.dart';
 import '../../domain/taste/taste_profile.dart';
 import 'artist_favorites_providers.dart';
+import 'discovery_prefs_provider.dart';
 import 'favorites_providers.dart';
 import 'library_providers.dart';
 import 'song_ratings_provider.dart';
@@ -33,12 +34,19 @@ final tasteProfileProvider = Provider<TasteProfile>((ref) {
     for (final s in songs)
       if (favSongIds.contains(s.id) && (s.genre?.isNotEmpty ?? false)) s.genre!,
   };
+  // "Not interested" songs → their artists become a negative signal.
+  final disliked = ref.watch(notInterestedProvider);
+  final dislikedArtists = <String>{
+    for (final s in songs)
+      if (disliked.contains(s.id)) s.artist,
+  };
 
   return TasteEngine.profileFrom(
     history: history,
     songsById: byId,
     favoriteArtists: favArtistNames,
     favoriteGenres: favGenres,
+    dislikedArtists: dislikedArtists,
   );
 });
 
@@ -59,6 +67,12 @@ final recommendationsProvider = Provider<List<ScoredSong>>((ref) {
   final songs = ref.watch(songsProvider).valueOrNull ?? const <Song>[];
   if (songs.isEmpty) return const [];
 
+  // Drop "Not interested" songs from the candidate pool entirely.
+  final disliked = ref.watch(notInterestedProvider);
+  final library = disliked.isEmpty
+      ? songs
+      : [for (final s in songs) if (!disliked.contains(s.id)) s];
+
   final favs = ref.watch(favoritesProvider);
   final ratings = ref.watch(songRatingsProvider);
 
@@ -68,7 +82,7 @@ final recommendationsProvider = Provider<List<ScoredSong>>((ref) {
   final daySeed = now.difference(DateTime(2020)).inDays ~/ 3;
 
   return TasteEngine.recommend(
-    library: songs,
+    library: library,
     profile: profile,
     favoriteIds: favs,
     ratings: ratings,
