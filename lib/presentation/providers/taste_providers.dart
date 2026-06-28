@@ -75,6 +75,7 @@ final recommendationsProvider = Provider<List<ScoredSong>>((ref) {
 
   final favs = ref.watch(favoritesProvider);
   final ratings = ref.watch(songRatingsProvider);
+  final discoveryBias = ref.watch(discoveryBalanceProvider);
 
   final now = DateTime.now();
   // Refresh the mix every 3 days for variety — stable within each 3-day window
@@ -88,6 +89,7 @@ final recommendationsProvider = Provider<List<ScoredSong>>((ref) {
     ratings: ratings,
     currentHour: now.hour,
     daySeed: daySeed,
+    discoveryBias: discoveryBias,
     limit: 40,
   );
 });

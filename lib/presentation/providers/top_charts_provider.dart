@@ -4,7 +4,33 @@ import '../../domain/models/album.dart';
 import '../../domain/models/artist.dart';
 import '../../domain/models/song.dart';
 import 'library_providers.dart';
+import 'stats_providers.dart';
 import 'taste_providers.dart';
+
+/// "On this day" — tracks the user played around this date in previous years.
+/// Often empty (needs a year+ of history); hidden gracefully when so.
+final onThisDayProvider = Provider<List<Song>>((ref) {
+  final history = ref.watch(playHistoryProvider);
+  final songs = ref.watch(songsProvider).valueOrNull ?? const <Song>[];
+  if (history.isEmpty || songs.isEmpty) return const [];
+  final byId = <String, Song>{for (final s in songs) s.id: s};
+  final now = DateTime.now();
+  final seen = <String>{};
+  final out = <Song>[];
+  for (final e in history) {
+    if (!e.completed) continue;
+    final d = e.at;
+    if (d.year >= now.year) continue; // a prior year only
+    if (d.month != now.month || (d.day - now.day).abs() > 2) continue;
+    if (seen.contains(e.songId)) continue;
+    final s = byId[e.songId];
+    if (s != null) {
+      seen.add(e.songId);
+      out.add(s);
+    }
+  }
+  return out.take(20).toList();
+});
 
 /// "Jump back in" — recently played tracks, newest first, for quick resume.
 final jumpBackInProvider = Provider<List<Song>>((ref) {

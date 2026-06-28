@@ -14,6 +14,7 @@ import '../../../domain/models/library_sort.dart';
 import '../../../domain/models/song.dart';
 import '../../providers/async_value_x.dart';
 import '../../../domain/taste/smart_collection.dart';
+import '../../providers/discovery_prefs_provider.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../providers/selection_providers.dart';
@@ -461,6 +462,7 @@ class _DiscoveryHeader extends StatelessWidget {
         _ColdStartCard(),
         _JumpBackInShelf(),
         _ForYouSection(),
+        _OnThisDayShelf(),
         _SuggestedArtistsBox(),
         _TopArtistsShelf(),
         _TopTracksShelf(),
@@ -1031,6 +1033,7 @@ class _ForYouSection extends ConsumerWidget {
             ],
           ),
         ),
+        const _DiscoveryBalanceSlider(),
         SizedBox(
           height: 188,
           child: ListView.separated(
@@ -1040,6 +1043,123 @@ class _ForYouSection extends ConsumerWidget {
             itemCount: collections.length,
             separatorBuilder: (_, __) => const SizedBox(width: SpacingTokens.md),
             itemBuilder: (_, i) => _CollectionCard(collection: collections[i]),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The "Familiar ↔ New" balance slider under the For You header — biases the
+/// recommendation engine toward well-worn favourites or fresh discovery.
+class _DiscoveryBalanceSlider extends ConsumerWidget {
+  const _DiscoveryBalanceSlider();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final bias = ref.watch(discoveryBalanceProvider);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(SpacingTokens.lg, 0, SpacingTokens.lg, 0),
+      child: Row(
+        children: [
+          Text('FAMILIAR', style: _monoLabel(colors.onSurfaceFaint, size: 9)),
+          Expanded(
+            child: SliderTheme(
+              data: SliderThemeData(
+                trackHeight: 3,
+                activeTrackColor: colors.accent,
+                inactiveTrackColor: colors.divider,
+                thumbColor: colors.accent,
+                overlayColor: colors.accent.withOpacity(0.18),
+                thumbShape:
+                    const RoundSliderThumbShape(enabledThumbRadius: 7),
+                overlayShape:
+                    const RoundSliderOverlayShape(overlayRadius: 16),
+              ),
+              child: Slider(
+                value: bias,
+                onChanged: (v) =>
+                    ref.read(discoveryBalanceProvider.notifier).state = v,
+              ),
+            ),
+          ),
+          Text('NEW', style: _monoLabel(colors.onSurfaceFaint, size: 9)),
+        ],
+      ),
+    );
+  }
+}
+
+/// "On this day" — a nostalgic rail of tracks the user played around this date
+/// in past years. Hidden when there isn't enough history.
+class _OnThisDayShelf extends ConsumerWidget {
+  const _OnThisDayShelf();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final songs = ref.watch(onThisDayProvider);
+    if (songs.isEmpty) return const SizedBox.shrink();
+    final colors = context.colors;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _ShelfHeader('On this day'),
+        SizedBox(
+          height: 178,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(
+                SpacingTokens.lg, SpacingTokens.sm, SpacingTokens.lg, 0),
+            itemCount: songs.length,
+            separatorBuilder: (_, __) => const SizedBox(width: SpacingTokens.md),
+            itemBuilder: (_, i) {
+              final s = songs[i];
+              return PressScale(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  ref
+                      .read(audioControllerProvider)
+                      .playQueue(songs, startIndex: i);
+                },
+                pressedScale: 0.97,
+                semanticLabel: s.title,
+                child: SizedBox(
+                  width: 124,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      AuraArtwork(
+                        seed: s.artworkSeed,
+                        size: 124,
+                        borderRadius: RadiusTokens.brMd,
+                        hasArtwork: s.hasArtwork,
+                        artworkId: int.tryParse(s.id),
+                      ),
+                      const SizedBox(height: SpacingTokens.sm),
+                      Text(
+                        s.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextTheme.body.copyWith(
+                          color: colors.onSurface,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      Text(
+                        s.artist,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextTheme.caption
+                            .copyWith(color: colors.onSurfaceMuted),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
         ),
       ],

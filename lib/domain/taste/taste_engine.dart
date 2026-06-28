@@ -151,6 +151,7 @@ class TasteEngine {
     int? lastPlayedDaysAgo,
     int playCount = 0,
     int? currentHour,
+    double discoveryBias = 0.5,
   }) {
     var s = 0.0;
     s += 0.45 * (profile.artistAffinity[song.artist] ?? 0);
@@ -180,8 +181,15 @@ class TasteEngine {
         s += 0.06;
       }
     }
-    // A nudge toward songs the user has never tried (discovery).
-    if (playCount == 0) s += 0.05;
+    // Familiar ↔ new tilt (discoveryBias: 0 = familiar, 0.5 = balanced, 1 = new).
+    // A never-played song gains more as the user leans "new"; a well-worn one
+    // gains more as they lean "familiar".
+    if (playCount == 0) {
+      s += discoveryBias * 0.16;
+    } else {
+      final familiarity = (playCount > 20 ? 20 : playCount) / 20.0;
+      s += (1.0 - discoveryBias) * 0.16 * familiarity;
+    }
 
     return s;
   }
@@ -197,6 +205,7 @@ class TasteEngine {
     int limit = 30,
     int maxPerArtist = 3,
     int daySeed = 0,
+    double discoveryBias = 0.5,
     DateTime? now,
   }) {
     if (profile.isEmpty) return const [];
@@ -215,6 +224,7 @@ class TasteEngine {
         lastPlayedDaysAgo: lastDays,
         playCount: song.playCount,
         currentHour: currentHour,
+        discoveryBias: discoveryBias,
       );
       if (s <= 0) continue;
       // Deterministic daily exploration jitter — same all day, fresh tomorrow.
