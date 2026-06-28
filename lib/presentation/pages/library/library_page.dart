@@ -18,6 +18,7 @@ import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../providers/selection_providers.dart';
 import '../../providers/smart_collections_provider.dart';
+import '../../providers/taste_providers.dart';
 import '../../providers/top_charts_provider.dart';
 import '../../widgets/artwork/aura_artwork.dart';
 import '../../widgets/async_state_view.dart';
@@ -40,6 +41,38 @@ import '../folders/folder_browser_page.dart';
 import '../genres/genre_detail_page.dart';
 import '../settings/settings_page.dart';
 import 'collection_detail_page.dart';
+
+/// Hour-of-day greeting for the home header.
+String _greetingFor(int hour) {
+  if (hour < 5) return 'Good night';
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  if (hour < 22) return 'Good evening';
+  return 'Good night';
+}
+
+const List<String> _kWeekdays = [
+  'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'
+];
+const List<String> _kMonths = [
+  'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', //
+  'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'
+];
+
+/// Compact date label, e.g. "SAT · 28 JUN".
+String _dateLabel(DateTime d) =>
+    '${_kWeekdays[d.weekday - 1]} · ${d.day} ${_kMonths[d.month - 1]}';
+
+/// Shared monospace label style for the home's small-caps eyebrows/labels —
+/// the type system's "machine voice" for dates, counts and section tags.
+TextStyle _monoLabel(Color color, {double size = 11, double spacing = 1.6}) =>
+    TextStyle(
+      fontFamily: 'monospace',
+      color: color,
+      fontSize: size,
+      fontWeight: FontWeight.w600,
+      letterSpacing: spacing,
+    );
 
 class LibraryPage extends ConsumerStatefulWidget {
   const LibraryPage({super.key});
@@ -88,8 +121,11 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
     // Collapsed = title at headline; expanded = big editorial display title.
     final collapsed = _scrolled && !selecting;
 
-    // Album count for the editorial header's eyebrow stat line.
-    final albumCount = allSongs.map((s) => s.albumId).toSet().length;
+    // Time-aware header: a greeting that shifts with the hour, over today's
+    // date — a living, personal home rather than a static wordmark.
+    final now = DateTime.now();
+    final greeting = _greetingFor(now.hour);
+    final dateLabel = _dateLabel(now);
 
     return NotificationListener<ScrollUpdateNotification>(
       onNotification: (n) {
@@ -130,12 +166,16 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                                     .copyWith(color: colors.onSurface)
                                 : AppTextTheme.display.copyWith(
                                     color: colors.onSurface,
-                                    fontSize: 34,
+                                    fontSize: 30,
                                     height: 1.0,
-                                    letterSpacing: -1.2,
+                                    letterSpacing: -1.0,
                                     fontWeight: FontWeight.w700,
                                   ),
-                            child: const Text('Aura'),
+                            child: Text(
+                              greeting,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ),
                         // A single overflow menu holds sort / folders /
@@ -181,14 +221,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                           child: Padding(
                             padding: const EdgeInsets.only(top: 1, bottom: 6),
                             child: Text(
-                              '${l10n.songsCount(allSongs.length)} · '
-                                      '${l10n.albumsCount(albumCount)}'
-                                  .toUpperCase(),
-                              style: AppTextTheme.caption.copyWith(
-                                color: colors.onSurfaceFaint,
-                                letterSpacing: 1.4,
-                                fontWeight: FontWeight.w600,
-                              ),
+                              dateLabel,
+                              style: _monoLabel(colors.onSurfaceFaint),
                             ),
                           ),
                         ),
@@ -424,12 +458,163 @@ class _DiscoveryHeader extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        _ColdStartCard(),
+        _JumpBackInShelf(),
         _ForYouSection(),
         _SuggestedArtistsBox(),
         _TopArtistsShelf(),
         _TopTracksShelf(),
         _TopAlbumsShelf(),
         SizedBox(height: SpacingTokens.sm),
+      ],
+    );
+  }
+}
+
+/// Cold-start guidance: shown until the taste model has enough data, in place
+/// of an empty "For You". A friendly nudge + a progress bar toward unlocking
+/// personal mixes.
+class _ColdStartCard extends ConsumerWidget {
+  const _ColdStartCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final songs = ref.watch(songsProvider).valueOrNull ?? const <Song>[];
+    if (songs.isEmpty) return const SizedBox.shrink();
+    final profile = ref.watch(tasteProfileProvider);
+    if (profile.playCount >= kMinPlaysForRecommendations) {
+      return const SizedBox.shrink();
+    }
+    final colors = context.colors;
+    final progress =
+        (profile.playCount / kMinPlaysForRecommendations).clamp(0.0, 1.0);
+    final remaining = kMinPlaysForRecommendations - profile.playCount;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          SpacingTokens.lg, SpacingTokens.md, SpacingTokens.lg, 0),
+      child: Container(
+        padding: const EdgeInsets.all(SpacingTokens.lg),
+        decoration: BoxDecoration(
+          color: colors.surfaceElevated,
+          borderRadius: RadiusTokens.brLg,
+          border: Border.all(color: colors.divider),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.auto_awesome, size: 18, color: colors.accent),
+                const SizedBox(width: 8),
+                Text(
+                  'Unlock your For You',
+                  style: AppTextTheme.title.copyWith(
+                    color: colors.onSurface,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: SpacingTokens.sm),
+            Text(
+              remaining == 1
+                  ? 'Play 1 more track and Aura starts building mixes from your taste.'
+                  : 'Play $remaining more tracks and Aura starts building mixes from your taste.',
+              style: AppTextTheme.body.copyWith(color: colors.onSurfaceMuted),
+            ),
+            const SizedBox(height: SpacingTokens.md),
+            ClipRRect(
+              borderRadius: RadiusTokens.brPill,
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 6,
+                backgroundColor: colors.divider,
+                valueColor: AlwaysStoppedAnimation<Color>(colors.accent),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '${profile.playCount} / $kMinPlaysForRecommendations plays',
+              style: _monoLabel(colors.onSurfaceFaint, size: 10, spacing: 1.2),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// "Jump back in" — quick-resume rail of the most recently played tracks.
+class _JumpBackInShelf extends ConsumerWidget {
+  const _JumpBackInShelf();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final recents = ref.watch(jumpBackInProvider);
+    if (recents.isEmpty) return const SizedBox.shrink();
+    final colors = context.colors;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _ShelfHeader('Jump back in'),
+        SizedBox(
+          height: 178,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(
+                SpacingTokens.lg, SpacingTokens.sm, SpacingTokens.lg, 0),
+            itemCount: recents.length,
+            separatorBuilder: (_, __) => const SizedBox(width: SpacingTokens.md),
+            itemBuilder: (_, i) {
+              final s = recents[i];
+              return PressScale(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  ref
+                      .read(audioControllerProvider)
+                      .playQueue(recents, startIndex: i);
+                },
+                pressedScale: 0.97,
+                semanticLabel: s.title,
+                child: SizedBox(
+                  width: 124,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      AuraArtwork(
+                        seed: s.artworkSeed,
+                        size: 124,
+                        borderRadius: RadiusTokens.brMd,
+                        hasArtwork: s.hasArtwork,
+                        artworkId: int.tryParse(s.id),
+                      ),
+                      const SizedBox(height: SpacingTokens.sm),
+                      Text(
+                        s.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextTheme.body.copyWith(
+                          color: colors.onSurface,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      Text(
+                        s.artist,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextTheme.caption
+                            .copyWith(color: colors.onSurfaceMuted),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
       ],
     );
   }

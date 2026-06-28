@@ -6,6 +6,14 @@ import '../../domain/models/song.dart';
 import 'library_providers.dart';
 import 'taste_providers.dart';
 
+/// "Jump back in" — recently played tracks, newest first, for quick resume.
+final jumpBackInProvider = Provider<List<Song>>((ref) {
+  final songs = ref.watch(songsProvider).valueOrNull ?? const <Song>[];
+  final played = [for (final s in songs) if (s.lastPlayed != null) s]
+    ..sort((a, b) => b.lastPlayed!.compareTo(a.lastPlayed!));
+  return played.take(12).toList();
+});
+
 /// Most-played tracks (by lifetime play count), highest first.
 final topTracksProvider = Provider<List<Song>>((ref) {
   final songs = ref.watch(songsProvider).valueOrNull ?? const <Song>[];
