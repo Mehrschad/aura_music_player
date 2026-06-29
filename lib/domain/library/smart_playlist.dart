@@ -7,6 +7,7 @@ enum RuleField {
   year,
   duration,
   playCount,
+  rating,
   lastPlayed,
   dateAdded,
   bitrate,
@@ -26,6 +27,7 @@ RuleFieldKind ruleFieldKind(RuleField f) => switch (f) {
         RuleFieldKind.text,
       RuleField.year ||
       RuleField.playCount ||
+      RuleField.rating ||
       RuleField.bitrate =>
         RuleFieldKind.integer,
       RuleField.duration => RuleFieldKind.duration,

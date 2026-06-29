@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/constants/aurora_colors.dart';
+import '../../../core/constants/icon_sizes.dart';
 import '../../../core/constants/radius_tokens.dart';
 import '../../../core/constants/spacing_tokens.dart';
 import '../../../core/l10n/app_localizations.dart';
@@ -11,6 +13,7 @@ import '../../providers/playback_providers.dart';
 import '../../providers/playlist_providers.dart';
 import '../../providers/smart_playlist_providers.dart';
 import '../../widgets/player_bar_inset.dart';
+import '../../widgets/press_scale.dart';
 import '../../widgets/section_header.dart';
 import 'playlist_detail_page.dart';
 import 'playlist_dialogs.dart';
@@ -24,6 +27,7 @@ class PlaylistsPage extends ConsumerWidget {
         AutoPlaylist.mostPlayed => Icons.local_fire_department_outlined,
         AutoPlaylist.recentlyPlayed => Icons.history,
         AutoPlaylist.favorites => Icons.favorite_outline,
+        AutoPlaylist.topRated => Icons.star_outline_rounded,
       };
 
   @override
@@ -48,8 +52,7 @@ class PlaylistsPage extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(SpacingTokens.xl, 0,
                 SpacingTokens.xl, SpacingTokens.sm),
-            child: Text(l10n.playlistsMadeForYou,
-                style: AppTextTheme.title.copyWith(color: colors.onSurfaceMuted)),
+            child: _SubHead(text: l10n.playlistsMadeForYou),
           ),
           Padding(
             padding:
@@ -69,6 +72,7 @@ class PlaylistsPage extends ConsumerWidget {
                       AutoPlaylist.mostPlayed => l10n.autoMostPlayed,
                       AutoPlaylist.recentlyPlayed => l10n.autoRecentlyPlayed,
                       AutoPlaylist.favorites => l10n.autoFavorites,
+                      AutoPlaylist.topRated => l10n.autoTopRated,
                     },
                     icon: _autoIcon(type),
                     count: ref
@@ -77,6 +81,7 @@ class PlaylistsPage extends ConsumerWidget {
                             ?.length ??
                         0,
                     onTap: () => openAutoPlaylist(context, type),
+                    isFavorites: type == AutoPlaylist.favorites,
                   ),
               ],
             ),
@@ -90,9 +95,7 @@ class PlaylistsPage extends ConsumerWidget {
                 SpacingTokens.sm, SpacingTokens.xs),
             child: Row(
               children: [
-                Text(l10n.playlistsYours,
-                    style: AppTextTheme.title
-                        .copyWith(color: colors.onSurfaceMuted)),
+                _SubHead(text: l10n.playlistsYours),
                 const Spacer(),
                 IconButton(
                   tooltip: l10n.playlistNew,
@@ -128,9 +131,7 @@ class PlaylistsPage extends ConsumerWidget {
                 SpacingTokens.xl, 0, SpacingTokens.sm, SpacingTokens.xs),
             child: Row(
               children: [
-                Text(l10n.smartPlaylists,
-                    style: AppTextTheme.title
-                        .copyWith(color: colors.onSurfaceMuted)),
+                _SubHead(text: l10n.smartPlaylists),
                 const Spacer(),
                 IconButton(
                   tooltip: l10n.smartPlaylistNew,
@@ -156,53 +157,90 @@ class PlaylistsPage extends ConsumerWidget {
   }
 }
 
+/// Uppercase section subhead (13/600, faint, +0.3 tracking) per the DS.
+class _SubHead extends StatelessWidget {
+  const _SubHead({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text.toUpperCase(),
+      style: AppTextTheme.body.copyWith(
+        color: context.colors.onSurfaceFaint,
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0.3,
+      ),
+    );
+  }
+}
+
 class _AutoCard extends StatelessWidget {
   const _AutoCard({
     required this.label,
     required this.icon,
     required this.count,
     required this.onTap,
+    this.isFavorites = false,
   });
 
   final String label;
   final IconData icon;
   final int count;
   final VoidCallback onTap;
+  final bool isFavorites;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final l10n = AppLocalizations.of(context);
-    return Material(
-      color: colors.surfaceElevated,
-      borderRadius: RadiusTokens.brMd,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: RadiusTokens.brMd,
-        child: Padding(
-          padding: const EdgeInsets.all(SpacingTokens.md),
-          child: Row(
-            children: [
-              Icon(icon, color: colors.onSurface, size: 22),
-              const SizedBox(width: SpacingTokens.sm),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTextTheme.title
-                            .copyWith(color: colors.onSurface)),
-                    Text(l10n.songsCount(count),
-                        style: AppTextTheme.caption
-                            .copyWith(color: colors.onSurfaceFaint)),
-                  ],
-                ),
+    // Favorites uses a favorite-tinted box; others a deeper surface box.
+    final iconBg = isFavorites
+        ? colors.favorite.withOpacity(0.16)
+        : colors.surface;
+    final iconColor = isFavorites ? colors.favorite : colors.onSurface;
+    final iconData = isFavorites ? Icons.favorite : icon;
+
+    return PressScale(
+      onTap: onTap,
+      pressedScale: 0.95,
+      child: Container(
+        decoration: BoxDecoration(
+          color: colors.surfaceElevated,
+          borderRadius: RadiusTokens.brMd,
+          border: Border.all(color: colors.divider),
+        ),
+        padding: const EdgeInsets.all(SpacingTokens.md),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: iconBg,
+                borderRadius: RadiusTokens.brSm,
               ),
-            ],
-          ),
+              child: Icon(iconData, color: iconColor, size: IconSizes.md),
+            ),
+            const SizedBox(width: SpacingTokens.sm),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextTheme.title.copyWith(color: colors.onSurface)),
+                  Text(l10n.songsCount(count),
+                      style: AppTextTheme.caption
+                          .copyWith(color: colors.onSurfaceFaint)),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -225,17 +263,17 @@ class _SmartRow extends StatelessWidget {
       leading: Container(
         width: 48,
         height: 48,
-        decoration: BoxDecoration(
-          color: colors.surfaceElevated,
-          borderRadius: RadiusTokens.brXs,
+        decoration: const BoxDecoration(
+          gradient: AuroraColors.gradientSoft,
+          borderRadius: RadiusTokens.brSm,
         ),
-        child: Icon(Icons.auto_awesome, color: colors.onSurfaceMuted),
+        child: Icon(Icons.auto_awesome, color: colors.onSurface),
       ),
       title: Text(name,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: AppTextTheme.title.copyWith(color: colors.onSurface)),
-      subtitle: Text(l10n.songsCount(count),
+      subtitle: Text(l10n.smartPlaylistAutoCount(count),
           style: AppTextTheme.caption.copyWith(color: colors.onSurfaceFaint)),
       trailing: Icon(Icons.chevron_right, color: colors.onSurfaceFaint),
       onTap: onTap,

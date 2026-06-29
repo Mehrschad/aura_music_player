@@ -46,9 +46,12 @@ void main() {
     expect(find.byType(MiniPlayer), findsOneWidget);
     expect(find.byIcon(Icons.pause), findsNothing);
 
-    // Tap the song row to start playback.
+    // Tap the song row to start playback. Once a track is playing, the
+    // now-playing row indicator animates forever, so advance with explicit
+    // pumps instead of pumpAndSettle.
     await tester.tap(find.text('Test Song').first);
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
 
     // The mini player now shows the track and a pause control (it's playing).
     expect(find.text('Test Song'), findsWidgets);
@@ -56,7 +59,8 @@ void main() {
 
     // Toggling pause swaps the icon to play.
     await tester.tap(find.byIcon(Icons.pause));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
     expect(find.byIcon(Icons.play_arrow), findsOneWidget);
   });
 }

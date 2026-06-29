@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/spacing_tokens.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../domain/models/artist.dart';
+import 'artist_detail_page.dart';
 import '../../providers/async_value_x.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
@@ -19,13 +20,18 @@ class ArtistsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final artistsAsync = ref.watch(artistsProvider);
+    final count =
+        artistsAsync.maybeWhen(data: (a) => a.length, orElse: () => 0);
 
     return SafeArea(
       bottom: false,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SectionHeader(title: l10n.tabArtists),
+          SectionHeader(
+            title: l10n.tabArtists,
+            subtitle: count > 0 ? l10n.artistsCount(count) : null,
+          ),
           Expanded(
             child: AsyncStateView<List<Artist>>(
               value: artistsAsync.like,
@@ -48,7 +54,11 @@ class ArtistsPage extends ConsumerWidget {
                   return ArtistListTile(
                     artist: a,
                     subtitle: subtitle,
-                    onTap: () {}, // artist detail arrives in step 4
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ArtistDetailPage(artist: a),
+                      ),
+                    ),
                   );
                 },
               ),

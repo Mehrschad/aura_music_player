@@ -28,6 +28,7 @@ void main() {
               duration: Duration(seconds: 200),
               accent: Color(0xFF8AB4F8),
               seed: 'x',
+              isPlaying: false,
             ),
           ),
         ),

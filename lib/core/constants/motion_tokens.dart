@@ -1,4 +1,5 @@
 import 'package:flutter/animation.dart';
+import 'package:flutter/physics.dart';
 
 /// Motion language for Aura. "Motion that breathes" — every transition
 /// reads from here so timing and easing stay disciplined across the app.
@@ -15,6 +16,9 @@ abstract final class MotionTokens {
   /// Screen / route transitions.
   static const Duration screen = Duration(milliseconds: 380);
 
+  /// Swipe-to-change-track on the player / mini player (spec §13.6).
+  static const Duration trackChange = Duration(milliseconds: 280);
+
   /// Album art morph / hero crossfade between tracks.
   static const Duration albumArt = Duration(milliseconds: 500);
 
@@ -22,9 +26,28 @@ abstract final class MotionTokens {
   static const Duration breathing = Duration(seconds: 4);
 
   // ── Curves ─────────────────────────────────────────────────────────────
-  /// Default for things entering or settling.
-  static const Curve standard = Curves.easeOutCubic;
+  /// Smooth deceleration — for elements entering the screen (easeOutCubic).
+  static const Curve standard = Cubic(0.22, 1.0, 0.36, 1.0);
 
-  /// Default for things that move and come to rest in place.
-  static const Curve emphasized = Curves.easeInOutCubic;
+  /// Smooth in-out — for elements that move within the screen (easeInOutCubic).
+  static const Curve emphasized = Cubic(0.65, 0.0, 0.35, 1.0);
+
+  /// Fast start, gentle landing — for dismiss / exit transitions.
+  static const Curve fastOut = Curves.easeIn;
+
+  /// Gentle spring-like overshoot for satisfying pop-in effects.
+  static const Curve spring = Cubic(0.34, 1.56, 0.64, 1.0);
+
+  /// Softer settle — a gentle landing with the slightest overshoot.
+  static const Curve softSpring = Cubic(0.5, 1.25, 0.6, 1.0);
+
+  // ── Physics ────────────────────────────────────────────────────────────
+  /// The interactive-glass spring (spec §13.2): bounce ≈ 0.2 — a satisfying,
+  /// not-too-springy settle used for press/morph on Liquid-Glass controls.
+  /// Drive an [AnimationController] with `animateWith(SpringSimulation(...))`.
+  static const SpringDescription interactiveSpring = SpringDescription(
+    mass: 1.0,
+    stiffness: 380.0,
+    damping: 24.0, // ζ ≈ 0.61 underdamped → a small, clean overshoot
+  );
 }

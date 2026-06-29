@@ -9,7 +9,7 @@ import '../models/song.dart';
 ///     mini player, controls, queue advance, shuffle and repeat all be
 ///     exercised on any platform with no audio hardware or native setup.
 ///   • [JustAudioController] — the real engine (just_audio +
-///     just_audio_background) with gapless queueing and lock-screen /
+///     audio_service) with gapless queueing and lock-screen /
 ///     notification controls. Drops in by overriding one provider on device.
 abstract interface class AudioController {
   /// Infrequent state: current track, queue, playing flag, shuffle, repeat,
@@ -29,6 +29,15 @@ abstract interface class AudioController {
   /// Replaces the queue with [songs] and starts playing at [startIndex].
   Future<void> playQueue(List<Song> songs, {int startIndex = 0});
 
+  /// Loads [songs] at [startIndex] and [position] **without auto-playing** —
+  /// used on cold start to restore the last session, paused and ready to
+  /// resume from exactly where the user left off.
+  Future<void> restoreQueue(
+    List<Song> songs, {
+    int startIndex = 0,
+    Duration position = Duration.zero,
+  });
+
   Future<void> play();
   Future<void> pause();
   Future<void> togglePlayPause();
@@ -47,10 +56,31 @@ abstract interface class AudioController {
   Future<void> moveInQueue(int oldIndex, int newIndex);
 
   Future<void> setShuffle(bool enabled);
-  Future<void> setRepeatMode(RepeatMode mode);
+  Future<void> setRepeat(RepeatMode mode);
+
+  /// Playback rate. 1.0 = normal speed. Exposed as a stream so the UI
+  /// can react without a full provider rebuild.
+  Stream<double> get speedStream;
+  double get speed;
+  Future<void> setSpeed(double speed);
 
   /// Stops playback and clears the current position (keeps the queue).
   Future<void> stop();
+
+  /// Output volume in [0.0, 1.0]. Separate from the system media volume.
+  Stream<double> get volumeStream;
+  double get volume;
+  Future<void> setVolume(double volume);
+
+  // Pitch shift in semitones. 0.0 = original pitch. Range: -12 to +12.
+  Stream<double> get pitchStream;
+  double get pitch;
+  Future<void> setPitch(double semitones);
+
+  // Automatically skip silent sections.
+  Stream<bool> get skipSilenceStream;
+  bool get skipSilence;
+  Future<void> setSkipSilence(bool enabled);
 
   Future<void> dispose();
 }

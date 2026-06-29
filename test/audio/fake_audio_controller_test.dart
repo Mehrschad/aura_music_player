@@ -74,7 +74,7 @@ void main() {
 
   test('repeat one restarts the same track on completion', () async {
     await c.playQueue(queue);
-    await c.setRepeatMode(RepeatMode.one);
+    await c.setRepeat(RepeatMode.one);
     c.advance(const Duration(seconds: 101));
     expect(c.state.currentSong?.id, 'a');
     expect(c.position, Duration.zero);
@@ -82,7 +82,7 @@ void main() {
 
   test('repeat all wraps from the last track to the first', () async {
     await c.playQueue(queue, startIndex: 2);
-    await c.setRepeatMode(RepeatMode.all);
+    await c.setRepeat(RepeatMode.all);
     await c.skipToNext();
     expect(c.state.currentSong?.id, 'a');
   });

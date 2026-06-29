@@ -77,6 +77,7 @@ class _SortSheet extends StatelessWidget {
         SortField.duration => l.sortFieldDuration,
         SortField.playCount => l.sortFieldPlayCount,
         SortField.lastPlayed => l.sortFieldLastPlayed,
+        SortField.rating => l.sortFieldRating,
       };
 
   @override
@@ -136,7 +137,10 @@ class _SortSheet extends StatelessWidget {
                   trailing: f == current.field
                       ? Icon(Icons.check, size: 18, color: colors.onSurface)
                       : null,
-                  onTap: () => onChanged(current.withField(f)),
+                  onTap: () {
+                    onChanged(current.withField(f));
+                    Navigator.pop(context);
+                  },
                 ),
               const SizedBox(height: SpacingTokens.sm),
             ],

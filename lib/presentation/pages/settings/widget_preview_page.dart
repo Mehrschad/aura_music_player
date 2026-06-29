@@ -258,7 +258,7 @@ class _LargeWidget extends ConsumerWidget {
                 icon: Icon(Icons.skip_next, color: colors.onSurface),
               ),
               IconButton(
-                onPressed: () => controller.setRepeatMode(
+                onPressed: () => controller.setRepeat(
                     _nextRepeat(state.repeat)),
                 icon: Icon(
                   state.repeat == RepeatMode.one

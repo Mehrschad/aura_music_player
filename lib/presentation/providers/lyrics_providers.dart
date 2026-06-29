@@ -1,19 +1,39 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/local/lyrics_cache/shared_prefs_lyrics_cache.dart';
+import '../../data/remote/lyrics_api/lrclib_lyrics_repository.dart';
+import '../../data/remote/lyrics_api/netease_lyrics_repository.dart';
+import '../../data/repositories/composite_lyrics_repository.dart';
 import '../../data/repositories/sample_lyrics_repository.dart';
 import '../../domain/lyrics/lrc_parser.dart';
 import '../../domain/models/lyrics.dart';
 import '../../domain/repositories/lyrics_repository.dart';
 import 'playback_providers.dart';
+import 'settings_providers.dart';
 
 /// Lyrics font-size preference.
 enum LyricsFontSize { small, medium, large }
 
-/// The active lyrics source. Override with a cache → tags → LRCLIB composite on
-/// device.
-final lyricsRepositoryProvider = Provider<LyricsRepository>(
-  (ref) => const SampleLyricsRepository(),
-);
+/// Shared lyrics cache (SharedPreferences-backed).
+final lyricsCacheProvider = Provider<SharedPrefsLyricsCache>((ref) {
+  return SharedPrefsLyricsCache();
+});
+
+/// The active lyrics source. With auto-fetch enabled, a composite resolver
+/// checks a local sidecar `.lrc` first, then races LRCLIB and NetEase in
+/// parallel and returns the richest match (synced › word-level › translated).
+/// With auto-fetch disabled it falls back to bundled sample data (also keeps
+/// tests fast and offline).
+final lyricsRepositoryProvider = Provider<LyricsRepository>((ref) {
+  final autoFetch = ref.watch(settingsProvider.select((s) => s.lyricsAutoFetch));
+  if (!autoFetch) return const SampleLyricsRepository();
+  return CompositeLyricsRepository(
+    network: [
+      LrcLibLyricsRepository(),
+      NeteaseLyricsRepository(),
+    ],
+  );
+});
 
 /// User-saved lyrics overrides, keyed by song id (e.g. results of the tap-to-
 /// sync editor). Session-scoped; persists to Isar on device alongside the
@@ -33,15 +53,26 @@ final lyricsOverridesProvider =
   (ref) => LyricsOverrides(),
 );
 
-/// Lyrics for the current track (null when none exist). A user-saved override
-/// wins over the repository; otherwise the repository is queried. Reloads when
-/// the track changes.
+/// Lyrics for the current track. Priority: user override → cache → repository.
+/// Fetched lyrics are auto-saved to cache for offline use.
 final currentLyricsProvider = FutureProvider<Lyrics?>((ref) async {
   final song = ref.watch(currentSongProvider);
   if (song == null) return null;
+
+  // 1. User override (from sync editor) — always wins.
   final override = ref.watch(lyricsOverridesProvider)[song.id];
   if (override != null) return override;
-  return ref.watch(lyricsRepositoryProvider).lyricsFor(song);
+
+  final cache = ref.read(lyricsCacheProvider);
+
+  // 2. Persistent cache — works offline.
+  final cached = await cache.read(song.id);
+  if (cached != null) return cached;
+
+  // 3. Remote repository — fetch and cache the result.
+  final result = await ref.watch(lyricsRepositoryProvider).lyricsFor(song);
+  if (result != null) await cache.write(song.id, result);
+  return result;
 });
 
 final lyricsFontSizeProvider =
@@ -53,7 +84,10 @@ final dualLanguageProvider = StateProvider<bool>((ref) => false);
 /// position tick internally but only notifies dependents when the line actually
 /// changes, so the lyrics list rebuilds on line transitions, not 5×/second.
 final currentLyricLineProvider = Provider<int>((ref) {
-  final lyrics = ref.watch(currentLyricsProvider).valueOrNull;
+  // unwrapPrevious: while the next track's lyrics load, Riverpod keeps the
+  // previous data inside AsyncLoading — without unwrapping, the old track's
+  // lines would keep highlighting (and showing) under the new track.
+  final lyrics = ref.watch(currentLyricsProvider).unwrapPrevious().valueOrNull;
   if (lyrics == null || !lyrics.synced) return -1;
   final position = ref.watch(positionProvider).valueOrNull ?? Duration.zero;
   return currentLineIndex(lyrics.lines, position);

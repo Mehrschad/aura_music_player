@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import '../../../core/utils/background.dart';
 import '../../../domain/lyrics/lrc_parser.dart';
+import '../../../domain/lyrics/lyrics_match.dart';
 import '../../../domain/models/lyrics.dart';
 import '../../../domain/models/song.dart';
 import '../../../domain/repositories/lyrics_repository.dart';
@@ -34,12 +35,9 @@ class LrcLibLyricsRepository implements LyricsRepository {
 
   final Dio _dio;
 
-  /// Duration fuzz when matching (±5 seconds), per the spec.
-  static const int _durationToleranceSeconds = 5;
-
   @override
   Future<Lyrics?> lyricsFor(Song song) async {
-    // Exact match first.
+    // Exact match first (LRCLIB enforces a ±2s duration match server-side).
     try {
       final res = await _dio.get<Map<String, dynamic>>(
         '/api/get',
@@ -56,7 +54,9 @@ class LrcLibLyricsRepository implements LyricsRepository {
       // Fall through to fuzzy search on any miss/error.
     }
 
-    // Fuzzy fallback: search and pick the closest duration within tolerance.
+    // Fuzzy fallback: search by title+artist and pick the best-scoring record
+    // (normalized title/artist similarity blended with duration proximity),
+    // preferring synced over plain among near-ties.
     try {
       final res = await _dio.get<List<dynamic>>(
         '/api/search',
@@ -67,13 +67,22 @@ class LrcLibLyricsRepository implements LyricsRepository {
       );
       final results = res.data ?? const [];
       Map<String, dynamic>? best;
-      var bestDelta = _durationToleranceSeconds + 1;
+      var bestScore = kMatchAcceptThreshold;
       for (final item in results.cast<Map<String, dynamic>>()) {
-        final dur = (item['duration'] as num?)?.round() ?? -1000;
-        final delta = (dur - song.duration.inSeconds).abs();
-        if (delta <= _durationToleranceSeconds && delta < bestDelta) {
+        var score = matchScore(
+          queryTitle: song.title,
+          queryArtist: song.artist,
+          queryDurationSec: song.duration.inSeconds,
+          candidateTitle: item['trackName'] as String? ?? '',
+          candidateArtist: item['artistName'] as String? ?? '',
+          candidateDurationSec: (item['duration'] as num?)?.round() ?? 0,
+        );
+        // Nudge synced records ahead of equally-scored plain ones.
+        final hasSynced = (item['syncedLyrics'] as String?)?.isNotEmpty ?? false;
+        if (hasSynced) score += 0.02;
+        if (score >= bestScore) {
+          bestScore = score;
           best = item;
-          bestDelta = delta;
         }
       }
       return _fromPayload(best);

@@ -118,7 +118,9 @@ class _SyncEditorPageState extends ConsumerState<SyncEditorPage> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final l10n = AppLocalizations.of(context);
-    _seedFromLyrics(ref.watch(currentLyricsProvider).valueOrNull);
+    // unwrapPrevious: never seed the editor with a previous track's lyrics.
+    _seedFromLyrics(
+        ref.watch(currentLyricsProvider).unwrapPrevious().valueOrNull);
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -296,6 +298,7 @@ class _TapPhase extends ConsumerWidget {
               duration: song.duration,
               accent: accent,
               seed: song.artworkSeed,
+              isPlaying: playing,
             ),
           ),
         Padding(

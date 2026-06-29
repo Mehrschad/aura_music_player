@@ -42,6 +42,8 @@ List<Song> sortSongs(List<Song> songs, LibrarySort sort) {
         primary = _nullableInt(a.year, b.year, present);
       case SortField.lastPlayed:
         primary = _nullableDate(a.lastPlayed, b.lastPlayed, present);
+      case SortField.rating:
+        primary = _nullableInt(a.rating, b.rating, present);
     }
     if (primary != 0) return primary;
     return titleCompare(a, b); // deterministic tie-break, always A-Z

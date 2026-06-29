@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/constants/spacing_tokens.dart';
 import '../../../core/theme/color_scheme.dart';
@@ -26,7 +27,11 @@ class BandSlider extends StatelessWidget {
 
   void _setFromDy(double dy, double height) {
     final fraction = (1 - dy / height).clamp(0.0, 1.0);
-    onChanged(kEqMinGain + fraction * _range);
+    final next = kEqMinGain + fraction * _range;
+    // A light tick each time the gain crosses a whole-dB detent — the drag
+    // feels notched rather than slippery.
+    if (next.round() != gain.round()) HapticFeedback.selectionClick();
+    onChanged(next);
   }
 
   @override
@@ -48,17 +53,44 @@ class BandSlider extends StatelessWidget {
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    // Track.
-                    Container(width: 3, color: colors.divider),
-                    // Thumb.
+                    // Track background — pill-shaped, surface-elevated.
+                    Container(
+                      width: 6,
+                      decoration: BoxDecoration(
+                        color: colors.surfaceElevated,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                    // Fill — accent colour from bottom up to the gain position.
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: FractionallySizedBox(
+                        heightFactor: fraction,
+                        child: Container(
+                          width: 6,
+                          decoration: BoxDecoration(
+                            color: accent,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Thumb — 14px accent circle with a soft shadow.
                     Align(
                       alignment: Alignment(0, 1 - 2 * fraction),
                       child: Container(
-                        width: 16,
-                        height: 16,
+                        width: 14,
+                        height: 14,
                         decoration: BoxDecoration(
                           color: accent,
                           shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.5),
+                              blurRadius: 3,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -69,8 +101,14 @@ class BandSlider extends StatelessWidget {
           ),
         ),
         const SizedBox(height: SpacingTokens.xs),
-        Text(label,
-            style: AppTextTheme.navLabel.copyWith(color: colors.onSurfaceFaint)),
+        // Frequency label — tabular caption so digits stay aligned.
+        Text(
+          label,
+          style: AppTextTheme.caption.copyWith(
+            color: colors.onSurfaceFaint,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
       ],
     );
   }

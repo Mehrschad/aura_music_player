@@ -10,6 +10,10 @@ const Map<EqPreset, List<double>> _presetGains = {
   EqPreset.hipHop: [6, 5, 2, 3, -1, -1, 1, 0, 1, 2],
   EqPreset.classical: [4, 3, 2, 1, -1, -1, 0, 2, 3, 4],
   EqPreset.rock: [5, 4, 2, -1, -2, 0, 2, 3, 4, 5],
+  // Hi-Fi: air shelf (+2 dB @ 16 kHz), presence (+1 dB @ 4 kHz), gentle bass
+  // warmth (+1 dB @ 64 Hz), slight mud cut (−0.5 dB @ 500 Hz).
+  // All gains ≤ 2 dB — zero risk of clipping or tonal damage.
+  EqPreset.hifi: [0.0, 1.0, 0.5, 0.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0],
 };
 
 List<double> presetGains(EqPreset preset) => List<double>.of(_presetGains[preset]!);

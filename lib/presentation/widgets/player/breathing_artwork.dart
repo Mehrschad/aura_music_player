@@ -7,9 +7,12 @@ import '../artwork/aura_artwork.dart';
 import 'now_playing_route.dart';
 
 /// The Now Playing album art: a [Hero] (so it flies from the mini player) that
-/// breathes — scaling 1.0 → 1.015 → 1.0 on a 4-second loop — while playing.
-/// The motion is deliberately at the edge of perception, and collapses to a
-/// still image when paused or when animations are disabled.
+/// scales up to 1.08× while playing (with a gentle 1.015 breath on top) and
+/// settles back to 0.94× when paused — iOS 26 artwork presence spec.
+///
+/// When [slideDirection] is non-zero the [AnimatedSwitcher] uses a directional
+/// slide+fade instead of a plain crossfade: +1 → new art enters from the right
+/// (skip-forward), -1 → from the left (skip-backward).
 class BreathingArtwork extends StatefulWidget {
   const BreathingArtwork({
     super.key,
@@ -17,30 +20,48 @@ class BreathingArtwork extends StatefulWidget {
     required this.size,
     required this.playing,
     this.hasArtwork = false,
+    this.artworkId,
+    this.slideDirection = 0,
   });
 
   final String seed;
   final double size;
   final bool playing;
   final bool hasArtwork;
+  final int? artworkId;
+
+  /// +1 = skip-forward (new art enters from right),
+  /// -1 = skip-backward (new art enters from left),
+  ///  0 = plain crossfade (initial or no directional cue).
+  final int slideDirection;
 
   @override
   State<BreathingArtwork> createState() => _BreathingArtworkState();
 }
 
 class _BreathingArtworkState extends State<BreathingArtwork>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: MotionTokens.breathing,
-  );
+    with TickerProviderStateMixin {
+  late final AnimationController _breathCtrl;
+  late final AnimationController _scaleCtrl;
+  late final Animation<double> _pauseScale;
+  late final Animation<double> _pauseRise;
 
   @override
   void initState() {
     super.initState();
-    // _syncBreathing is deferred to didChangeDependencies because
-    // MediaQuery.disableAnimationsOf(context) must not be called before
-    // initState completes.
+    _breathCtrl = AnimationController(vsync: this, duration: MotionTokens.breathing);
+    _scaleCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    // Playing = 1.08× (confident presence), paused = 0.94× (settled back).
+    _pauseScale = Tween<double>(begin: 1.08, end: 0.94)
+        .animate(CurvedAnimation(parent: _scaleCtrl, curve: Curves.easeInOut));
+    // Artwork rises ~8 px when paused — reinforces the "resting" feel.
+    _pauseRise = Tween<double>(begin: 0.0, end: -8.0)
+        .animate(CurvedAnimation(parent: _scaleCtrl, curve: Curves.easeInOut));
+    // Set the correct initial scale without animation.
+    _scaleCtrl.value = widget.playing ? 0.0 : 1.0;
   }
 
   @override
@@ -50,37 +71,105 @@ class _BreathingArtworkState extends State<BreathingArtwork>
   }
 
   @override
-  void didUpdateWidget(BreathingArtwork oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.playing != oldWidget.playing) _syncBreathing();
+  void didUpdateWidget(BreathingArtwork old) {
+    super.didUpdateWidget(old);
+    if (widget.playing != old.playing) _syncBreathing();
+  }
+
+  @override
+  void dispose() {
+    _breathCtrl.dispose();
+    _scaleCtrl.dispose();
+    super.dispose();
   }
 
   void _syncBreathing() {
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
     if (widget.playing && !reduceMotion) {
-      _controller.repeat(reverse: true);
+      _breathCtrl.repeat(reverse: true);
+      _scaleCtrl.reverse(); // → 0.0 → _pauseScale = 1.0
     } else {
-      _controller.stop();
-      _controller.value = 0;
+      _breathCtrl.stop();
+      _breathCtrl.value = 0;
+      if (reduceMotion) {
+        _scaleCtrl.value = widget.playing ? 0.0 : 1.0;
+      } else {
+        _scaleCtrl.forward(); // → 1.0 → _pauseScale = 0.88
+      }
     }
   }
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
+  Widget _buildTransition(Widget child, Animation<double> anim) {
+    final dir = widget.slideDirection;
+
+    // No directional cue: plain crossfade (used for the initial artwork render
+    // and any time the direction is unknown).
+    if (dir == 0) {
+      final eased = CurvedAnimation(parent: anim, curve: MotionTokens.standard);
+      return FadeTransition(opacity: eased, child: child);
+    }
+
+    // anim goes 0→1 for the incoming child (status = forward / completed)
+    // and 1→0 for the outgoing child (status = reverse / dismissed).
+    final isIn = anim.status == AnimationStatus.forward ||
+        anim.status == AnimationStatus.completed;
+
+    if (isIn) {
+      // New cover: glides in from the skip direction and settles into place
+      // with a confident decelerating landing and a slight grow.
+      final eased = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
+      return FadeTransition(
+        opacity: eased,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: Offset(dir * 0.42, 0),
+            end: Offset.zero,
+          ).animate(eased),
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.92, end: 1.0).animate(eased),
+            child: child,
+          ),
+        ),
+      );
+    }
+
+    // Old cover: accelerates out the opposite side, shrinking slightly as it
+    // leaves so the incoming art clearly takes the stage.
+    final eased = CurvedAnimation(parent: anim, curve: Curves.easeInCubic);
+    return FadeTransition(
+      opacity: eased,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: Offset(-dir * 0.42, 0),
+          end: Offset.zero,
+        ).animate(eased),
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.92, end: 1.0).animate(eased),
+          child: child,
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final scale = Tween<double>(begin: 1, end: 1.015)
-        .animate(CurvedAnimation(parent: _controller, curve: MotionTokens.emphasized));
+    final breatheScale = Tween<double>(begin: 1.0, end: 1.015).animate(
+      CurvedAnimation(parent: _breathCtrl, curve: MotionTokens.emphasized),
+    );
 
     return Hero(
       tag: kNowPlayingHeroTag,
-      child: ScaleTransition(
-        scale: scale,
+      child: AnimatedBuilder(
+        animation: Listenable.merge([_breathCtrl, _scaleCtrl]),
+        builder: (_, child) => Transform.translate(
+          // Artwork floats up slightly when paused — matches light convergence.
+          offset: Offset(0, _pauseRise.value),
+          child: Transform.scale(
+            scale: breatheScale.value * _pauseScale.value,
+            child: child,
+          ),
+        ),
         child: Container(
           decoration: BoxDecoration(
             borderRadius: RadiusTokens.brLg,
@@ -93,11 +182,18 @@ class _BreathingArtworkState extends State<BreathingArtwork>
               ),
             ],
           ),
-          child: AuraArtwork(
-            seed: widget.seed,
-            size: widget.size,
-            borderRadius: RadiusTokens.brLg,
-            hasArtwork: widget.hasArtwork,
+          child: AnimatedSwitcher(
+            // Plain linear parent; all easing is applied inside _buildTransition.
+            duration: const Duration(milliseconds: 340),
+            transitionBuilder: _buildTransition,
+            child: AuraArtwork(
+              key: ValueKey('${widget.seed}_${widget.artworkId}'),
+              seed: widget.seed,
+              size: widget.size,
+              borderRadius: RadiusTokens.brLg,
+              hasArtwork: widget.hasArtwork,
+              artworkId: widget.artworkId,
+            ),
           ),
         ),
       ),

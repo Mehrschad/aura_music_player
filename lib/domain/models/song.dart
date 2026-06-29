@@ -32,8 +32,11 @@ class Song {
     this.compilation = false,
     this.playCount = 0,
     this.lastPlayed,
+    this.rating,
     this.hasLyrics = false,
     this.hasArtwork = false,
+    this.trackGain,
+    this.albumGain,
   });
 
   final String id;
@@ -69,8 +72,16 @@ class Song {
   final int playCount;
   final DateTime? lastPlayed;
 
+  /// User star rating, 0–5, or null when unrated.
+  final int? rating;
+
   final bool hasLyrics;
   final bool hasArtwork;
+
+  // ReplayGain track gain in dB (null = no tag).
+  final double? trackGain;
+  // ReplayGain album gain in dB (null = no tag).
+  final double? albumGain;
 
   /// Stable seed used to render a deterministic placeholder artwork gradient
   /// when [hasArtwork] is false. Keyed on the album so a whole album shares
@@ -93,8 +104,11 @@ class Song {
     bool? compilation,
     int? playCount,
     DateTime? lastPlayed,
+    int? rating,
     bool? hasLyrics,
     bool? hasArtwork,
+    Object? trackGain = _sentinel,
+    Object? albumGain = _sentinel,
   }) {
     return Song(
       id: id,
@@ -118,10 +132,16 @@ class Song {
       compilation: compilation ?? this.compilation,
       playCount: playCount ?? this.playCount,
       lastPlayed: lastPlayed ?? this.lastPlayed,
+      rating: rating ?? this.rating,
       hasLyrics: hasLyrics ?? this.hasLyrics,
       hasArtwork: hasArtwork ?? this.hasArtwork,
+      trackGain: identical(trackGain, _sentinel) ? this.trackGain : trackGain as double?,
+      albumGain: identical(albumGain, _sentinel) ? this.albumGain : albumGain as double?,
     );
   }
+
+  // Sentinel for nullable copyWith fields.
+  static const Object _sentinel = Object();
 
   @override
   bool operator ==(Object other) => other is Song && other.id == id;

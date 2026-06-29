@@ -40,7 +40,10 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    // LyricsPage contains an infinite ambient animation so pumpAndSettle would
+    // time out. Pump enough for the async lyrics FutureProvider to resolve.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.text('Aurora skyline'), findsOneWidget);
     expect(find.text('Light spills over the line'), findsOneWidget);

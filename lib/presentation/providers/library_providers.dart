@@ -2,15 +2,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/local/audio_query/device_library_repository.dart';
 import '../../data/local/tag_editor/audiotagger_tag_writer.dart';
+import '../../domain/library/folder_logic.dart';
 import '../../domain/library/library_grouping.dart';
 import '../../domain/library/song_search.dart';
 import '../../domain/library/song_sorting.dart';
 import '../../domain/models/album.dart';
 import '../../domain/models/artist.dart';
+import '../../domain/models/genre.dart';
 import '../../domain/models/library_sort.dart';
 import '../../domain/models/song.dart';
 import '../../domain/repositories/library_repository.dart';
+import 'hidden_songs_providers.dart';
 import 'settings_providers.dart';
+import 'song_ratings_provider.dart';
 
 /// The active library data source — backed by the device media store.
 /// Rebuilt whenever [sourceFolders] changes so the scan is always in sync
@@ -54,15 +58,42 @@ final tagOverridesProvider =
 /// persist to the files.
 final tagWriterProvider = Provider<TagWriter>((ref) => const NoopTagWriter());
 
-/// The song index with any tag edits applied. Everything downstream (library,
-/// albums, artists, search, playlists) reads this rather than the raw scan.
+/// The song index with tag edits applied, soft-hidden tracks removed, and the
+/// folder rules (excluded folders, dot-folders, min-duration) enforced.
+/// Everything downstream (library, albums, artists, search, playlists, folders)
+/// reads this rather than the raw scan, so a hidden/excluded track disappears
+/// everywhere at once.
 final effectiveSongsProvider = Provider<AsyncValue<List<Song>>>((ref) {
   final overrides = ref.watch(tagOverridesProvider);
+  final hidden = ref.watch(hiddenSongsProvider);
+  final ratings = ref.watch(songRatingsProvider);
+  final excluded = ref.watch(settingsProvider.select((s) => s.excludedFolders));
+  final hideDot = ref.watch(settingsProvider.select((s) => s.hideDotFolders));
+  final minSecs = ref.watch(settingsProvider.select((s) => s.minTrackSeconds));
   return ref.watch(songsProvider).whenData((list) {
-    if (overrides.isEmpty) return list;
-    return [for (final s in list) overrides[s.id] ?? s];
+    final base = (overrides.isEmpty && hidden.isEmpty && ratings.isEmpty)
+        ? list
+        : [
+            for (final s in list)
+              if (!hidden.contains(s.id))
+                _withRating(overrides[s.id] ?? s, ratings),
+          ];
+    return FolderLogic.filter(
+      base,
+      excludedFolders: excluded,
+      hideDotFolders: hideDot,
+      minTrackSeconds: minSecs,
+    );
   });
 });
+
+/// Applies a user rating to [song] when one exists, leaving the scan value
+/// otherwise. Keeps the rating merge identical to the tag-overrides pattern.
+Song _withRating(Song song, Map<String, int> ratings) {
+  final r = ratings[song.id];
+  if (r == null || r == song.rating) return song;
+  return song.copyWith(rating: r);
+}
 
 // ── Per-section UI state ───────────────────────────────────────────────────
 
@@ -73,6 +104,13 @@ final librarySortProvider =
 /// Display mode for the Library section.
 final libraryDisplayModeProvider =
     StateProvider<DisplayMode>((ref) => DisplayMode.list);
+
+/// Selected segment in the Library screen (Songs / Albums / Artists / Genres).
+enum LibrarySegment { songs, albums, artists, genres }
+
+/// Currently selected Library segment. Defaults to Songs.
+final librarySegmentProvider =
+    StateProvider<LibrarySegment>((ref) => LibrarySegment.songs);
 
 /// Display mode for the Albums section (grid by default — it's artwork-forward).
 final albumsDisplayModeProvider =
@@ -99,12 +137,35 @@ final artistsProvider = Provider<AsyncValue<List<Artist>>>((ref) {
   return ref.watch(effectiveSongsProvider).whenData(groupArtists);
 });
 
+final genresProvider = Provider<AsyncValue<List<Genre>>>((ref) {
+  return ref.watch(effectiveSongsProvider).whenData(groupGenres);
+});
+
+/// Songs of a given genre, sorted by artist → album → track.
+final genreSongsProvider =
+    Provider.family<AsyncValue<List<Song>>, String>((ref, genreName) {
+  return ref.watch(effectiveSongsProvider).whenData((list) {
+    return list.where((s) => (s.genre ?? '').trim() == genreName).toList()
+      ..sort((a, b) {
+        final artistCmp = a.artist.compareTo(b.artist);
+        if (artistCmp != 0) return artistCmp;
+        final albumCmp = a.album.compareTo(b.album);
+        if (albumCmp != 0) return albumCmp;
+        return (a.trackNumber ?? 0).compareTo(b.trackNumber ?? 0);
+      });
+  });
+});
+
 /// Songs of a given album, in track order — used by album detail later.
 final albumSongsProvider =
     Provider.family<AsyncValue<List<Song>>, String>((ref, albumId) {
   return ref.watch(effectiveSongsProvider).whenData((list) {
     final out = list.where((s) => s.albumId == albumId).toList()
-      ..sort((a, b) => (a.trackNumber ?? 0).compareTo(b.trackNumber ?? 0));
+      ..sort((a, b) {
+        final discCmp = (a.discNumber ?? 1).compareTo(b.discNumber ?? 1);
+        if (discCmp != 0) return discCmp;
+        return (a.trackNumber ?? 0).compareTo(b.trackNumber ?? 0);
+      });
     return out;
   });
 });
@@ -113,4 +174,27 @@ final albumSongsProvider =
 final searchResultsProvider = Provider<AsyncValue<List<Song>>>((ref) {
   final query = ref.watch(searchQueryProvider);
   return ref.watch(effectiveSongsProvider).whenData((list) => searchSongs(list, query));
+});
+
+/// Songs by a given artist, in album/track order.
+final artistSongsProvider =
+    Provider.family<AsyncValue<List<Song>>, String>((ref, artistId) {
+  return ref.watch(effectiveSongsProvider).whenData((list) {
+    return list.where((s) => s.artistId == artistId || s.artist == artistId).toList()
+      ..sort((a, b) {
+        final albumCmp = (a.album).compareTo(b.album);
+        if (albumCmp != 0) return albumCmp;
+        return (a.trackNumber ?? 0).compareTo(b.trackNumber ?? 0);
+      });
+  });
+});
+
+/// Albums by a given artist.
+final artistAlbumsProvider =
+    Provider.family<AsyncValue<List<Album>>, String>((ref, artistId) {
+  return ref.watch(effectiveSongsProvider).whenData((list) {
+    final artistSongs =
+        list.where((s) => s.artistId == artistId || s.artist == artistId).toList();
+    return groupAlbums(artistSongs);
+  });
 });

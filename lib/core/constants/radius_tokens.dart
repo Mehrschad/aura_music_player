@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/widgets.dart';
 
 /// Corner radius scale. Album art, glass surfaces, and cards all draw
@@ -11,6 +13,16 @@ abstract final class RadiusTokens {
   static const double lg = 20; // now-playing album art
   static const double xl = 28; // floating glass nav bar
   static const double pill = 999; // fully rounded
+
+  /// Concentric inner radius (spec §14): a child inset by [padding] inside a
+  /// surface of [parentRadius] should round by this much so the corners stay
+  /// visually concentric. Never negative.
+  static double concentric(double parentRadius, double padding) =>
+      math.max(parentRadius - padding, 0);
+
+  /// [BorderRadius] form of [concentric].
+  static BorderRadius concentricBr(double parentRadius, double padding) =>
+      BorderRadius.circular(concentric(parentRadius, padding));
 
   static const Radius rXs = Radius.circular(xs);
   static const Radius rSm = Radius.circular(sm);

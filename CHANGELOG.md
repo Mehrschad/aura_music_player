@@ -6,7 +6,201 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
-_Nothing yet._
+### Changed — iOS 26/27 Liquid Glass redesign
+- **Ambient track colour** bleeds behind the glass nav bar as a coloured wash
+  that shifts smoothly with every track change — makes the frosted-glass effect
+  visible even on AMOLED black.
+- **Active-tab pill and Search bubble** now animate to the current track's
+  accent colour, giving the bottom nav bar a dynamic, music-reactive feel.
+- **Scroll edge fade** — content melts into the glass layer at the bottom of
+  every scroll view instead of being harshly cut off behind the nav bar.
+- **Full-bleed hero images** on Artist, Album, Genre, and Playlist detail
+  pages now fill 40–50 % of the screen height; a two-stage gradient melt
+  (top dark vignette + bottom wash-tinted fade) flows the artwork into the
+  page content below.
+- **Wash-tinted page backgrounds** — every detail page derives a gentle colour
+  from the artwork palette and blends it into the background, so the whole
+  scroll area feels immersed in the album's mood.
+- **Breathing artwork** on Now Playing: 1.08× scale while playing (with a
+  gentle 1.015× breath loop), settling to 0.94× when paused — the iOS 27
+  artwork presence spec.
+- **Artist detail section order** restructured per spec §6.7: Top Songs
+  section appears above the Albums rail (identity → action → discovery).
+- **PressScale everywhere**: CTA buttons on the onboarding screen and all
+  search result rows replaced Material InkWell with the spring-scale tap
+  feedback used throughout the rest of the UI.
+
+### Changed — Design-system alignment
+- **Light theme reworked** to the canonical Aura spec: an airy paper background
+  (`#F4F4F7`) with white cards above it, a true near-black text ladder for AA+
+  contrast, a visible hairline divider, and white frosted glass (62% tint with a
+  dark hairline border) replacing the old black-tint glass.
+- **Motion timing** brought onto the canonical scale (press 160ms, micro 220ms,
+  screen 380ms, album 500ms) with exact `standard`/`emphasized` easing curves and
+  a new `softSpring` curve.
+
+### Added — Pro audio, scrobbling & backup (steps 21–23)
+- **Audio Engine Pro**: ReplayGain (track/album), configurable crossfade, pitch
+  shift (±12 semitones), skip-silence, and per-track speed memory — all wired
+  through the `AudioController` seam with pure-Dart gain/crossfade logic.
+- **Last.fm scrobbling**: full auth flow (token → session), a from-scratch
+  pure-Dart MD5 signer (no `crypto` dependency), a persisted scrobble queue with
+  batched flushing, and now-playing updates.
+- **Full backup & restore**: a versioned bundle covering settings, ratings,
+  bookmarks, favorite artists, hidden songs, named queues, play history, and
+  custom EQ presets — export/import from Settings.
+
+### Added — Library & discovery (steps 24–30)
+- **Search Pro**: subsequence fuzzy matching as a ranked fallback, plus
+  persisted recent searches.
+- **Named custom EQ presets**: save / rename / delete your own curves
+  (persisted and included in backup).
+- **Listening history timeline**: every play and skip grouped by day, with
+  tap-to-play and skip chips.
+- **Genres**: a full genre browse surface (list + detail) alongside
+  Albums/Artists.
+- **Top Genres** and **Day-of-week** charts on the Statistics screen.
+- **Sort by rating** in the library sort sheet, and a **Top Rated** auto-playlist
+  in "Made for you".
+
+### Changed — UI/UX polish pass
+- **Haptics everywhere**: play/pause, tab changes, swipe-to-skip, waveform
+  seek-commit, EQ band detents and preset chips, the sleep timer, Settings
+  switches/chips, and destructive confirmations now give tactile feedback.
+- **Design-system hardening**: a semantic `danger` colour token (no more raw
+  red), a floating SnackBar theme that clears the glass nav bar, a unified
+  Dialog theme, an `IconSizes` scale, and a shared glass-sheet helper.
+- **Genres** brought to full parity with Albums/Artists — artwork thumbnails,
+  count subtitles, and a premium `SliverAppBar` detail header.
+- **Settings** restyled into iOS-style grouped sections.
+- Statistics, History, and Settings now clear the mini player; Album/Artist
+  detail show calm loading/error states instead of raw exceptions.
+
+### Fixed
+- **Search** strings are fully localized (fixing a hardcoded-English regression
+  in the section header and "See all" buttons).
+- Now Playing "Previous" is no longer a dead tap at the start of the queue.
+- The ambient/shimmer loops on Now Playing and Lyrics now honour reduced-motion.
+
+### Added — Ratings, play count & listening stats (step 20)
+- **Star ratings** (1–5): inline in the song menu, in the Now Playing overflow,
+  and as a bulk selection action. Persisted and merged onto the library like tag
+  edits; smart playlists gain a `rating` rule field.
+- **Listening history**: an invisible recorder turns playback into play/skip
+  events (a "play" at ≥50% or ≥30 s heard), rotated and persisted.
+- **Listening Stats screen** (Settings → Listening stats): period toggle
+  (today/week/month/year/all-time), overview cards, a consecutive-day streak,
+  a 365-day activity heatmap, a time-of-day chart, top songs/artists/albums,
+  and "forgotten gems" (old, rarely-played tracks).
+
+### Added — Folder browsing & file operations (step 19)
+- **Folder browser** (Library → folder icon): hierarchical navigation with a
+  tappable breadcrumb, per-folder track count + duration, album-art thumbnails,
+  Play All / Shuffle All, and long-press folder actions (play next, add to
+  queue, add as playlist, exclude from library).
+- **Folder management** (Settings → Library): excluded-folders blacklist,
+  "hide folders starting with a dot", a minimum-track-length slider (0–60 s),
+  and an "Allow editing files on SD card" opt-in. Exclusions and hidden rules
+  flow through `effectiveSongsProvider`, so filtered tracks vanish everywhere.
+- **Bulk rename from tags**: a selection action with a live preview and a
+  pattern like `{albumartist}/{album} ({year})/{track:02} - {title}.{ext}`;
+  values are sanitised so a slash in a tag can't spawn folders.
+- Pure, tested core: path utilities, folder grouping (internal + SD), exclusion
+  logic, and the rename-pattern renderer.
+
+### Added — Multi-queue support (step 18)
+- **Up to 20 named queues**, each keeping its own track list, cursor, shuffle/
+  repeat, colour (1 of 12 tokens), and audiobook/podcast kind. Persisted across
+  launches via SharedPreferences.
+- **One live queue** drives the engine; the rest are editable in the background.
+  Switching snapshots the outgoing queue's position and resumes the target from
+  exactly where it was left.
+- **Queue drawer** on Now Playing: 4-album mosaic thumbnails, play count, track
+  count; tap to switch, drag to reorder, overflow to rename / recolour /
+  duplicate / set kind / delete.
+- **Create queues** from "Save queue as…" (current play queue) or "Send to new
+  queue…" (any multi-selection).
+
+### Added — Sleep timer, A-B repeat & bookmarks (step 17)
+- **Sleep timer, reimagined**: timed presets (5/10/15/30/45/60/90/120 min),
+  plus "End of track" and "After N tracks" modes. A configurable fade-out
+  (0–30 s) gently lowers the volume over the final seconds before pausing.
+  A live countdown chip sits in Now Playing with a one-tap **+5 min** extend.
+- **A-B repeat**: set an A point and a B point below the scrubber to loop a
+  region of the current track; "Clear" removes it. Switching tracks resets the
+  loop so it never carries over to the wrong song.
+- **Bookmarks**: long-press the scrubber to drop a labelled position bookmark;
+  bookmarks appear as tick marks on the scrubber and in a per-song list
+  (overflow → Bookmarks) where tapping one seeks straight to it. Saved on the
+  device via SharedPreferences, so they survive restarts.
+
+### Added — Selection mode & bulk operations (step 16)
+- **Multi-select** in the Library: long-press to enter, tap to toggle,
+  long-press a second row to range-select. A selection bar replaces the header
+  with count, select-all, invert, and a bulk-actions menu; haptics on
+  enter/toggle; system back clears the selection first.
+- **Bulk actions**: play now / next, add to queue, add to playlist (multi-add),
+  add/remove favorites, batch edit tags, hide from library, export M3U to
+  clipboard, and delete from device with a count-aware confirmation.
+- **Soft-hide**: a persisted `hiddenSongsProvider`, filtered into
+  `effectiveSongsProvider` so hidden tracks disappear everywhere at once.
+- New generic, tested `SelectionController` + `selectionProvider(listId)` and a
+  pure `idsInRange` helper, ready to adopt across the other lists.
+
+### Added — Offline content & library polish (phase 4)
+- **Offline lyrics for the whole library**: a background prefetcher walks every
+  scanned track on launch, downloads its lyrics from LRCLIB, and caches them on
+  the device — newly added songs are picked up on the next library refresh, and
+  anything fetched once (including on-demand plays) stays available offline.
+- **Artist biographies**: downloaded from Wikipedia in the same background
+  sweep, cached offline, and shown under the artist image (tap to expand).
+- **Like artists**: a heart button on the artist page favourites the artist,
+  persisted across launches.
+- **Artist page albums rail**: the artist's albums are shown separately as
+  tappable cards above the song list.
+- **Multi-disc albums**: album pages split into per-disc sections with
+  "Disc n" headers; track order is disc-then-track.
+- **Edit album**: an edit button on the album page opens the batch tag editor
+  for all of the album's tracks (info, cover, everything).
+- **Now-playing row highlight**: in Library / Albums / Artists lists the
+  playing track is set apart with a soft accent halo and a small dancing-bars
+  indicator that freezes when paused.
+
+### Changed
+- Albums grid redesigned: artwork floats on a soft shadow with a larger corner
+  radius, tighter caption (artist · year), and more breathing room.
+- Now Playing cover-change animation is more pronounced: the old cover slides
+  off opposite to the skip direction while the new one glides in and settles
+  (left/right per next/previous).
+
+### Fixed
+- Lyrics no longer linger from the previous track: when a track changes —
+  even to one with no lyrics at all — the stale lines are dropped immediately
+  (Now Playing carousel, lyrics page, and sync editor).
+
+### Added — Player & shell polish (phase 3)
+- **Resume last session**: the queue, current track, position, and
+  shuffle/repeat are remembered across cold starts and restored **paused**.
+  New `AudioController.restoreQueue`, a `PlaybackPersistence` store, and an
+  invisible `PlaybackPersistor` that saves on change / heartbeat / background.
+- **Ultra glass**: new `GlassIntensity.ultra` setting — a deeper blur with a
+  richer frosted tint, selectable in Settings.
+
+### Changed
+- Mini player and bottom nav bar now share one fully-rounded stadium shell;
+  the mini-player progress is a slim inset rounded capsule.
+- Mini player gains a **previous-track** control.
+- Now Playing transport regrouped to `shuffle · prev · play/pause · next ·
+  repeat`; queue moved to the top bar. Shuffle/repeat toggles redesigned with a
+  glowing accent disc and a springy press bump.
+- Smoother, weightier open/close animation for Now Playing; the mini player
+  now "catches" the closing page with an elastic settle.
+
+### Fixed
+- Bottom nav glass pill now mirrors correctly in RTL (fa/ar) via
+  `PositionedDirectional`.
+- Soft keyboard no longer re-opens on the Search page after returning from Now
+  Playing (focus is dropped before the route is pushed).
 
 ## [1.0.0] - 2026-06-07
 

@@ -8,12 +8,20 @@ class Artist {
     required this.name,
     required this.albumCount,
     required this.songCount,
+    this.hasArtwork = false,
+    this.firstSongId,
   });
 
   final String id;
   final String name;
   final int albumCount;
   final int songCount;
+
+  /// True when at least one song by this artist has embedded artwork.
+  final bool hasArtwork;
+
+  /// Media-store ID of a representative song used by [QueryArtworkWidget].
+  final int? firstSongId;
 
   String get artworkSeed => id;
 

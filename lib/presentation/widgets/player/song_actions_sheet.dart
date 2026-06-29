@@ -12,8 +12,10 @@ import '../../pages/playlists/playlist_dialogs.dart';
 import '../../pages/tag_editor/tag_editor_page.dart';
 import '../../providers/playback_providers.dart';
 import '../../providers/playlist_providers.dart';
+import '../../providers/song_ratings_provider.dart';
 import '../artwork/aura_artwork.dart';
 import '../glass/glass_surface.dart';
+import '../library/star_rating.dart';
 
 /// The per-song overflow menu: play next, add to queue, add to playlist.
 Future<void> showSongActions(BuildContext context, Song song) {
@@ -64,6 +66,24 @@ class _SongActionsSheet extends ConsumerWidget {
                     style: AppTextTheme.caption
                         .copyWith(color: colors.onSurfaceMuted)),
               ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(SpacingTokens.lg, 0,
+                    SpacingTokens.lg, SpacingTokens.sm),
+                child: Row(
+                  children: [
+                    Text(l10n.rateSong,
+                        style: AppTextTheme.caption
+                            .copyWith(color: colors.onSurfaceMuted)),
+                    const Spacer(),
+                    StarRating(
+                      rating: ref.watch(songRatingProvider(song.id)) ?? 0,
+                      onRate: (r) => ref
+                          .read(songRatingsProvider.notifier)
+                          .setRating(song.id, r),
+                    ),
+                  ],
+                ),
+              ),
               Divider(color: colors.divider, height: 1),
               _action(context, Icons.queue_play_next, l10n.playNext, () {
                 controller.playNext(song);
@@ -106,16 +126,23 @@ class _SongActionsSheet extends ConsumerWidget {
 
 /// Sheet listing user playlists to add [song] to, plus "New playlist".
 Future<void> showAddToPlaylist(BuildContext context, Song song) {
+  return showAddSongsToPlaylist(context, [song.id]);
+}
+
+/// Sheet listing user playlists to add a batch of [songIds] to (Step 16 bulk
+/// action), plus "New playlist". Shares the same UI as the single-song variant.
+Future<void> showAddSongsToPlaylist(
+    BuildContext context, List<String> songIds) {
   return showModalBottomSheet<void>(
     context: context,
     backgroundColor: Colors.transparent,
-    builder: (_) => _AddToPlaylistSheet(song: song),
+    builder: (_) => _AddToPlaylistSheet(songIds: songIds),
   );
 }
 
 class _AddToPlaylistSheet extends ConsumerWidget {
-  const _AddToPlaylistSheet({required this.song});
-  final Song song;
+  const _AddToPlaylistSheet({required this.songIds});
+  final List<String> songIds;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -158,7 +185,7 @@ class _AddToPlaylistSheet extends ConsumerWidget {
                     final name = await promptPlaylistName(context);
                     if (name == null) return;
                     final created = await repo.create(name);
-                    await repo.addSongs(created.id, [song.id]);
+                    await repo.addSongs(created.id, songIds);
                     if (context.mounted) Navigator.of(context).pop();
                     messenger.showSnackBar(
                         SnackBar(content: Text(l10n.addedToPlaylist)));
@@ -183,7 +210,7 @@ class _AddToPlaylistSheet extends ConsumerWidget {
                             style: AppTextTheme.caption
                                 .copyWith(color: colors.onSurfaceFaint)),
                         onTap: () {
-                          repo.addSongs(p.id, [song.id]);
+                          repo.addSongs(p.id, songIds);
                           Navigator.of(context).pop();
                           messenger.showSnackBar(
                               SnackBar(content: Text(l10n.addedToPlaylist)));

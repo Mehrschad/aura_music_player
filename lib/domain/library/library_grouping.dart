@@ -1,5 +1,6 @@
 import '../models/album.dart';
 import '../models/artist.dart';
+import '../models/genre.dart';
 import '../models/song.dart';
 
 /// Derives the album list from the flat song index.
@@ -16,7 +17,14 @@ List<Album> groupAlbums(List<Song> songs) {
       () => _AlbumAcc(id: s.albumId, name: s.album, artist: s.albumArtist ?? s.artist),
     );
     acc.count++;
-    if (s.hasArtwork) acc.hasArtwork = true;
+    // Prefer a song that has artwork for the representative ID so the
+    // ArtworkImageProvider (ArtworkType.AUDIO) has the best chance of
+    // finding embedded cover art.
+    acc.firstSongId ??= int.tryParse(s.id);
+    if (s.hasArtwork) {
+      acc.hasArtwork = true;
+      acc.firstSongId = int.tryParse(s.id);
+    }
     if (s.year != null && (acc.year == null || s.year! > acc.year!)) {
       acc.year = s.year;
     }
@@ -29,6 +37,7 @@ List<Album> groupAlbums(List<Song> songs) {
             songCount: a.count,
             year: a.year,
             hasArtwork: a.hasArtwork,
+            firstSongId: a.firstSongId,
           ))
       .toList()
     ..sort((x, y) => x.name.toLowerCase().compareTo(y.name.toLowerCase()));
@@ -44,6 +53,15 @@ List<Artist> groupArtists(List<Song> songs) {
         byId.putIfAbsent(s.artistId, () => _ArtistAcc(id: s.artistId, name: s.artist));
     acc.songCount++;
     acc.albumIds.add(s.albumId);
+    // Always track the first song id. on_audio_query doesn't set hasArtwork
+    // reliably — let QueryArtworkWidget attempt the load and fall back to the
+    // placeholder automatically via nullArtworkWidget.
+    if (acc.firstSongId == null) {
+      acc.firstSongId = int.tryParse(s.id);
+      acc.hasArtwork = true;
+    } else if (s.hasArtwork) {
+      acc.hasArtwork = true;
+    }
   }
   final artists = byId.values
       .map((a) => Artist(
@@ -51,10 +69,45 @@ List<Artist> groupArtists(List<Song> songs) {
             name: a.name,
             albumCount: a.albumIds.length,
             songCount: a.songCount,
+            hasArtwork: a.hasArtwork,
+            firstSongId: a.firstSongId,
           ))
       .toList()
     ..sort((x, y) => x.name.toLowerCase().compareTo(y.name.toLowerCase()));
   return artists;
+}
+
+/// Derives the genre list from the flat song index, bucketing by the trimmed
+/// genre tag (an empty bucket holds untagged songs). Returned sorted A–Z by
+/// genre name, with the untagged bucket always last.
+List<Genre> groupGenres(List<Song> songs) {
+  final byName = <String, _GenreAcc>{};
+  for (final s in songs) {
+    final key = (s.genre ?? '').trim();
+    final acc = byName.putIfAbsent(key, () => _GenreAcc(name: key));
+    acc.songCount++;
+    // Prefer a song with artwork as the representative for the genre thumbnail.
+    acc.firstSongId ??= int.tryParse(s.id);
+    if (s.hasArtwork) {
+      acc.hasArtwork = true;
+      acc.firstSongId = int.tryParse(s.id);
+    }
+  }
+  final genres = byName.values
+      .map((g) => Genre(
+            name: g.name,
+            songCount: g.songCount,
+            hasArtwork: g.hasArtwork,
+            firstSongId: g.firstSongId,
+          ))
+      .toList()
+    ..sort((x, y) {
+      // The untagged bucket (empty name) always sorts last.
+      if (x.name.isEmpty) return y.name.isEmpty ? 0 : 1;
+      if (y.name.isEmpty) return -1;
+      return x.name.toLowerCase().compareTo(y.name.toLowerCase());
+    });
+  return genres;
 }
 
 class _AlbumAcc {
@@ -65,6 +118,7 @@ class _AlbumAcc {
   int count = 0;
   int? year;
   bool hasArtwork = false;
+  int? firstSongId;
 }
 
 class _ArtistAcc {
@@ -73,4 +127,14 @@ class _ArtistAcc {
   final String name;
   int songCount = 0;
   final Set<String> albumIds = {};
+  bool hasArtwork = false;
+  int? firstSongId;
+}
+
+class _GenreAcc {
+  _GenreAcc({required this.name});
+  final String name;
+  int songCount = 0;
+  bool hasArtwork = false;
+  int? firstSongId;
 }

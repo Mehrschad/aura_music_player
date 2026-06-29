@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/l10n/app_localizations.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/color_scheme.dart';
 import 'presentation/providers/settings_providers.dart';
 import 'presentation/shell/app_shell.dart';
 
@@ -30,8 +31,24 @@ class AuraApp extends ConsumerWidget {
       builder: (context, child) {
         final mq = MediaQuery.of(context);
         return MediaQuery(
-          data: mq.copyWith(textScaler: TextScaler.linear(settings.textScale)),
-          child: child ?? const SizedBox.shrink(),
+          data: mq.copyWith(
+            textScaler: TextScaler.linear(settings.textScale),
+            // In-app Reduce Motion augments the OS accessibility flag so
+            // the user can suppress animations without changing system prefs.
+            disableAnimations:
+                settings.reduceMotion || mq.disableAnimations,
+          ),
+          // Flat, solid backdrop behind the whole navigator — pure AMOLED black
+          // in the dark/amoled theme (paper-white in light). No gradient, no
+          // living wash: every (transparent) scaffold shows this single colour.
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: ColoredBox(color: context.colors.background),
+              ),
+              child ?? const SizedBox.shrink(),
+            ],
+          ),
         );
       },
       home: const AppShell(),

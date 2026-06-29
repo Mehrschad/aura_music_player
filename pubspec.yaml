@@ -1,7 +1,7 @@
 name: aura_music_player
 description: Aura — a refined, local-first music player. Mature minimalism, Liquid Glass.
 publish_to: "none"
-version: 1.0.0+1
+version: 1.1.0+2
 
 environment:
   sdk: ">=3.5.0 <4.0.0"
@@ -29,15 +29,14 @@ dependencies:
   # Audio engine — step 3 (real engine: JustAudioController. FakeAudioController
   # is the active backend until flipped on device — see just_audio_controller.dart)
   just_audio: ^0.9.38
-  just_audio_background: ^0.0.1-beta.11
+  audio_service: ^0.18.13
+  just_waveform: ^0.0.6
 
   # ── Enabled per build step (uncomment as each step lands) ────────────────
   # Equalizer & DSP — step 9 (Android system-EQ bridge; the visual EQ is the
   # active cross-platform path and needs no plugin — see system_equalizer_controller.dart)
   # equalizer_flutter: ^1.0.1
   # volume_controller: ^2.0.7
-  # audio_service: ^0.18.13  # only for a custom background handler; conflicts
-  #                          # with just_audio_background, so not used together
   #
   file_picker: ^8.0.0  # folder browser — step 2 (settings)
   #
@@ -49,6 +48,7 @@ dependencies:
   # lrc: ^1.2.0
   #
   # UI & animations
+  phosphor_flutter: ^2.0.0
   # flutter_animate: ^4.5.0
   # animations: ^2.0.11
   # palette_dart: ^0.1.0

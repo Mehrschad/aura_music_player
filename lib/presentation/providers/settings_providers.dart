@@ -27,6 +27,7 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   void setGlassIntensity(GlassIntensity v) =>
       _update(state.copyWith(glassIntensity: v));
   void setDynamicColor(bool v) => _update(state.copyWith(dynamicColor: v));
+  void setVisualizerStyle(VisualizerStyle v) => _update(state.copyWith(visualizerStyle: v));
   void setTextScale(double v) => _update(state.copyWith(textScale: v));
   void setDensity(DisplayDensity v) => _update(state.copyWith(density: v));
   void setLocale(LocalePref v) => _update(state.copyWith(locale: v));
@@ -39,12 +40,29 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   void setScanOnStartup(bool v) => _update(state.copyWith(scanOnStartup: v));
   void setShowHidden(bool v) => _update(state.copyWith(showHidden: v));
 
+  void addExcludedFolder(String path) {
+    if (state.excludedFolders.contains(path)) return;
+    _update(state.copyWith(excludedFolders: [...state.excludedFolders, path]));
+  }
+
+  void removeExcludedFolder(String path) => _update(state.copyWith(
+      excludedFolders:
+          state.excludedFolders.where((p) => p != path).toList()));
+  void setHideDotFolders(bool v) =>
+      _update(state.copyWith(hideDotFolders: v));
+  void setMinTrackSeconds(int v) =>
+      _update(state.copyWith(minTrackSeconds: v));
+  void setAllowSdCardEdit(bool v) =>
+      _update(state.copyWith(allowSdCardEdit: v));
+
   void setCrossfade(double seconds) =>
       _update(state.copyWith(crossfadeSeconds: seconds));
   void setReplayGain(ReplayGainMode v) =>
       _update(state.copyWith(replayGain: v));
   void setGapless(bool v) => _update(state.copyWith(gapless: v));
   void setSpeedMemory(bool v) => _update(state.copyWith(speedMemory: v));
+  void setSkipSilence(bool v) => _update(state.copyWith(skipSilence: v));
+  void setPitchSemitones(double v) => _update(state.copyWith(pitchSemitones: v));
   void setInterruption(InterruptionBehavior v) =>
       _update(state.copyWith(interruption: v));
 
@@ -55,10 +73,30 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   void setGeniusApiKey(String v) => _update(state.copyWith(geniusApiKey: v));
 
   void setLastFm(bool v) => _update(state.copyWith(lastFmEnabled: v));
+  void setLastFmApiKey(String v) => _update(state.copyWith(lastFmApiKey: v));
+  void setLastFmApiSecret(String v) => _update(state.copyWith(lastFmApiSecret: v));
+  void setLastFmSessionKey(String v) => _update(state.copyWith(lastFmSessionKey: v));
+  void setLastFmUsername(String v) => _update(state.copyWith(lastFmUsername: v));
   void setAndroidAuto(bool v) => _update(state.copyWith(androidAuto: v));
+  void setReduceMotion(bool v) => _update(state.copyWith(reduceMotion: v));
+
+  Future<void> setOnboardingSeen() async {
+    _update(state.copyWith(onboardingSeen: true));
+  }
 
   /// Replaces the whole settings object (settings backup import).
   void replaceAll(AppSettings v) => _update(v);
+
+  /// Returns this notifier's state as JSON for a backup bundle.
+  Object? exportData() => state.toJson();
+
+  /// Replaces this notifier's state from a backup payload (best-effort).
+  void importData(Object? data) {
+    if (data is! Map) return;
+    try {
+      replaceAll(AppSettings.fromJson(Map<String, dynamic>.from(data)));
+    } catch (_) {/* malformed payload */}
+  }
 }
 
 final settingsProvider =
@@ -83,6 +121,7 @@ Locale? localeFor(LocalePref p) => switch (p) {
       LocalePref.en => const Locale('en'),
       LocalePref.fa => const Locale('fa'),
       LocalePref.ar => const Locale('ar'),
+      LocalePref.de => const Locale('de'),
     };
 
 VisualDensity visualDensityFor(DisplayDensity d) => switch (d) {

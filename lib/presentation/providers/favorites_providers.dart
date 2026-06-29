@@ -16,6 +16,14 @@ class FavoritesNotifier extends StateNotifier<Set<String>> {
     if (!next.remove(songId)) next.add(songId);
     state = next;
   }
+
+  /// Marks every id in [songIds] as favourite (bulk select action).
+  void addAll(Iterable<String> songIds) =>
+      state = {...state, ...songIds};
+
+  /// Un-favourites every id in [songIds] (bulk select action).
+  void removeAll(Iterable<String> songIds) =>
+      state = Set<String>.of(state)..removeAll(songIds);
 }
 
 final favoritesProvider =

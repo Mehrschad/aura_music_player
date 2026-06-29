@@ -42,6 +42,15 @@
       }
     }
   },
+  "artistsCount": "{count, plural, =0{No artists} =1{1 artist} other{{count} artists}}",
+  "@artistsCount": {
+    "description": "Pluralised artist count.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "sortLabel": "Sort",
   "@sortLabel": {
     "description": "Header for the sort selector."
@@ -54,6 +63,7 @@
   "sortFieldDuration": "Duration",
   "sortFieldPlayCount": "Play count",
   "sortFieldLastPlayed": "Last played",
+  "sortFieldRating": "Rating",
   "sortAscending": "Ascending",
   "sortDescending": "Descending",
   "displayList": "List",
@@ -66,6 +76,26 @@
   "rescan": "Rescan",
   "searchHint": "Search songs, artists, albums",
   "searchPrompt": "Search your library",
+  "recentSearches": "Recent searches",
+  "clearRecentSearches": "Clear",
+  "tabSongs": "Songs",
+  "searchClear": "Clear search",
+  "searchSeeAllArtists": "{count, plural, =1{See all 1 artist} other{See all {count} artists}}",
+  "@searchSeeAllArtists": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "searchSeeAllAlbums": "{count, plural, =1{See all 1 album} other{See all {count} albums}}",
+  "@searchSeeAllAlbums": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "searchNoResults": "No matches for “{query}”",
   "@searchNoResults": {
     "description": "Shown when a search returns nothing.",
@@ -108,6 +138,7 @@
   "autoMostPlayed": "Most played",
   "autoRecentlyPlayed": "Recently played",
   "autoFavorites": "Favorites",
+  "autoTopRated": "Top rated",
   "playNext": "Play next",
   "addToQueue": "Add to queue",
   "addToPlaylist": "Add to playlist",
@@ -146,6 +177,11 @@
   "eqStereoWidener": "Stereo widener",
   "eqSavePreset": "Save preset",
   "eqCustom": "Custom",
+  "eqPresetName": "Preset name",
+  "eqRenamePreset": "Rename preset",
+  "eqDeletePreset": "Delete preset",
+  "eqPresetSaved": "Preset saved",
+  "eqPresetLimit": "Preset limit reached",
   "presetFlat": "Flat",
   "presetBassBoost": "Bass Boost",
   "presetVocalClarity": "Vocal Clarity",
@@ -154,6 +190,7 @@
   "presetHipHop": "Hip-Hop",
   "presetClassical": "Classical",
   "presetRock": "Rock",
+  "presetHiFi": "Hi-Fi",
   "editTags": "Edit tags",
   "tagTitle": "Title",
   "tagArtist": "Artist",
@@ -232,7 +269,9 @@
   "glassSubtle": "Subtle",
   "glassMedium": "Medium",
   "glassStrong": "Strong",
+  "glassUltra": "Ultra",
   "dynamicColor": "Dynamic colour",
+  "lightDance": "Light dance",
   "textScale": "Text size",
   "density": "Display density",
   "densityComfortable": "Comfortable",
@@ -243,6 +282,7 @@
   "langEn": "English",
   "langFa": "فارسی",
   "langAr": "العربية",
+  "langDe": "Deutsch",
   "sourceFolders": "Source folders",
   "addFolder": "Add folder",
   "folderHint": "/storage/emulated/0/Music",
@@ -279,6 +319,12 @@
   "settingsImported": "Settings imported",
   "settingsImportFailed": "Couldn't read settings",
   "pasteBackupHint": "Paste settings JSON",
+  "backupRestore": "Backup & restore",
+  "backupExportAll": "Export all data",
+  "backupImportAll": "Restore from backup",
+  "backupExportedAll": "Backup copied to clipboard",
+  "backupImportedAll": "Backup restored",
+  "backupImportFailed": "Couldn't read that backup",
   "homeWidgets": "Home screen widgets",
   "widgetMini": "Mini",
   "widgetStandard": "Standard",
@@ -288,5 +334,495 @@
   "a11ySeekBar": "Seek bar",
   "a11yPlay": "Play",
   "a11yPause": "Pause",
-  "a11yAlbumArt": "Album art"
+  "a11yAlbumArt": "Album art",
+  "moreActions": "More",
+  "songInfo": "Song info",
+  "goToAlbum": "Go to album",
+  "goToArtist": "Go to artist",
+  "sleepTimer": "Sleep timer",
+  "playbackSpeed": "Playback speed",
+  "deleteSongTitle": "Delete song?",
+  "deleteSongBody": "This permanently removes the file from your device.",
+  "songDeleted": "Song deleted",
+  "deleteFailed": "Couldn't delete the song",
+  "infoDuration": "Duration",
+  "infoFilePath": "File path",
+  "infoBitrate": "Bitrate",
+  "discN": "Disc {n}",
+  "@discN": {
+    "description": "Disc section header inside a multi-disc album.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "aboutArtist": "About",
+  "@aboutArtist": {
+    "description": "Header above the artist biography on the artist page."
+  },
+  "editAlbum": "Edit album",
+  "@editAlbum": {
+    "description": "Tooltip for the album edit button on the album page."
+  },
+  "selectedCount": "{count} selected",
+  "@selectedCount": {
+    "description": "Title in the selection bar showing how many items are picked.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "selectAll": "Select all",
+  "invertSelection": "Invert",
+  "playNow": "Play now",
+  "hideFromLibrary": "Hide from library",
+  "songsHidden": "{count, plural, =1{1 song hidden} other{{count} songs hidden}}",
+  "@songsHidden": {
+    "description": "Snackbar after hiding tracks from the library.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "deleteSelectedTitle": "{count, plural, =1{Delete 1 song?} other{Delete {count} songs?}}",
+  "@deleteSelectedTitle": {
+    "description": "Confirmation dialog title for bulk delete.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "deleteSelectedBody": "This permanently removes the selected files from your device.",
+  "songsDeleted": "{count, plural, =1{1 song deleted} other{{count} songs deleted}}",
+  "@songsDeleted": {
+    "description": "Snackbar after bulk-deleting tracks.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sleepEndOfTrack": "End of track",
+  "@sleepEndOfTrack": {
+    "description": "Sleep timer mode: stop after current track ends."
+  },
+  "sleepAfterNTracks": "After {n} tracks",
+  "@sleepAfterNTracks": {
+    "description": "Sleep timer mode: stop after N more tracks.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "sleepTracksLeft": "{n} tracks left",
+  "@sleepTracksLeft": {
+    "description": "Sleep timer chip label showing how many tracks remain.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "sleepExtend": "+5 min",
+  "@sleepExtend": {
+    "description": "Quick-extend button on the sleep timer chip."
+  },
+  "sleepFadeOut": "Fade out",
+  "@sleepFadeOut": {
+    "description": "Label for the fade-out duration slider in the sleep timer sheet."
+  },
+  "abRepeat": "A-B repeat",
+  "@abRepeat": {
+    "description": "Label for the A-B loop feature."
+  },
+  "abSetA": "Set A",
+  "@abSetA": {
+    "description": "Button to set the A (start) point of the A-B loop."
+  },
+  "abSetB": "Set B",
+  "@abSetB": {
+    "description": "Button to set the B (end) point of the A-B loop."
+  },
+  "abClear": "Clear",
+  "@abClear": {
+    "description": "Button to clear the A-B loop region."
+  },
+  "bookmarks": "Bookmarks",
+  "@bookmarks": {
+    "description": "Title for the bookmarks list."
+  },
+  "addBookmark": "Add bookmark",
+  "@addBookmark": {
+    "description": "Menu item / dialog title for adding a position bookmark."
+  },
+  "bookmarkAdded": "Bookmark added",
+  "@bookmarkAdded": {
+    "description": "Snackbar shown after a bookmark is saved."
+  },
+  "bookmarkLabelHint": "Label (optional)",
+  "@bookmarkLabelHint": {
+    "description": "Hint text in the bookmark label text field."
+  },
+  "noBookmarks": "No bookmarks",
+  "@noBookmarks": {
+    "description": "Empty state shown when a song has no bookmarks."
+  },
+  "bookmarkDeleted": "Bookmark removed",
+  "@bookmarkDeleted": {
+    "description": "Snackbar shown after a bookmark is removed."
+  },
+  "queues": "Queues",
+  "@queues": {
+    "description": "Title of the multi-queue drawer."
+  },
+  "saveQueueAs": "Save queue as…",
+  "@saveQueueAs": {
+    "description": "Action to save the current play queue as a named queue."
+  },
+  "queueNameHint": "Queue name",
+  "@queueNameHint": {
+    "description": "Hint text for the queue name field."
+  },
+  "sendToNewQueue": "Send to new queue…",
+  "@sendToNewQueue": {
+    "description": "Bulk action to create a new queue from a selection."
+  },
+  "duplicate": "Duplicate",
+  "@duplicate": {
+    "description": "Action to duplicate a queue."
+  },
+  "queueColor": "Colour",
+  "@queueColor": {
+    "description": "Label for the queue colour picker."
+  },
+  "treatAsAudiobook": "Treat as audiobook",
+  "@treatAsAudiobook": {
+    "description": "Per-queue toggle enabling resume + speed memory."
+  },
+  "treatAsPodcast": "Treat as podcast",
+  "@treatAsPodcast": {
+    "description": "Per-queue toggle enabling resume + skip-silence default."
+  },
+  "noQueues": "No saved queues",
+  "@noQueues": {
+    "description": "Empty state for the queue drawer."
+  },
+  "queueSaved": "Queue saved",
+  "@queueSaved": {
+    "description": "Snackbar after saving a queue."
+  },
+  "queueLimitReached": "Queue limit reached (20)",
+  "@queueLimitReached": {
+    "description": "Snackbar when the 20-queue cap is hit."
+  },
+  "queuePlays": "{count, plural, =0{Never played} =1{1 play} other{{count} plays}}",
+  "@queuePlays": {
+    "description": "Play-count label for a queue.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "folders": "Folders",
+  "@folders": {
+    "description": "Title of the folder browser."
+  },
+  "shuffleAll": "Shuffle all",
+  "@shuffleAll": {
+    "description": "Shuffle every track in a folder."
+  },
+  "addAsPlaylist": "Add as playlist",
+  "@addAsPlaylist": {
+    "description": "Folder action: create a playlist from it."
+  },
+  "excludeFromLibrary": "Exclude from library",
+  "@excludeFromLibrary": {
+    "description": "Folder action: blacklist the folder."
+  },
+  "hideDotFolders": "Hide folders starting with a dot",
+  "@hideDotFolders": {
+    "description": "Hidden-rule toggle."
+  },
+  "minTrackLength": "Minimum track length",
+  "@minTrackLength": {
+    "description": "Slider hiding very short clips."
+  },
+  "allowSdCardEdit": "Allow editing files on SD card",
+  "@allowSdCardEdit": {
+    "description": "Opt-in to broad storage for SD editing."
+  },
+  "excludedFolders": "Excluded folders",
+  "@excludedFolders": {
+    "description": "Settings list of blacklisted folders."
+  },
+  "noExcludedFolders": "No excluded folders",
+  "@noExcludedFolders": {
+    "description": "Empty state for the excluded list."
+  },
+  "bulkRename": "Bulk rename from tags",
+  "@bulkRename": {
+    "description": "Selection action: pattern-rename files."
+  },
+  "renamePattern": "Pattern",
+  "@renamePattern": {
+    "description": "Label for the rename pattern field."
+  },
+  "renamePreview": "Preview",
+  "@renamePreview": {
+    "description": "Header above the rename preview list."
+  },
+  "renameFailed": "Couldn't rename files",
+  "@renameFailed": {
+    "description": "Snackbar when bulk rename fails."
+  },
+  "filesRenamed": "{count, plural, =1{1 file renamed} other{{count} files renamed}}",
+  "@filesRenamed": {
+    "description": "Snackbar after bulk rename.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "rateSong": "Rate",
+  "@rateSong": {
+    "description": "Star-rating action label."
+  },
+  "fieldRating": "Rating",
+  "@fieldRating": {
+    "description": "Smart-playlist rule field: star rating."
+  },
+  "listeningStats": "Listening stats",
+  "@listeningStats": {
+    "description": "Title of the statistics screen."
+  },
+  "noStatsYet": "No listening yet",
+  "@noStatsYet": {
+    "description": "Empty state for the stats screen."
+  },
+  "listeningHistory": "Listening history",
+  "@listeningHistory": {
+    "description": "Title of the chronological listening history screen."
+  },
+  "historyToday": "Today",
+  "@historyToday": {
+    "description": "Day header for events that happened today."
+  },
+  "historyYesterday": "Yesterday",
+  "@historyYesterday": {
+    "description": "Day header for events that happened yesterday."
+  },
+  "historySkipped": "Skipped",
+  "@historySkipped": {
+    "description": "Chip marking a history event that was skipped, not played through."
+  },
+  "noHistoryYet": "No listening history yet",
+  "@noHistoryYet": {
+    "description": "Empty state for the listening history screen."
+  },
+  "periodToday": "Today",
+  "periodWeek": "Week",
+  "periodMonth": "Month",
+  "periodYear": "Year",
+  "periodAllTime": "All time",
+  "statPlays": "Plays",
+  "statListening": "Listening",
+  "statTracks": "Tracks",
+  "statArtists": "Artists",
+  "statAlbums": "Albums",
+  "streakDays": "{count, plural, =0{No streak} =1{1 day streak} other{{count} day streak}}",
+  "@streakDays": {
+    "description": "Consecutive-days listening streak.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "listeningHeatmap": "Activity",
+  "@listeningHeatmap": {
+    "description": "Heatmap section heading."
+  },
+  "timeOfDay": "Time of day",
+  "@timeOfDay": {
+    "description": "Hour-of-day chart heading."
+  },
+  "topSongs": "Top songs",
+  "topArtists": "Top artists",
+  "topAlbums": "Top albums",
+  "playsCount": "{count, plural, =1{1 play} other{{count} plays}}",
+  "@playsCount": {
+    "description": "Play-count suffix in top lists.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "forgottenGems": "Forgotten gems",
+  "@forgottenGems": {
+    "description": "Section: old, rarely-played tracks."
+  },
+  "speedAndPitch": "Speed & Pitch",
+  "@speedAndPitch": {
+    "description": "Title of the combined speed and pitch bottom sheet."
+  },
+  "pitchControl": "Pitch",
+  "@pitchControl": {
+    "description": "Label for the pitch slider."
+  },
+  "pitchOriginal": "Original",
+  "@pitchOriginal": {
+    "description": "Pitch label shown when pitch is at 0 semitones."
+  },
+  "pitchReset": "Reset pitch",
+  "@pitchReset": {
+    "description": "Button to reset pitch to 0 semitones."
+  },
+  "skipSilence": "Skip silence",
+  "@skipSilence": {
+    "description": "Settings toggle to auto-skip silent sections during playback."
+  },
+  "lastFmConnect": "Connect to Last.fm",
+  "@lastFmConnect": {
+    "description": "Nav tile label to open the Last.fm auth page."
+  },
+  "lastFmConnectedAs": "Connected as @{username}",
+  "@lastFmConnectedAs": {
+    "description": "Shows the authenticated Last.fm username.",
+    "placeholders": {
+      "username": {
+        "type": "String"
+      }
+    }
+  },
+  "lastFmDisconnect": "Disconnect",
+  "@lastFmDisconnect": {
+    "description": "Button to revoke the Last.fm session."
+  },
+  "lastFmApiKey": "API key",
+  "@lastFmApiKey": {
+    "description": "Label for the Last.fm API key text field."
+  },
+  "lastFmApiSecret": "API secret",
+  "@lastFmApiSecret": {
+    "description": "Label for the Last.fm API secret text field."
+  },
+  "lastFmGetAuthUrl": "Get authorization URL",
+  "@lastFmGetAuthUrl": {
+    "description": "Button that fetches a Last.fm auth token and builds the browser URL."
+  },
+  "lastFmAuthUrlHint": "Open this URL in your browser, authorize, then tap Complete",
+  "@lastFmAuthUrlHint": {
+    "description": "Hint shown above the Last.fm auth URL."
+  },
+  "lastFmComplete": "Complete authorization",
+  "copyUrl": "Copy URL",
+  "@copyUrl": {
+    "description": "Copy a URL to the clipboard."
+  },
+  "@lastFmComplete": {
+    "description": "Button to exchange the authorized token for a session key."
+  },
+  "lastFmScrobbling": "Scrobbling enabled",
+  "@lastFmScrobbling": {
+    "description": "Label for the Last.fm scrobbling toggle."
+  },
+  "lastFmPendingScrobbles": "{count} scrobbles pending",
+  "@lastFmPendingScrobbles": {
+    "description": "Count of scrobbles waiting to be sent.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "tabGenres": "Genres",
+  "@tabGenres": {
+    "description": "Label for the genres browse entry point."
+  },
+  "genreUnknown": "Unknown genre",
+  "@genreUnknown": {
+    "description": "Label for songs without a genre tag."
+  },
+  "genresCount": "{count, plural, =0{No genres} =1{1 genre} other{{count} genres}}",
+  "@genresCount": {
+    "description": "Pluralised genre count.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "topGenres": "Top genres",
+  "@topGenres": {
+    "description": "Statistics section: most-played genres."
+  },
+  "dayOfWeek": "Day of week",
+  "@dayOfWeek": {
+    "description": "Statistics bar-chart section: plays distributed across Mon–Sun."
+  },
+  "playingFrom": "Playing from",
+  "@playingFrom": {
+    "description": "Uppercase label above the source name in the Now Playing top bar."
+  },
+  "npEq": "EQ",
+  "@npEq": {
+    "description": "Short label for the Equalizer tile in the Now Playing utility row."
+  },
+  "npSleep": "Sleep",
+  "@npSleep": {
+    "description": "Short label for the Sleep-timer tile in the Now Playing utility row."
+  },
+  "badgeSynced": "Synced",
+  "@badgeSynced": {
+    "description": "Pill badge shown beside a song that has time-synced lyrics."
+  },
+  "browseGenres": "Browse genres",
+  "@browseGenres": {
+    "description": "Search screen section header above the genre browse cards."
+  },
+  "dynamicColorSub": "Tint from album art",
+  "@dynamicColorSub": {
+    "description": "Subtitle under the Dynamic colour setting."
+  },
+  "lightDanceSub": "Colour orbs sway to the beat behind the cover",
+  "@lightDanceSub": {
+    "description": "Subtitle under the Light dance setting on the Now Playing screen."
+  },
+  "visualizerStyle": "Visualizer style",
+  "@visualizerStyle": {
+    "description": "Label for the visualizer style setting."
+  },
+  "vizOff": "Off",
+  "vizOrbs": "Orbs",
+  "vizCoverTwirl": "Cover Twirl",
+  "vizMetaball": "Metaball",
+  "vizFlowField": "Flow Field",
+  "androidAutoSub": "Show Aura in your car",
+  "@androidAutoSub": {
+    "description": "Subtitle under the Android Auto setting."
+  },
+  "lyricsAutoFetchSub": "From Genius when missing",
+  "@lyricsAutoFetchSub": {
+    "description": "Subtitle under the auto-fetch lyrics setting."
+  },
+  "settingsAccessibility": "Accessibility",
+  "reduceMotion": "Reduce Motion",
+  "reduceMotionSub": "Disable all animations app-wide",
+  "smartPlaylistAutoCount": "{count, plural, =0{Auto · No songs} =1{Auto · 1 song} other{Auto · {count} songs}}",
+  "@smartPlaylistAutoCount": {
+    "description": "Smart-playlist subtitle: Auto + pluralised song count.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

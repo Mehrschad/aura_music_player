@@ -51,4 +51,5 @@ enum AutoPlaylist {
   mostPlayed,
   recentlyPlayed,
   favorites,
+  topRated,
 }

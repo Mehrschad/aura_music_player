@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../constants/radius_tokens.dart';
 import 'color_scheme.dart';
 import 'typography.dart';
 
@@ -39,16 +40,40 @@ abstract final class AppTheme {
       brightness: brightness,
       fontFamily: AppTextTheme.fontFamily,
       colorScheme: scheme,
-      scaffoldBackgroundColor: colors.background,
+      // Transparent so the app-wide AuraAmbientBackground (a living, cover-
+      // tinted gradient) shows through every screen. The ambient layer always
+      // paints an opaque base, so nothing renders see-through.
+      scaffoldBackgroundColor: Colors.transparent,
       canvasColor: colors.background,
       dividerColor: colors.divider,
-      splashFactory: InkSparkle.splashFactory,
+      splashFactory: NoSplash.splashFactory,
       textTheme: AppTextTheme.materialTextTheme(colors.onSurface),
       extensions: <ThemeExtension<dynamic>>[colors],
       // Aura draws its own nav bar; suppress Material defaults that would
       // otherwise leak in.
       navigationBarTheme: const NavigationBarThemeData(
         backgroundColor: Colors.transparent,
+      ),
+      // Floating snackbars on an elevated surface so they never collide with
+      // the glass nav bar; one theme styles every call site.
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: colors.surfaceElevated,
+        contentTextStyle:
+            AppTextTheme.body.copyWith(color: colors.onSurface),
+        actionTextColor: colors.accent,
+        elevation: 0,
+        shape: const RoundedRectangleBorder(borderRadius: RadiusTokens.brMd),
+      ),
+      // Unifies every dialog's colour + corner radius (Material's default is
+      // 28px; Aura uses brLg = 20).
+      dialogTheme: DialogTheme(
+        backgroundColor: colors.surfaceElevated,
+        surfaceTintColor: Colors.transparent,
+        shape: const RoundedRectangleBorder(borderRadius: RadiusTokens.brLg),
+        titleTextStyle: AppTextTheme.title.copyWith(color: colors.onSurface),
+        contentTextStyle:
+            AppTextTheme.body.copyWith(color: colors.onSurfaceMuted),
       ),
     );
   }

@@ -2,14 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/constants/radius_tokens.dart';
 import '../../../core/constants/spacing_tokens.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/color_scheme.dart';
 import '../../../core/theme/typography.dart';
+import '../../../core/utils/seed_color.dart';
 import '../../../domain/library/playlist_logic.dart';
 import '../../../domain/models/playlist.dart';
 import '../../../domain/models/song.dart';
 import '../../providers/async_value_x.dart';
+import '../../providers/cover_palette_provider.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../providers/playlist_providers.dart';
@@ -17,6 +20,7 @@ import '../../providers/smart_playlist_providers.dart';
 import '../../widgets/async_state_view.dart';
 import '../../widgets/artwork/aura_artwork.dart';
 import '../../widgets/library/song_list_tile.dart';
+import '../../widgets/press_scale.dart';
 import '../../widgets/player_bar_inset.dart';
 import '../tag_editor/tag_editor_page.dart';
 import 'playlist_dialogs.dart';
@@ -28,6 +32,7 @@ String autoPlaylistLabel(AutoPlaylist type, AppLocalizations l10n) =>
       AutoPlaylist.mostPlayed => l10n.autoMostPlayed,
       AutoPlaylist.recentlyPlayed => l10n.autoRecentlyPlayed,
       AutoPlaylist.favorites => l10n.autoFavorites,
+      AutoPlaylist.topRated => l10n.autoTopRated,
     };
 
 Future<void> openUserPlaylist(BuildContext context, String id) {
@@ -90,10 +95,32 @@ class PlaylistDetailPage extends ConsumerWidget {
             ? (ref.watch(smartPlaylistByIdProvider(smartId!))?.name ?? '')
             : autoPlaylistLabel(auto!, l10n);
 
+    // Derive wash tint from the first song's artwork to tint the page.
+    final firstSong = songsAsync.valueOrNull?.isNotEmpty == true
+        ? songsAsync.valueOrNull!.first
+        : null;
+    final palette = firstSong == null
+        ? null
+        : ref
+            .watch(coverPaletteProvider((
+              seed: firstSong.artworkSeed,
+              hasArtwork: firstSong.hasArtwork,
+              artworkId: int.tryParse(firstSong.id),
+            )))
+            .valueOrNull;
+    final wash = palette?.wash ??
+        (firstSong != null
+            ? SeedPalette.wash(firstSong.artworkSeed)
+            : colors.background);
+    final pageBackground = firstSong == null
+        ? colors.background
+        : Color.alphaBlend(wash.withOpacity(0.18), colors.background);
+
     return Scaffold(
-      backgroundColor: colors.background,
+      backgroundColor: pageBackground,
       appBar: AppBar(
-        backgroundColor: colors.background,
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
         title: Text(title,
             style: AppTextTheme.title.copyWith(color: colors.onSurface)),
         actions: [
@@ -177,29 +204,86 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final l10n = AppLocalizations.of(context);
+    final disabled = count == 0;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(SpacingTokens.lg, SpacingTokens.sm,
-          SpacingTokens.lg, SpacingTokens.md),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(SpacingTokens.xl, SpacingTokens.sm,
+          SpacingTokens.xl, SpacingTokens.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(l10n.songsCount(count),
               style:
                   AppTextTheme.caption.copyWith(color: colors.onSurfaceFaint)),
-          const Spacer(),
-          IconButton(
-            tooltip: l10n.shuffle,
-            onPressed: count == 0 ? null : onShuffle,
-            icon: Icon(Icons.shuffle, color: colors.onSurfaceMuted),
-          ),
-          const SizedBox(width: SpacingTokens.xs),
-          FilledButton.icon(
-            onPressed: count == 0 ? null : onPlayAll,
-            style: FilledButton.styleFrom(
-              backgroundColor: colors.onSurface,
-              foregroundColor: colors.background,
-            ),
-            icon: const Icon(Icons.play_arrow, size: 20),
-            label: Text(l10n.playAll),
+          const SizedBox(height: SpacingTokens.sm),
+          Row(
+            children: [
+              Expanded(
+                child: PressScale(
+                  onTap: disabled ? null : onPlayAll,
+                  pressedScale: 0.96,
+                  child: Container(
+                    height: 44,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: disabled
+                          ? colors.surfaceElevated
+                          : colors.accent,
+                      borderRadius: RadiusTokens.brPill,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.play_arrow,
+                            size: 20,
+                            color: disabled
+                                ? colors.onSurfaceFaint
+                                : colors.onAccent),
+                        const SizedBox(width: SpacingTokens.sm),
+                        Text(l10n.play,
+                            style: AppTextTheme.action.copyWith(
+                                color: disabled
+                                    ? colors.onSurfaceFaint
+                                    : colors.onAccent)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: SpacingTokens.sm),
+              Expanded(
+                child: PressScale(
+                  onTap: disabled ? null : onShuffle,
+                  pressedScale: 0.96,
+                  child: Container(
+                    height: 44,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: colors.surfaceElevated,
+                      borderRadius: RadiusTokens.brPill,
+                      border: Border.all(color: colors.divider),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.shuffle,
+                            size: 20,
+                            color: disabled
+                                ? colors.onSurfaceFaint
+                                : colors.onSurface),
+                        const SizedBox(width: SpacingTokens.sm),
+                        Text(l10n.shuffle,
+                            style: AppTextTheme.action.copyWith(
+                                color: disabled
+                                    ? colors.onSurfaceFaint
+                                    : colors.onSurface)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),

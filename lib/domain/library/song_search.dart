@@ -24,13 +24,31 @@ List<Song> searchSongs(List<Song> songs, String rawQuery) {
   return scored.map((e) => e.song).toList();
 }
 
+/// True when every char of [q] appears in [text], in order (not necessarily
+/// contiguous). Both must already be lowercase. Empty [q] returns false here
+/// (callers guard empty queries separately).
+bool isSubsequence(String q, String text) {
+  if (q.isEmpty) return false;
+  var i = 0;
+  for (var j = 0; j < text.length && i < q.length; j++) {
+    if (text[j] == q[i]) i++;
+  }
+  return i == q.length;
+}
+
 int _score(Song s, String q) {
   int fieldScore(String? value, int tierWeight) {
     if (value == null) return 0;
     final v = value.toLowerCase();
-    if (!v.contains(q)) return 0;
-    final prefixBonus = v.startsWith(q) ? 1 : 0;
-    return tierWeight + prefixBonus;
+    if (v.contains(q)) {
+      final prefixBonus = v.startsWith(q) ? 1 : 0;
+      return tierWeight + prefixBonus; // exact/substring tier
+    }
+    // Fuzzy fallback ranks well below any substring hit.
+    if (q.length >= 2 && isSubsequence(q, v)) {
+      return (tierWeight ~/ 10) + 1; // title=5, artist=4, album=3, file=2
+    }
+    return 0;
   }
 
   // Tier weights leave room for the prefix bonus without overlap.
