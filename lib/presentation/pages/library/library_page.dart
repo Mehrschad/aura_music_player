@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -75,6 +77,70 @@ TextStyle _monoLabel(Color color, {double size = 11, double spacing = 1.6}) =>
       fontWeight: FontWeight.w600,
       letterSpacing: spacing,
     );
+
+/// The home title that gently alternates between the time-aware greeting and
+/// the "Aura" wordmark every dozen seconds, so the header feels alive rather
+/// than static. It inherits its animated, scroll-driven text style from the
+/// surrounding [AnimatedDefaultTextStyle]; reduce-motion shows the greeting
+/// plainly.
+class _CyclingTitle extends StatefulWidget {
+  const _CyclingTitle({required this.greeting});
+
+  final String greeting;
+
+  @override
+  State<_CyclingTitle> createState() => _CyclingTitleState();
+}
+
+class _CyclingTitleState extends State<_CyclingTitle> {
+  static const Duration _interval = Duration(seconds: 12);
+  Timer? _timer;
+  bool _showAura = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(_interval, (_) {
+      if (mounted) setState(() => _showAura = !_showAura);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.disableAnimationsOf(context)) {
+      return Text(widget.greeting,
+          maxLines: 1, overflow: TextOverflow.ellipsis);
+    }
+    final text = _showAura ? 'Aura' : widget.greeting;
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 480),
+      switchInCurve: Curves.easeOut,
+      switchOutCurve: Curves.easeIn,
+      transitionBuilder: (child, anim) => FadeTransition(
+        opacity: anim,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, 0.28),
+            end: Offset.zero,
+          ).animate(anim),
+          child: child,
+        ),
+      ),
+      child: Text(
+        text,
+        key: ValueKey<String>(text),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+}
 
 class LibraryPage extends ConsumerStatefulWidget {
   const LibraryPage({super.key});
@@ -173,11 +239,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                                     letterSpacing: -1.0,
                                     fontWeight: FontWeight.w700,
                                   ),
-                            child: Text(
-                              greeting,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                            child: _CyclingTitle(greeting: greeting),
                           ),
                         ),
                         // A single overflow menu holds sort / folders /
