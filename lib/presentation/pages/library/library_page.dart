@@ -23,6 +23,7 @@ import '../../providers/selection_providers.dart';
 import '../../providers/smart_collections_provider.dart';
 import '../../providers/taste_providers.dart';
 import '../../providers/top_charts_provider.dart';
+import '../../providers/top_picks_provider.dart';
 import '../../providers/weekly_recap_provider.dart';
 import '../../widgets/artwork/aura_artwork.dart';
 import '../../widgets/async_state_view.dart';
@@ -523,7 +524,7 @@ class _DiscoveryHeader extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _ColdStartCard(),
-        _JumpBackInShelf(),
+        _TopPicksGrid(),
         _ForYouSection(),
         _OnThisDayShelf(),
         _WeeklyRecapCard(),
@@ -611,77 +612,155 @@ class _ColdStartCard extends ConsumerWidget {
   }
 }
 
-/// "Jump back in" — quick-resume rail of the most recently played tracks.
-class _JumpBackInShelf extends ConsumerWidget {
-  const _JumpBackInShelf();
+/// "Top Picks" — a compact 2-column grid of quick-access shortcuts right under
+/// the header (recent, your mix, a time-aware mood, heavy rotation, favourites,
+/// on this day). Tiles fade + rise in on a gentle stagger the first time the
+/// home appears. Tapping a tile plays its list straight away.
+class _TopPicksGrid extends ConsumerStatefulWidget {
+  const _TopPicksGrid();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final recents = ref.watch(jumpBackInProvider);
-    if (recents.isEmpty) return const SizedBox.shrink();
+  ConsumerState<_TopPicksGrid> createState() => _TopPicksGridState();
+}
+
+class _TopPicksGridState extends ConsumerState<_TopPicksGrid>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 660),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !MediaQuery.disableAnimationsOf(context)) _ctrl.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final picks = ref.watch(topPicksProvider);
+    if (picks.isEmpty) return const SizedBox.shrink();
+    if (MediaQuery.disableAnimationsOf(context)) _ctrl.value = 1.0;
+
+    final rows = <Widget>[];
+    for (var i = 0; i < picks.length; i += 2) {
+      final hasRight = i + 1 < picks.length;
+      rows.add(Padding(
+        padding: const EdgeInsets.only(bottom: SpacingTokens.sm),
+        child: Row(
+          children: [
+            Expanded(child: _animated(picks[i], i)),
+            const SizedBox(width: SpacingTokens.sm),
+            Expanded(
+              child:
+                  hasRight ? _animated(picks[i + 1], i + 1) : const SizedBox(),
+            ),
+          ],
+        ),
+      ));
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          SpacingTokens.lg, SpacingTokens.md, SpacingTokens.lg, 0),
+      child: Column(mainAxisSize: MainAxisSize.min, children: rows),
+    );
+  }
+
+  Widget _animated(TopPick pick, int i) {
+    final start = (i * 0.09).clamp(0.0, 0.55);
+    final anim = CurvedAnimation(
+      parent: _ctrl,
+      curve: Interval(start, (start + 0.45).clamp(0.0, 1.0),
+          curve: Curves.easeOutCubic),
+    );
+    return FadeTransition(
+      opacity: anim,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 0.20),
+          end: Offset.zero,
+        ).animate(anim),
+        child: _PickTile(
+          pick: pick,
+          onTap: () {
+            HapticFeedback.selectionClick();
+            ref
+                .read(audioControllerProvider)
+                .playQueue(pick.songs, startIndex: 0);
+          },
+        ),
+      ),
+    );
+  }
+}
+
+/// One Top-Picks tile: a cover (or accent glyph) flush-left of a bold label.
+class _PickTile extends StatelessWidget {
+  const _PickTile({required this.pick, required this.onTap});
+
+  final TopPick pick;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
     final colors = context.colors;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _ShelfHeader('Jump back in'),
-        SizedBox(
-          height: 178,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(
-                SpacingTokens.lg, SpacingTokens.sm, SpacingTokens.lg, 0),
-            itemCount: recents.length,
-            separatorBuilder: (_, __) => const SizedBox(width: SpacingTokens.md),
-            itemBuilder: (_, i) {
-              final s = recents[i];
-              return PressScale(
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  ref
-                      .read(audioControllerProvider)
-                      .playQueue(recents, startIndex: i);
-                },
-                pressedScale: 0.97,
-                semanticLabel: s.title,
-                child: SizedBox(
-                  width: 124,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      AuraArtwork(
-                        seed: s.artworkSeed,
-                        size: 124,
-                        borderRadius: RadiusTokens.brMd,
-                        hasArtwork: s.hasArtwork,
-                        artworkId: int.tryParse(s.id),
-                      ),
-                      const SizedBox(height: SpacingTokens.sm),
-                      Text(
-                        s.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTextTheme.body.copyWith(
-                          color: colors.onSurface,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      Text(
-                        s.artist,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTextTheme.caption
-                            .copyWith(color: colors.onSurfaceMuted),
-                      ),
-                    ],
+    final cover = pick.cover;
+    return PressScale(
+      onTap: onTap,
+      pressedScale: 0.96,
+      semanticLabel: pick.title,
+      child: Container(
+        height: 58,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: colors.surfaceElevated,
+          borderRadius: RadiusTokens.brMd,
+          border: Border.all(color: colors.divider),
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 58,
+              height: 58,
+              child: cover != null
+                  ? AuraArtwork(
+                      seed: cover.artworkSeed,
+                      fill: true,
+                      borderRadius: BorderRadius.zero,
+                      hasArtwork: cover.hasArtwork,
+                      artworkId: int.tryParse(cover.id),
+                    )
+                  : ColoredBox(
+                      color: colors.accent.withOpacity(0.18),
+                      child: Icon(pick.icon, color: colors.accent, size: 22),
+                    ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Text(
+                  pick.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextTheme.body.copyWith(
+                    color: colors.onSurface,
+                    fontWeight: FontWeight.w600,
+                    height: 1.1,
                   ),
                 ),
-              );
-            },
-          ),
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
