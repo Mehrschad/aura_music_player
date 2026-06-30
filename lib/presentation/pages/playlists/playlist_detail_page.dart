@@ -12,7 +12,6 @@ import '../../../domain/library/playlist_logic.dart';
 import '../../../domain/models/playlist.dart';
 import '../../../domain/models/song.dart';
 import '../../providers/async_value_x.dart';
-import '../../providers/cover_palette_provider.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../providers/playlist_providers.dart';
@@ -95,26 +94,18 @@ class PlaylistDetailPage extends ConsumerWidget {
             ? (ref.watch(smartPlaylistByIdProvider(smartId!))?.name ?? '')
             : autoPlaylistLabel(auto!, l10n);
 
-    // Derive wash tint from the first song's artwork to tint the page.
+    // Tint the page from the first song's artwork — but via the cheap,
+    // synchronous seed wash, not the async cover-palette extraction. Watching
+    // the async palette here made the background flash (and dropped frames)
+    // partway through the push, which read as a janky, "jumping" transition.
     final firstSong = songsAsync.valueOrNull?.isNotEmpty == true
         ? songsAsync.valueOrNull!.first
         : null;
-    final palette = firstSong == null
-        ? null
-        : ref
-            .watch(coverPaletteProvider((
-              seed: firstSong.artworkSeed,
-              hasArtwork: firstSong.hasArtwork,
-              artworkId: int.tryParse(firstSong.id),
-            )))
-            .valueOrNull;
-    final wash = palette?.wash ??
-        (firstSong != null
-            ? SeedPalette.wash(firstSong.artworkSeed)
-            : colors.background);
     final pageBackground = firstSong == null
         ? colors.background
-        : Color.alphaBlend(wash.withOpacity(0.18), colors.background);
+        : Color.alphaBlend(
+            SeedPalette.wash(firstSong.artworkSeed).withOpacity(0.18),
+            colors.background);
 
     return Scaffold(
       backgroundColor: pageBackground,
