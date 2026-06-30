@@ -3,23 +3,46 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/radius_tokens.dart';
 import '../../../domain/taste/smart_collection.dart';
 
-/// A modern, generated cover for a smart collection: a solid, deterministic
-/// colour block with the collection's name set large, plus a small kind glyph
-/// and a song count — the Apple-Music / Spotify "text cover" look. No artwork,
-/// no gradient. The colour is stable per collection (hashed from its id).
+/// A modern, generated cover: a solid, deterministic colour block with a name
+/// set large in monospace, a track count, and a glyph watermark — the
+/// Apple-Music / Spotify "text cover" look. No artwork, no gradient. Used for
+/// smart collections ([CollectionCover.collection]) and any titled list such as
+/// a playlist ([CollectionCover.label]).
 class CollectionCover extends StatelessWidget {
-  const CollectionCover({
+  CollectionCover.collection(
+    SmartCollection collection, {
     super.key,
-    required this.collection,
+    this.size,
+    this.radius = RadiusTokens.lg,
+  })  : title = collection.title,
+        count = collection.songs.length,
+        colorSeed = collection.id,
+        icon = _glyphForKind(collection.kind);
+
+  const CollectionCover.label({
+    super.key,
+    required this.title,
+    required this.icon,
+    required this.colorSeed,
+    this.count,
     this.size,
     this.radius = RadiusTokens.lg,
   });
 
-  final SmartCollection collection;
+  final String title;
+
+  /// Track count shown as an eyebrow; null hides it (e.g. auto playlists).
+  final int? count;
+  final IconData icon;
+
+  /// Deterministic colour key (collection id, playlist id…).
+  final String colorSeed;
 
   /// Square edge length; null fills the parent.
   final double? size;
   final double radius;
+
+  static const String _mono = 'monospace';
 
   /// Deep, rich-but-restrained tones that all carry white type well.
   static const List<Color> _palette = [
@@ -33,13 +56,13 @@ class CollectionCover extends StatelessWidget {
 
   Color get _color {
     var h = 0;
-    for (final c in collection.id.codeUnits) {
+    for (final c in colorSeed.codeUnits) {
       h = (h * 31 + c) & 0x7fffffff;
     }
     return _palette[h % _palette.length];
   }
 
-  IconData get _glyph => switch (collection.kind) {
+  static IconData _glyphForKind(SmartCollectionKind kind) => switch (kind) {
         SmartCollectionKind.forYou => Icons.auto_awesome,
         SmartCollectionKind.mix => Icons.equalizer_rounded,
         SmartCollectionKind.mood => Icons.waves_rounded,
@@ -48,9 +71,6 @@ class CollectionCover extends StatelessWidget {
         SmartCollectionKind.rediscover => Icons.history_rounded,
         SmartCollectionKind.artist => Icons.person_rounded,
       };
-
-  /// Platform monospace — gives the labels their modern, editorial feel.
-  static const String _mono = 'monospace';
 
   @override
   Widget build(BuildContext context) {
@@ -68,7 +88,7 @@ class CollectionCover extends StatelessWidget {
             right: -edge * 0.14,
             bottom: -edge * 0.16,
             child: Icon(
-              _glyph,
+              icon,
               size: edge * 0.66,
               color: Colors.white.withOpacity(0.08),
             ),
@@ -78,21 +98,22 @@ class CollectionCover extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '${collection.songs.length} TRACKS',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: _mono,
-                    color: Colors.white.withOpacity(0.66),
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.6,
+                if (count != null)
+                  Text(
+                    '$count TRACKS',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: _mono,
+                      color: Colors.white.withOpacity(0.66),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1.6,
+                    ),
                   ),
-                ),
                 const Spacer(),
                 Text(
-                  collection.title,
+                  title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(

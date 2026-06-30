@@ -71,7 +71,7 @@ class CollectionDetailPage extends ConsumerWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  CollectionCover(collection: collection, size: 128),
+                  CollectionCover.collection(collection, size: 128),
                   const SizedBox(width: SpacingTokens.lg),
                   Expanded(
                     child: Column(

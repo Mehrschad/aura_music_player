@@ -13,12 +13,14 @@ import '../../../domain/models/album.dart';
 import '../../../domain/models/artist.dart';
 import '../../../domain/models/genre.dart';
 import '../../../domain/models/library_sort.dart';
+import '../../../domain/models/playlist.dart';
 import '../../../domain/models/song.dart';
 import '../../providers/async_value_x.dart';
 import '../../../domain/taste/smart_collection.dart';
 import '../../providers/discovery_prefs_provider.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
+import '../../providers/playlist_providers.dart';
 import '../../providers/selection_providers.dart';
 import '../../providers/smart_collections_provider.dart';
 import '../../providers/taste_providers.dart';
@@ -44,6 +46,7 @@ import '../albums/album_detail_page.dart';
 import '../artists/artist_detail_page.dart';
 import '../folders/folder_browser_page.dart';
 import '../genres/genre_detail_page.dart';
+import '../playlists/playlist_detail_page.dart';
 import '../settings/settings_page.dart';
 import 'collection_detail_page.dart';
 
@@ -528,6 +531,8 @@ class _DiscoveryHeader extends StatelessWidget {
         _TopPicksGrid(),
         _ForYouSection(),
         _OnThisDayShelf(),
+        _YourPlaylistsRail(),
+        _QuickPlaylistsRail(),
         _WeeklyRecapCard(),
         _SuggestedArtistsBox(),
         _TopArtistsShelf(),
@@ -1394,7 +1399,7 @@ class _CollectionCard extends ConsumerWidget {
         height: 172,
         child: Stack(
           children: [
-            Positioned.fill(child: CollectionCover(collection: collection)),
+            Positioned.fill(child: CollectionCover.collection(collection)),
             Positioned(
               right: 10,
               bottom: 10,
@@ -1518,6 +1523,102 @@ class _RecapStat extends StatelessWidget {
           Text(label, style: _monoLabel(colors.onSurfaceFaint, size: 9)),
         ],
       ),
+    );
+  }
+}
+
+/// "Your Playlists" — the user's own playlists, as solid mono covers.
+class _YourPlaylistsRail extends ConsumerWidget {
+  const _YourPlaylistsRail();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final playlists =
+        ref.watch(playlistsProvider).valueOrNull ?? const <Playlist>[];
+    if (playlists.isEmpty) return const SizedBox.shrink();
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _ShelfHeader('Your Playlists'),
+        SizedBox(
+          height: 188,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(
+                SpacingTokens.lg, SpacingTokens.sm, SpacingTokens.lg, 0),
+            itemCount: playlists.length,
+            separatorBuilder: (_, __) => const SizedBox(width: SpacingTokens.md),
+            itemBuilder: (_, i) {
+              final p = playlists[i];
+              return PressScale(
+                onTap: () => openUserPlaylist(context, p.id),
+                pressedScale: 0.97,
+                semanticLabel: p.name,
+                child: CollectionCover.label(
+                  title: p.name,
+                  count: p.songIds.length,
+                  icon: Icons.queue_music_rounded,
+                  colorSeed: p.id,
+                  size: 172,
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// "Quick Playlists" — the built-in auto playlists (Most Played, Recently
+/// Added, Recently Played, Favorites, Top Rated).
+class _QuickPlaylistsRail extends StatelessWidget {
+  const _QuickPlaylistsRail();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final autos = <(AutoPlaylist, String, IconData)>[
+      (AutoPlaylist.mostPlayed, l10n.autoMostPlayed,
+          Icons.local_fire_department_rounded),
+      (AutoPlaylist.recentlyAdded, l10n.autoRecentlyAdded,
+          Icons.fiber_new_rounded),
+      (AutoPlaylist.recentlyPlayed, l10n.autoRecentlyPlayed,
+          Icons.history_rounded),
+      (AutoPlaylist.favorites, l10n.autoFavorites, Icons.favorite_rounded),
+      (AutoPlaylist.topRated, l10n.autoTopRated, Icons.star_rounded),
+    ];
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _ShelfHeader('Quick Playlists'),
+        SizedBox(
+          height: 188,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(
+                SpacingTokens.lg, SpacingTokens.sm, SpacingTokens.lg, 0),
+            itemCount: autos.length,
+            separatorBuilder: (_, __) => const SizedBox(width: SpacingTokens.md),
+            itemBuilder: (_, i) {
+              final (type, label, icon) = autos[i];
+              return PressScale(
+                onTap: () => openAutoPlaylist(context, type),
+                pressedScale: 0.97,
+                semanticLabel: label,
+                child: CollectionCover.label(
+                  title: label,
+                  icon: icon,
+                  colorSeed: 'auto_${type.name}',
+                  size: 172,
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
