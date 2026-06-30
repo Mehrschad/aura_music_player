@@ -732,48 +732,51 @@ class _PickTile extends StatelessWidget {
       onTap: onTap,
       pressedScale: 0.96,
       semanticLabel: pick.title,
-      child: Container(
-        height: 58,
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
+      // ClipRRect (rather than a bordered Container) guarantees clean, even
+      // corners — the cover on the left is clipped to the same radius.
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: ColoredBox(
           color: colors.surfaceElevated,
-          borderRadius: RadiusTokens.brMd,
-          border: Border.all(color: colors.divider),
-        ),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 58,
-              height: 58,
-              child: cover != null
-                  ? AuraArtwork(
-                      seed: cover.artworkSeed,
-                      fill: true,
-                      borderRadius: BorderRadius.zero,
-                      hasArtwork: cover.hasArtwork,
-                      artworkId: int.tryParse(cover.id),
-                    )
-                  : ColoredBox(
-                      color: colors.accent.withOpacity(0.18),
-                      child: Icon(pick.icon, color: colors.accent, size: 22),
+          child: SizedBox(
+            height: 58,
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 58,
+                  height: 58,
+                  child: cover != null
+                      ? AuraArtwork(
+                          seed: cover.artworkSeed,
+                          fill: true,
+                          borderRadius: BorderRadius.zero,
+                          hasArtwork: cover.hasArtwork,
+                          artworkId: int.tryParse(cover.id),
+                        )
+                      : ColoredBox(
+                          color: colors.accent.withOpacity(0.18),
+                          child:
+                              Icon(pick.icon, color: colors.accent, size: 22),
+                        ),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Text(
+                      pick.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextTheme.body.copyWith(
+                        color: colors.onSurface,
+                        fontWeight: FontWeight.w600,
+                        height: 1.1,
+                      ),
                     ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                child: Text(
-                  pick.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextTheme.body.copyWith(
-                    color: colors.onSurface,
-                    fontWeight: FontWeight.w600,
-                    height: 1.1,
                   ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -1538,15 +1541,16 @@ class _YourPlaylistsRail extends ConsumerWidget {
   }
 }
 
-/// "Quick Playlists" — the built-in auto playlists (Most Played, Recently
-/// Added, Recently Played, Favorites, Top Rated).
-class _QuickPlaylistsRail extends StatelessWidget {
+/// "Quick Playlists" — the built-in auto playlists. Only the ones that actually
+/// have tracks are shown (so no empty cards), each with its real count, and any
+/// two that resolve to the same tracks are de-duplicated.
+class _QuickPlaylistsRail extends ConsumerWidget {
   const _QuickPlaylistsRail();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final autos = <(AutoPlaylist, String, IconData)>[
+    final specs = <(AutoPlaylist, String, IconData)>[
       (AutoPlaylist.mostPlayed, l10n.autoMostPlayed,
           Icons.local_fire_department_rounded),
       (AutoPlaylist.recentlyAdded, l10n.autoRecentlyAdded,
@@ -1556,6 +1560,23 @@ class _QuickPlaylistsRail extends StatelessWidget {
       (AutoPlaylist.favorites, l10n.autoFavorites, Icons.favorite_rounded),
       (AutoPlaylist.topRated, l10n.autoTopRated, Icons.star_rounded),
     ];
+
+    final tiles = <(AutoPlaylist, String, IconData, int)>[];
+    final seen = <String>{};
+    for (final (type, label, icon) in specs) {
+      final songs =
+          ref.watch(autoPlaylistSongsProvider(type)).valueOrNull ??
+              const <Song>[];
+      if (songs.isEmpty) continue;
+      // De-dupe: skip any auto playlist that resolves to the same track set as
+      // one already shown.
+      final sig =
+          '${songs.length}:${songs.take(20).map((s) => s.id).join('|')}';
+      if (!seen.add(sig)) continue;
+      tiles.add((type, label, icon, songs.length));
+    }
+    if (tiles.isEmpty) return const SizedBox.shrink();
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1567,16 +1588,17 @@ class _QuickPlaylistsRail extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.fromLTRB(
                 SpacingTokens.lg, SpacingTokens.sm, SpacingTokens.lg, 0),
-            itemCount: autos.length,
+            itemCount: tiles.length,
             separatorBuilder: (_, __) => const SizedBox(width: SpacingTokens.md),
             itemBuilder: (_, i) {
-              final (type, label, icon) = autos[i];
+              final (type, label, icon, count) = tiles[i];
               return PressScale(
                 onTap: () => openAutoPlaylist(context, type),
                 pressedScale: 0.97,
                 semanticLabel: label,
                 child: CollectionCover.label(
                   title: label,
+                  count: count,
                   icon: icon,
                   colorSeed: 'auto_${type.name}',
                   size: 172,
