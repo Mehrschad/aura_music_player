@@ -1,17 +1,22 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/radius_tokens.dart';
+import '../../../domain/models/song.dart';
 import '../../../domain/taste/smart_collection.dart';
 import '../artwork/aura_artwork.dart';
 
-/// A modern generated cover with a **hybrid** layout: the top ~60% shows the
-/// real representative artwork, the bottom ~40% is a solid, deterministic
-/// colour panel carrying the name (monospace), a track count, and a kind glyph.
-/// Real art for life + colour, a type panel for legibility and identity. No
-/// async colour extraction (kept cheap so rails stay smooth).
+/// A generated cover that stays *unique per playlist* and clearly reads as a
+/// collection rather than a single album:
+///   • the top ~62% is a **2×2 mosaic** of up-to-four covers from *distinct
+///     albums* in the list. Drawing from different albums (not just the first
+///     track) means two playlists with overlapping tracks no longer collide,
+///     and a four-up grid never looks like one album. When more than four
+///     distinct albums exist the four shown are chosen by a per-cover seed, so
+///     even similar playlists differ.
+///   • the bottom ~38% is a solid, seed-tinted dark panel with the name
+///     (monospace), a count, and a kind glyph — the identity.
 ///
-/// When no artwork is available it degrades to a full solid block with the
-/// glyph — the previous text-cover look.
+/// All deterministic and cheap (no async colour extraction).
 class CollectionCover extends StatelessWidget {
   CollectionCover.collection(
     SmartCollection collection, {
@@ -22,13 +27,7 @@ class CollectionCover extends StatelessWidget {
         count = collection.songs.length,
         colorSeed = collection.id,
         icon = _glyphForKind(collection.kind),
-        artSeed =
-            collection.songs.isEmpty ? null : collection.songs.first.artworkSeed,
-        hasArtwork =
-            collection.songs.isNotEmpty && collection.songs.first.hasArtwork,
-        artworkId = collection.songs.isEmpty
-            ? null
-            : int.tryParse(collection.songs.first.id);
+        songs = collection.songs;
 
   const CollectionCover.label({
     super.key,
@@ -36,9 +35,7 @@ class CollectionCover extends StatelessWidget {
     required this.icon,
     required this.colorSeed,
     this.count,
-    this.artSeed,
-    this.hasArtwork = false,
-    this.artworkId,
+    this.songs = const [],
     this.size,
     this.radius = RadiusTokens.lg,
   });
@@ -52,10 +49,8 @@ class CollectionCover extends StatelessWidget {
   /// Deterministic colour key (collection id, playlist id…).
   final String colorSeed;
 
-  /// Representative artwork for the top portion (null → solid fallback).
-  final String? artSeed;
-  final bool hasArtwork;
-  final int? artworkId;
+  /// Songs to draw mosaic covers from.
+  final List<Song> songs;
 
   /// Square edge length; null fills the parent.
   final double? size;
@@ -63,9 +58,8 @@ class CollectionCover extends StatelessWidget {
 
   static const String _mono = 'monospace';
 
-  /// Deep, rich-but-restrained tones that all carry white type well.
   static const List<Color> _palette = [
-    Color(0xFF1F6F6A), // deep teal (kin to the brand accent)
+    Color(0xFF1F6F6A), // deep teal
     Color(0xFF4E4A85), // muted indigo
     Color(0xFF7A3B53), // plum
     Color(0xFF2E5A88), // slate blue
@@ -73,13 +67,16 @@ class CollectionCover extends StatelessWidget {
     Color(0xFF3E6B43), // forest
   ];
 
-  Color get _color {
-    var h = 0;
-    for (final c in colorSeed.codeUnits) {
-      h = (h * 31 + c) & 0x7fffffff;
+  static int _hash(String s, [int seed = 0]) {
+    var h = 0x811c9dc5 ^ seed;
+    for (final c in s.codeUnits) {
+      h = (h ^ c) & 0xFFFFFFFF;
+      h = (h * 0x01000193) & 0xFFFFFFFF;
     }
-    return _palette[h % _palette.length];
+    return h;
   }
+
+  Color get _color => _palette[_hash(colorSeed) % _palette.length];
 
   static IconData _glyphForKind(SmartCollectionKind kind) => switch (kind) {
         SmartCollectionKind.forYou => Icons.auto_awesome,
@@ -91,28 +88,62 @@ class CollectionCover extends StatelessWidget {
         SmartCollectionKind.artist => Icons.person_rounded,
       };
 
+  /// Up to four distinct-album representative songs for the mosaic, selected by
+  /// a per-cover seed so different lists differ even when they overlap.
+  List<Song> _mosaic() {
+    final seenAlbums = <String>{};
+    final distinct = <Song>[];
+    for (final s in songs) {
+      if (seenAlbums.add(s.albumId)) distinct.add(s);
+    }
+    if (distinct.length <= 4) return distinct;
+    final seed = _hash(colorSeed);
+    distinct.sort(
+        (a, b) => _hash(a.albumId, seed).compareTo(_hash(b.albumId, seed)));
+    return distinct.take(4).toList();
+  }
+
+  Widget _tile(Song s) => AuraArtwork(
+        seed: s.artworkSeed,
+        fill: true,
+        borderRadius: BorderRadius.zero,
+        hasArtwork: s.hasArtwork,
+        artworkId: int.tryParse(s.id),
+      );
+
   @override
   Widget build(BuildContext context) {
     final color = _color;
-    // Dark, seed-tinted panel so it harmonises with the cover while keeping
-    // white type crisp.
     final panelColor =
         Color.alphaBlend(color.withOpacity(0.32), const Color(0xFF0D0D0F));
 
-    final top = (artSeed != null)
-        ? AuraArtwork(
-            seed: artSeed!,
-            fill: true,
-            borderRadius: BorderRadius.zero,
-            hasArtwork: hasArtwork,
-            artworkId: artworkId,
-          )
-        : ColoredBox(
-            color: color,
-            child: Center(
-              child: Icon(icon, color: Colors.white.withOpacity(0.30), size: 40),
+    final mosaic = _mosaic();
+    final Widget top;
+    if (mosaic.isEmpty) {
+      top = ColoredBox(
+        color: color,
+        child: Center(
+          child: Icon(icon, color: Colors.white.withOpacity(0.30), size: 40),
+        ),
+      );
+    } else if (mosaic.length == 1) {
+      top = _tile(mosaic.first);
+    } else {
+      // 2×2 grid; with 2–3 distinct covers the cells cycle to fill.
+      top = Column(
+        children: [
+          for (var row = 0; row < 2; row++)
+            Expanded(
+              child: Row(
+                children: [
+                  for (var col = 0; col < 2; col++)
+                    Expanded(child: _tile(mosaic[(row * 2 + col) % mosaic.length])),
+                ],
+              ),
             ),
-          );
+        ],
+      );
+    }
 
     final panel = ColoredBox(
       color: panelColor,
@@ -167,8 +198,8 @@ class CollectionCover extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(flex: 6, child: top),
-          Expanded(flex: 4, child: panel),
+          Expanded(flex: 62, child: top),
+          Expanded(flex: 38, child: panel),
         ],
       ),
     );

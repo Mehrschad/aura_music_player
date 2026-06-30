@@ -1523,7 +1523,10 @@ class _YourPlaylistsRail extends ConsumerWidget {
             separatorBuilder: (_, __) => const SizedBox(width: SpacingTokens.md),
             itemBuilder: (_, i) {
               final p = playlists[i];
-              final first = p.songIds.isEmpty ? null : byId[p.songIds.first];
+              final plSongs = [
+                for (final id in p.songIds)
+                  if (byId.containsKey(id)) byId[id]!,
+              ];
               return PressScale(
                 onTap: () => openUserPlaylist(context, p.id),
                 pressedScale: 0.97,
@@ -1533,9 +1536,7 @@ class _YourPlaylistsRail extends ConsumerWidget {
                   count: p.songIds.length,
                   icon: Icons.queue_music_rounded,
                   colorSeed: p.id,
-                  artSeed: first?.artworkSeed,
-                  hasArtwork: first?.hasArtwork ?? false,
-                  artworkId: first == null ? null : int.tryParse(first.id),
+                  songs: plSongs,
                   size: 172,
                 ),
               );
@@ -1567,7 +1568,7 @@ class _QuickPlaylistsRail extends ConsumerWidget {
       (AutoPlaylist.topRated, l10n.autoTopRated, Icons.star_rounded),
     ];
 
-    final tiles = <(AutoPlaylist, String, IconData, int, Song)>[];
+    final tiles = <(AutoPlaylist, String, IconData, int, List<Song>)>[];
     final seen = <String>{};
     for (final (type, label, icon) in specs) {
       final songs =
@@ -1579,7 +1580,7 @@ class _QuickPlaylistsRail extends ConsumerWidget {
       final sig =
           '${songs.length}:${songs.take(20).map((s) => s.id).join('|')}';
       if (!seen.add(sig)) continue;
-      tiles.add((type, label, icon, songs.length, songs.first));
+      tiles.add((type, label, icon, songs.length, songs));
     }
     if (tiles.isEmpty) return const SizedBox.shrink();
 
@@ -1597,7 +1598,7 @@ class _QuickPlaylistsRail extends ConsumerWidget {
             itemCount: tiles.length,
             separatorBuilder: (_, __) => const SizedBox(width: SpacingTokens.md),
             itemBuilder: (_, i) {
-              final (type, label, icon, count, first) = tiles[i];
+              final (type, label, icon, count, plSongs) = tiles[i];
               return PressScale(
                 onTap: () => openAutoPlaylist(context, type),
                 pressedScale: 0.97,
@@ -1607,9 +1608,7 @@ class _QuickPlaylistsRail extends ConsumerWidget {
                   count: count,
                   icon: icon,
                   colorSeed: 'auto_${type.name}',
-                  artSeed: first.artworkSeed,
-                  hasArtwork: first.hasArtwork,
-                  artworkId: int.tryParse(first.id),
+                  songs: plSongs,
                   size: 172,
                 ),
               );
