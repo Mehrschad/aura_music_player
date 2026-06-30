@@ -126,6 +126,15 @@ class _CyclingTitleState extends State<_CyclingTitle> {
       duration: const Duration(milliseconds: 480),
       switchInCurve: Curves.easeOut,
       switchOutCurve: Curves.easeIn,
+      // Keep both the outgoing and incoming title anchored to the left corner
+      // (the default centres them, which made the text drift mid-animation).
+      layoutBuilder: (currentChild, previousChildren) => Stack(
+        alignment: Alignment.centerLeft,
+        children: [
+          ...previousChildren,
+          if (currentChild != null) currentChild,
+        ],
+      ),
       transitionBuilder: (child, anim) => FadeTransition(
         opacity: anim,
         child: SlideTransition(
@@ -1240,7 +1249,6 @@ class _ForYouSection extends ConsumerWidget {
             ],
           ),
         ),
-        const _DiscoveryBalanceSlider(),
         SizedBox(
           height: 188,
           child: ListView.separated(
@@ -1253,47 +1261,6 @@ class _ForYouSection extends ConsumerWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// The "Familiar ↔ New" balance slider under the For You header — biases the
-/// recommendation engine toward well-worn favourites or fresh discovery.
-class _DiscoveryBalanceSlider extends ConsumerWidget {
-  const _DiscoveryBalanceSlider();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.colors;
-    final bias = ref.watch(discoveryBalanceProvider);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(SpacingTokens.lg, 0, SpacingTokens.lg, 0),
-      child: Row(
-        children: [
-          Text('FAMILIAR', style: _monoLabel(colors.onSurfaceFaint, size: 9)),
-          Expanded(
-            child: SliderTheme(
-              data: SliderThemeData(
-                trackHeight: 3,
-                activeTrackColor: colors.accent,
-                inactiveTrackColor: colors.divider,
-                thumbColor: colors.accent,
-                overlayColor: colors.accent.withOpacity(0.18),
-                thumbShape:
-                    const RoundSliderThumbShape(enabledThumbRadius: 7),
-                overlayShape:
-                    const RoundSliderOverlayShape(overlayRadius: 16),
-              ),
-              child: Slider(
-                value: bias,
-                onChanged: (v) =>
-                    ref.read(discoveryBalanceProvider.notifier).state = v,
-              ),
-            ),
-          ),
-          Text('NEW', style: _monoLabel(colors.onSurfaceFaint, size: 9)),
-        ],
-      ),
     );
   }
 }

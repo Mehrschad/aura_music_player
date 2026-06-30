@@ -33,6 +33,3 @@ final notInterestedProvider =
   (ref) => IdSetNotifier(),
 );
 
-/// Familiar ↔ new bias for recommendations: 0 = lean familiar, 0.5 = balanced,
-/// 1 = lean discovery. Driven by the home's balance slider. Session-scoped.
-final discoveryBalanceProvider = StateProvider<double>((ref) => 0.5);

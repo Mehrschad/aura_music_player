@@ -55,6 +55,24 @@ List<SmartCollection> buildSmartCollections({
   final byId = <String, Song>{for (final s in library) s.id: s};
   final out = <SmartCollection>[];
 
+  // 0. Daily Mix — a fresh, daily-seeded shuffle of the recommendations, so the
+  //    home has something that visibly changes every day.
+  final pool = [for (final r in recommendations) r.song];
+  if (pool.length >= minSongs) {
+    final daySeed = today.difference(DateTime(2020)).inDays;
+    out.add(SmartCollection(
+      id: 'daily',
+      kind: SmartCollectionKind.mix,
+      title: 'Daily Mix',
+      subtitle: 'Fresh every day',
+      songs: _seededSample(pool, daySeed, maxSongs),
+    ));
+  }
+
+  // 0b. A mix tuned to the current part of the day (morning → evening → night).
+  final daypart = _daypartMix(library, recommendations, today, minSongs, maxSongs);
+  if (daypart != null) out.add(daypart);
+
   // 1. Your Mix — the top blended recommendations.
   final forYou = [for (final r in recommendations) r.song].take(maxSongs).toList();
   if (forYou.length >= minSongs) {
@@ -259,4 +277,64 @@ List<SmartCollection> _moodMixes(
     ));
   }
   return out;
+}
+
+/// Deterministic per-(id, seed) hash for stable daily ordering (FNV-1a).
+int _seededHash(String id, int seed) {
+  var h = 0x811c9dc5 ^ seed;
+  for (final c in id.codeUnits) {
+    h = (h ^ c) & 0xFFFFFFFF;
+    h = (h * 0x01000193) & 0xFFFFFFFF;
+  }
+  return h;
+}
+
+/// Picks [n] songs from [pool] in a deterministic order that depends on [seed]
+/// — same seed → same order, a different seed → a fresh shuffle.
+List<Song> _seededSample(List<Song> pool, int seed, int n) {
+  final scored = [
+    for (final s in pool) (s, _seededHash(s.id, seed)),
+  ]..sort((a, b) => a.$2.compareTo(b.$2));
+  return [for (final e in scored.take(n)) e.$1];
+}
+
+/// The current part of the day → (id, title, subtitle, the moods that fit).
+(String, String, String, Set<_Mood>) _daypartFor(int hour) {
+  if (hour >= 5 && hour < 11) {
+    return ('daypart_morning', 'Morning', 'Ease into the day',
+        {_Mood.focus, _Mood.chill});
+  }
+  if (hour >= 11 && hour < 17) {
+    return ('daypart_midday', 'Midday', 'Keep the momentum', {_Mood.energetic});
+  }
+  if (hour >= 17 && hour < 22) {
+    return ('daypart_evening', 'Evening', 'Wind down or turn up',
+        {_Mood.energetic, _Mood.chill});
+  }
+  return ('daypart_night', 'Before Sleep', 'Calm for the night',
+      {_Mood.chill, _Mood.focus});
+}
+
+/// A mood-filtered mix labelled for the current daypart.
+SmartCollection? _daypartMix(
+  List<Song> library,
+  List<ScoredSong> recs,
+  DateTime now,
+  int minSongs,
+  int maxSongs,
+) {
+  final (id, title, subtitle, moods) = _daypartFor(now.hour);
+  final rank = _recRank(recs);
+  final songs = [
+    for (final s in library)
+      if (moods.contains(_moodOf(s))) s,
+  ]..sort((a, b) => _byRankThenPlays(a, b, rank));
+  if (songs.length < minSongs) return null;
+  return SmartCollection(
+    id: id,
+    kind: SmartCollectionKind.mood,
+    title: title,
+    subtitle: subtitle,
+    songs: songs.take(maxSongs).toList(),
+  );
 }
