@@ -1506,6 +1506,8 @@ class _YourPlaylistsRail extends ConsumerWidget {
     final playlists =
         ref.watch(playlistsProvider).valueOrNull ?? const <Playlist>[];
     if (playlists.isEmpty) return const SizedBox.shrink();
+    final songs = ref.watch(songsProvider).valueOrNull ?? const <Song>[];
+    final byId = <String, Song>{for (final s in songs) s.id: s};
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1521,6 +1523,7 @@ class _YourPlaylistsRail extends ConsumerWidget {
             separatorBuilder: (_, __) => const SizedBox(width: SpacingTokens.md),
             itemBuilder: (_, i) {
               final p = playlists[i];
+              final first = p.songIds.isEmpty ? null : byId[p.songIds.first];
               return PressScale(
                 onTap: () => openUserPlaylist(context, p.id),
                 pressedScale: 0.97,
@@ -1530,6 +1533,9 @@ class _YourPlaylistsRail extends ConsumerWidget {
                   count: p.songIds.length,
                   icon: Icons.queue_music_rounded,
                   colorSeed: p.id,
+                  artSeed: first?.artworkSeed,
+                  hasArtwork: first?.hasArtwork ?? false,
+                  artworkId: first == null ? null : int.tryParse(first.id),
                   size: 172,
                 ),
               );
@@ -1561,7 +1567,7 @@ class _QuickPlaylistsRail extends ConsumerWidget {
       (AutoPlaylist.topRated, l10n.autoTopRated, Icons.star_rounded),
     ];
 
-    final tiles = <(AutoPlaylist, String, IconData, int)>[];
+    final tiles = <(AutoPlaylist, String, IconData, int, Song)>[];
     final seen = <String>{};
     for (final (type, label, icon) in specs) {
       final songs =
@@ -1573,7 +1579,7 @@ class _QuickPlaylistsRail extends ConsumerWidget {
       final sig =
           '${songs.length}:${songs.take(20).map((s) => s.id).join('|')}';
       if (!seen.add(sig)) continue;
-      tiles.add((type, label, icon, songs.length));
+      tiles.add((type, label, icon, songs.length, songs.first));
     }
     if (tiles.isEmpty) return const SizedBox.shrink();
 
@@ -1591,7 +1597,7 @@ class _QuickPlaylistsRail extends ConsumerWidget {
             itemCount: tiles.length,
             separatorBuilder: (_, __) => const SizedBox(width: SpacingTokens.md),
             itemBuilder: (_, i) {
-              final (type, label, icon, count) = tiles[i];
+              final (type, label, icon, count, first) = tiles[i];
               return PressScale(
                 onTap: () => openAutoPlaylist(context, type),
                 pressedScale: 0.97,
@@ -1601,6 +1607,9 @@ class _QuickPlaylistsRail extends ConsumerWidget {
                   count: count,
                   icon: icon,
                   colorSeed: 'auto_${type.name}',
+                  artSeed: first.artworkSeed,
+                  hasArtwork: first.hasArtwork,
+                  artworkId: int.tryParse(first.id),
                   size: 172,
                 ),
               );

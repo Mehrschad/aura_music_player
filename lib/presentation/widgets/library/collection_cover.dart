@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/radius_tokens.dart';
 import '../../../domain/taste/smart_collection.dart';
+import '../artwork/aura_artwork.dart';
 
-/// A modern, generated cover: a solid, deterministic colour block with a name
-/// set large in monospace, a track count, and a glyph watermark — the
-/// Apple-Music / Spotify "text cover" look. No artwork, no gradient. Used for
-/// smart collections ([CollectionCover.collection]) and any titled list such as
-/// a playlist ([CollectionCover.label]).
+/// A modern generated cover with a **hybrid** layout: the top ~60% shows the
+/// real representative artwork, the bottom ~40% is a solid, deterministic
+/// colour panel carrying the name (monospace), a track count, and a kind glyph.
+/// Real art for life + colour, a type panel for legibility and identity. No
+/// async colour extraction (kept cheap so rails stay smooth).
+///
+/// When no artwork is available it degrades to a full solid block with the
+/// glyph — the previous text-cover look.
 class CollectionCover extends StatelessWidget {
   CollectionCover.collection(
     SmartCollection collection, {
@@ -17,7 +21,14 @@ class CollectionCover extends StatelessWidget {
   })  : title = collection.title,
         count = collection.songs.length,
         colorSeed = collection.id,
-        icon = _glyphForKind(collection.kind);
+        icon = _glyphForKind(collection.kind),
+        artSeed =
+            collection.songs.isEmpty ? null : collection.songs.first.artworkSeed,
+        hasArtwork =
+            collection.songs.isNotEmpty && collection.songs.first.hasArtwork,
+        artworkId = collection.songs.isEmpty
+            ? null
+            : int.tryParse(collection.songs.first.id);
 
   const CollectionCover.label({
     super.key,
@@ -25,18 +36,26 @@ class CollectionCover extends StatelessWidget {
     required this.icon,
     required this.colorSeed,
     this.count,
+    this.artSeed,
+    this.hasArtwork = false,
+    this.artworkId,
     this.size,
     this.radius = RadiusTokens.lg,
   });
 
   final String title;
 
-  /// Track count shown as an eyebrow; null hides it (e.g. auto playlists).
+  /// Track count shown as an eyebrow; null hides it.
   final int? count;
   final IconData icon;
 
   /// Deterministic colour key (collection id, playlist id…).
   final String colorSeed;
+
+  /// Representative artwork for the top portion (null → solid fallback).
+  final String? artSeed;
+  final bool hasArtwork;
+  final int? artworkId;
 
   /// Square edge length; null fills the parent.
   final double? size;
@@ -74,60 +93,82 @@ class CollectionCover extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final edge = size ?? 172;
-    final titleSize = (edge * 0.135).clamp(15.0, 28.0).toDouble();
-    final pad = (edge * 0.085).clamp(12.0, 20.0).toDouble();
+    final color = _color;
+    // Dark, seed-tinted panel so it harmonises with the cover while keeping
+    // white type crisp.
+    final panelColor =
+        Color.alphaBlend(color.withOpacity(0.32), const Color(0xFF0D0D0F));
 
-    final cover = ClipRRect(
-      borderRadius: BorderRadius.circular(radius),
-      child: Stack(
-        children: [
-          Positioned.fill(child: ColoredBox(color: _color)),
-          // Oversized translucent glyph watermark, bleeding off the corner.
-          Positioned(
-            right: -edge * 0.14,
-            bottom: -edge * 0.16,
-            child: Icon(
-              icon,
-              size: edge * 0.66,
-              color: Colors.white.withOpacity(0.08),
+    final top = (artSeed != null)
+        ? AuraArtwork(
+            seed: artSeed!,
+            fill: true,
+            borderRadius: BorderRadius.zero,
+            hasArtwork: hasArtwork,
+            artworkId: artworkId,
+          )
+        : ColoredBox(
+            color: color,
+            child: Center(
+              child: Icon(icon, color: Colors.white.withOpacity(0.30), size: 40),
             ),
-          ),
-          Padding(
-            padding: EdgeInsets.all(pad),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          );
+
+    final panel = ColoredBox(
+      color: panelColor,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(11, 8, 11, 9),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
               children: [
-                if (count != null)
-                  Text(
-                    '$count TRACKS',
+                Icon(icon, size: 11, color: Colors.white.withOpacity(0.55)),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: Text(
+                    count != null ? '$count TRACKS' : 'PLAYLIST',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontFamily: _mono,
-                      color: Colors.white.withOpacity(0.66),
-                      fontSize: 10,
+                      color: Colors.white.withOpacity(0.55),
+                      fontSize: 9,
                       fontWeight: FontWeight.w600,
-                      letterSpacing: 1.6,
+                      letterSpacing: 1.4,
                     ),
-                  ),
-                const Spacer(),
-                Text(
-                  title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: _mono,
-                    color: Colors.white,
-                    fontSize: titleSize,
-                    height: 1.12,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -0.4,
                   ),
                 ),
               ],
             ),
-          ),
+            const SizedBox(height: 3),
+            Text(
+              title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontFamily: _mono,
+                color: Colors.white,
+                fontSize: 14,
+                height: 1.12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.3,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final cover = ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(flex: 6, child: top),
+          Expanded(flex: 4, child: panel),
         ],
       ),
     );
