@@ -42,6 +42,7 @@ import '../../widgets/library/song_list_tile.dart';
 import '../../widgets/player/song_actions_sheet.dart';
 import '../../widgets/player_bar_inset.dart';
 import '../../widgets/press_scale.dart';
+import '../../shell/nav_provider.dart';
 import '../albums/album_detail_page.dart';
 import '../artists/artist_detail_page.dart';
 import '../folders/folder_browser_page.dart';
@@ -70,6 +71,14 @@ const List<String> _kMonths = [
 /// Compact date label, e.g. "SAT · 28 JUN".
 String _dateLabel(DateTime d) =>
     '${_kWeekdays[d.weekday - 1]} · ${d.day} ${_kMonths[d.month - 1]}';
+
+/// Fixed row heights for the flat library lists. Pinning these lets the list
+/// use a [SliverFixedExtentList] — so a scrubber jump (or a tab switch that
+/// preserves a deep offset) is O(1) instead of forcing Flutter to build every
+/// intervening row, which is what made huge libraries hitch. They're driven by
+/// the leading artwork/avatar, so they stay stable across text scales.
+const double _kSongRowExtent = 66; // 48 art + 8·2 pad + 1·2 margin
+const double _kArtistRowExtent = 72; // 56 avatar + 8·2 pad
 
 /// Shared monospace label style for the home's small-caps eyebrows/labels —
 /// the type system's "machine voice" for dates, counts and section tags.
@@ -169,6 +178,11 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
   // Drives the largeTitle → headline morph per iOS 26 spec §10.
   bool _scrolled = false;
 
+  // True once the discovery rails have scrolled away and the tab bar is pinned
+  // at the top — only then is the A-Z scrubber shown, so it never floats over
+  // the rails at rest.
+  bool _tabsPinned = false;
+
   // The single page scroll, driven by the A-Z scrubber's jumps.
   final ScrollController _scrollController = ScrollController();
 
@@ -212,11 +226,23 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
       final rowExtent = tileW / 0.76 + SpacingTokens.xl;
       target = _discoveryExtent + SpacingTokens.md + (index ~/ 2) * rowExtent;
     } else {
-      // Songs (list) ≈ 66, Artists ≈ 72 — the leading artwork sets the height.
-      final extent = segment == LibrarySegment.artists ? 72.0 : 66.0;
+      final extent = segment == LibrarySegment.artists
+          ? _kArtistRowExtent
+          : _kSongRowExtent;
       target = _discoveryExtent + index * extent;
     }
     _scrollController.jumpTo(target.clamp(0.0, max));
+  }
+
+  /// Smoothly returns the page to the very top (the "back to top" button).
+  void _scrollToTop() {
+    if (!_scrollController.hasClients) return;
+    HapticFeedback.selectionClick();
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 420),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   /// Builds the A–Z model for [segment], or null when a scrubber doesn't apply
@@ -316,6 +342,14 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
     final _Alphabet? alphabet =
         selecting ? null : _alphabetFor(segment, mode, sort, allSongs);
 
+    // "Back to top" sits beside the shrunk mini player — it appears once the
+    // page is scrolled down (the same signal that collapses the mini player),
+    // so it only shows when there's room beside the centred capsule.
+    final navMinimized = ref.watch(navMinimizedProvider);
+    final showToTop =
+        !selecting && navMinimized && _scrolled && miniPlayerVisible;
+    final safeBottom = MediaQuery.viewPaddingOf(context).bottom;
+
     // Collapsed = title at headline; expanded = big editorial display title.
     final collapsed = _scrolled && !selecting;
 
@@ -331,8 +365,18 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
         // horizontal "For You" / shelf rails, which otherwise made the header
         // and shelves vanish as you swiped a rail sideways.
         if (n.metrics.axis != Axis.vertical) return false;
-        final scrolled = n.metrics.pixels > 20;
-        if (scrolled != _scrolled) setState(() => _scrolled = scrolled);
+        final px = n.metrics.pixels;
+        final scrolled = px > 20;
+        // The tab bar pins once the discovery rails have fully scrolled past;
+        // only then reveal the scrubber so it never overlaps the rails.
+        final pinned = _discoveryExtent > 0 && px >= _discoveryExtent - 4;
+        // Only flip state on a real threshold crossing — never per pixel.
+        if (scrolled != _scrolled || pinned != _tabsPinned) {
+          setState(() {
+            _scrolled = scrolled;
+            _tabsPinned = pinned;
+          });
+        }
         return false; // don't absorb — let the scroll view handle it too
       },
       child: SafeArea(
@@ -464,15 +508,42 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                               miniPlayerVisible: miniPlayerVisible) +
                           SpacingTokens.sm,
                       right: 0,
-                      child: _AlphaScrubber(
-                        alphabet: alphabet,
-                        onJump: (index) => _jumpToItem(
-                          segment: segment,
-                          index: index,
-                          viewportWidth: MediaQuery.sizeOf(context).width,
+                      child: IgnorePointer(
+                        // Hidden (and inert) until the rails scroll away, so it
+                        // never floats over the discovery cards at the top.
+                        ignoring: !_tabsPinned,
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 180),
+                          opacity: _tabsPinned ? 1 : 0,
+                          child: _AlphaScrubber(
+                            alphabet: alphabet,
+                            onJump: (index) => _jumpToItem(
+                              segment: segment,
+                              index: index,
+                              viewportWidth: MediaQuery.sizeOf(context).width,
+                            ),
+                          ),
                         ),
                       ),
                     ),
+                  // Back-to-top, beside the collapsed mini player.
+                  Positioned(
+                    right: SpacingTokens.lg,
+                    bottom: safeBottom + 9,
+                    child: IgnorePointer(
+                      ignoring: !showToTop,
+                      child: AnimatedScale(
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOutBack,
+                        scale: showToTop ? 1 : 0.6,
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 160),
+                          opacity: showToTop ? 1 : 0,
+                          child: _BackToTopButton(onTap: _scrollToTop),
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -781,6 +852,42 @@ class _AlphaScrubberState extends State<_AlphaScrubber> {
   }
 }
 
+/// A small circular "back to top" affordance that sits beside the collapsed
+/// mini player. Tapping it glides the page back to the very top.
+class _BackToTopButton extends StatelessWidget {
+  const _BackToTopButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return PressScale(
+      onTap: onTap,
+      pressedScale: 0.88,
+      semanticLabel: 'Back to top',
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: colors.surfaceElevated,
+          shape: BoxShape.circle,
+          border: Border.all(color: colors.divider),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.35),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Icon(Icons.keyboard_arrow_up_rounded,
+            color: colors.accent, size: 26),
+      ),
+    );
+  }
+}
+
 class _SongsSliver extends ConsumerWidget {
   const _SongsSliver({
     required this.songsAsync,
@@ -852,7 +959,9 @@ class _SongsSliver extends ConsumerWidget {
             return SliverPadding(
               padding: EdgeInsets.fromLTRB(
                   SpacingTokens.md, 0, SpacingTokens.md, bottom),
-              sliver: SliverList.builder(
+              // Fixed extent → O(1) scrubber jumps on huge libraries.
+              sliver: SliverFixedExtentList.builder(
+                itemExtent: _kSongRowExtent,
                 itemCount: songs.length,
                 itemBuilder: (_, i) => SongListTile(
                   song: songs[i],
@@ -1495,7 +1604,8 @@ class _ArtistsSliver extends ConsumerWidget {
           : SliverPadding(
               padding: EdgeInsets.fromLTRB(
                   SpacingTokens.md, 0, SpacingTokens.md, bottom),
-              sliver: SliverList.builder(
+              sliver: SliverFixedExtentList.builder(
+                itemExtent: _kArtistRowExtent,
                 itemCount: artists.length,
                 itemBuilder: (_, i) {
                   final a = artists[i];
