@@ -119,6 +119,28 @@ void showCollectionQuickActions(
               saveCollectionAsPlaylist(context, ref, collection);
             },
           ),
+          if (ref.read(pinnedCollectionsProvider).contains(collection.id))
+            ListTile(
+              leading: const Icon(Icons.push_pin),
+              title: const Text('Unpin'),
+              onTap: () {
+                Navigator.of(sheetCtx).pop();
+                ref
+                    .read(pinnedCollectionsProvider.notifier)
+                    .remove(collection.id);
+              },
+            )
+          else
+            ListTile(
+              leading: const Icon(Icons.push_pin_outlined),
+              title: const Text('Pin to top'),
+              onTap: () {
+                Navigator.of(sheetCtx).pop();
+                ref
+                    .read(pinnedCollectionsProvider.notifier)
+                    .add(collection.id);
+              },
+            ),
           ListTile(
             leading: const Icon(Icons.visibility_off_outlined),
             title: const Text('Hide'),

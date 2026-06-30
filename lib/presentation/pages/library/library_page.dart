@@ -524,6 +524,7 @@ class _DiscoveryHeader extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _ColdStartCard(),
+        _PinnedRail(),
         _TopPicksGrid(),
         _ForYouSection(),
         _OnThisDayShelf(),
@@ -1127,6 +1128,59 @@ class _GenresBody extends ConsumerWidget {
   }
 }
 
+/// "Pinned" — collections the user pinned, floated to the top in their own
+/// rail (and removed from For You so they're not shown twice). Hidden when no
+/// pins resolve to a current collection.
+class _PinnedRail extends ConsumerWidget {
+  const _PinnedRail();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pinned = ref.watch(pinnedCollectionsProvider);
+    if (pinned.isEmpty) return const SizedBox.shrink();
+    final collections = ref.watch(smartCollectionsProvider);
+    final items = [for (final c in collections) if (pinned.contains(c.id)) c];
+    if (items.isEmpty) return const SizedBox.shrink();
+    final colors = context.colors;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              SpacingTokens.lg, SpacingTokens.md, SpacingTokens.lg, 2),
+          child: Row(
+            children: [
+              Icon(Icons.push_pin, size: 16, color: colors.accent),
+              const SizedBox(width: 8),
+              Text(
+                'Pinned',
+                style: AppTextTheme.display.copyWith(
+                  color: colors.onSurface,
+                  fontSize: 21,
+                  letterSpacing: -0.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 188,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(
+                SpacingTokens.lg, SpacingTokens.sm, SpacingTokens.lg, 0),
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const SizedBox(width: SpacingTokens.md),
+            itemBuilder: (_, i) => _CollectionCard(collection: items[i]),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// The "For You" section — a horizontal rail of intelligent collection cards
 /// (Your Mix, Heavy Rotation, Hidden Gems, Rediscover, an artist deep-cut).
 /// Everything here is ephemeral; a card is only persisted if the user taps its
@@ -1136,7 +1190,12 @@ class _ForYouSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final collections = ref.watch(smartCollectionsProvider);
+    final all = ref.watch(smartCollectionsProvider);
+    // Pinned collections live in their own rail above — drop them here.
+    final pinned = ref.watch(pinnedCollectionsProvider);
+    final collections = pinned.isEmpty
+        ? all
+        : [for (final c in all) if (!pinned.contains(c.id)) c];
     if (collections.isEmpty) return const SizedBox(width: double.infinity);
     final colors = context.colors;
 
