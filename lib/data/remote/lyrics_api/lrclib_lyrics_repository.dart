@@ -61,8 +61,10 @@ class LrcLibLyricsRepository implements LyricsRepository {
       final res = await _dio.get<List<dynamic>>(
         '/api/search',
         queryParameters: {
-          'artist_name': song.artist,
-          'track_name': song.title,
+          // Strip "(Remastered)" / "feat. X" tails that push the search off the
+          // record; matchScore below still guards against a wrong pick.
+          'artist_name': cleanForQuery(song.artist),
+          'track_name': cleanForQuery(song.title),
         },
       );
       final results = res.data ?? const [];

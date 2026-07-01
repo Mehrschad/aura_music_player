@@ -50,7 +50,9 @@ class NeteaseLyricsRepository implements LyricsRepository {
       final res = await _dio.get<Map<String, dynamic>>(
         '/api/search/get/',
         queryParameters: {
-          's': '${song.title} ${song.artist}',
+          // Cleaned query (drops remaster/feat tails) widens the search recall;
+          // matchScore below still filters to a confident id.
+          's': '${cleanForQuery(song.title)} ${cleanForQuery(song.artist)}',
           'type': 1,
           'offset': 0,
           'total': true,

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/local/lyrics_cache/shared_prefs_lyrics_cache.dart';
 import '../../data/remote/lyrics_api/lrclib_lyrics_repository.dart';
+import '../../data/remote/lyrics_api/lyrics_ovh_lyrics_repository.dart';
 import '../../data/remote/lyrics_api/netease_lyrics_repository.dart';
 import '../../data/repositories/composite_lyrics_repository.dart';
 import '../../data/repositories/sample_lyrics_repository.dart';
@@ -20,10 +21,12 @@ final lyricsCacheProvider = Provider<SharedPrefsLyricsCache>((ref) {
 });
 
 /// The active lyrics source. With auto-fetch enabled, a composite resolver
-/// checks a local sidecar `.lrc` first, then races LRCLIB and NetEase in
-/// parallel and returns the richest match (synced › word-level › translated).
-/// With auto-fetch disabled it falls back to bundled sample data (also keeps
-/// tests fast and offline).
+/// checks a local sidecar `.lrc` first, then races LRCLIB and NetEase (the
+/// synced/quality tier, retried once on a transient failure) and returns the
+/// richest match (synced › word-level › translated). If both come up empty it
+/// falls back to lyrics.ovh (plain text, different catalogue) so far fewer
+/// tracks end up with nothing. With auto-fetch disabled it uses bundled sample
+/// data (also keeps tests fast and offline).
 final lyricsRepositoryProvider = Provider<LyricsRepository>((ref) {
   final autoFetch = ref.watch(settingsProvider.select((s) => s.lyricsAutoFetch));
   if (!autoFetch) return const SampleLyricsRepository();
@@ -31,6 +34,9 @@ final lyricsRepositoryProvider = Provider<LyricsRepository>((ref) {
     network: [
       LrcLibLyricsRepository(),
       NeteaseLyricsRepository(),
+    ],
+    fallback: [
+      LyricsOvhLyricsRepository(),
     ],
   );
 });

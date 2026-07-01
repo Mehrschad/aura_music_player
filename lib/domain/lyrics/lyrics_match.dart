@@ -90,6 +90,23 @@ String normalizeArtist(String raw) {
   return s;
 }
 
+/// A light, human-readable cleanup for building *search queries* (as opposed to
+/// [normalizeTitle], which is aggressive and punctuation-free for scoring). It
+/// strips feat/remaster/version qualifiers that push providers off the match,
+/// while preserving casing and in-title punctuation the provider may index on.
+String cleanForQuery(String raw) {
+  var s = raw.trim();
+  String prev;
+  do {
+    prev = s;
+    s = s.replaceAll(_noiseGroup, ' ');
+  } while (s != prev);
+  s = s.replaceAll(_trailingQualifier, ' ');
+  s = s.replaceAll(_featTail, ' ');
+  s = s.replaceAll(_spaces, ' ').trim();
+  return s.isEmpty ? raw.trim() : s;
+}
+
 Set<String> _tokens(String normalized) =>
     normalized.split(' ').where((t) => t.isNotEmpty).toSet();
 
