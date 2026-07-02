@@ -8,28 +8,27 @@ import '../../../domain/models/song.dart';
 import '../../../domain/repositories/lyrics_repository.dart';
 
 /// Fetches lyrics from LRCLIB (https://lrclib.net) — free, no API key, synced
-/// LRC preferred. Matches by artist + title + album + duration.
+/// LRC preferred. Runs a bounded lookup ladder, stopping at the first hit:
 ///
-/// This is real and works on device/desktop (dio is pure-Dart). It isn't the
-/// active source in the running sample app (that's [SampleLyricsRepository]);
-/// on device, wire a composite that checks the Isar cache first, then embedded
-/// tags, then this, caching the result permanently:
+///   1. `/api/get` exact — raw artist + title + album + duration (LRCLIB
+///      enforces a ±2s duration match server-side).
+///   2. `/api/get` cleaned, no album — mis-tagged albums are the most common
+///      reason an otherwise-perfect exact match misses.
+///   3. `/api/search` by artist+title fields, walked through progressively
+///      looser [queryVariants] (cleaned → bracket-stripped → dash-tail cut →
+///      lead artist), each result set scored by [matchScore].
+///   4. `/api/search` free-text `q=` — LRCLIB's own tokenizer sometimes finds
+///      what the fielded search misses.
 ///
-/// ```dart
-/// final cached = await cache.read(song);            // Isar
-/// if (cached != null) return cached;
-/// final embedded = await tagReader.lyrics(song);    // USLT / Vorbis LYRICS
-/// final result = embedded ?? await lrcLib.lyricsFor(song);
-/// if (result != null) await cache.write(song, result);
-/// return result;
-/// ```
-///
-/// Genius (key-based plain-text fallback) layers in the same way behind this.
+/// Every step is individually error-isolated: a failed request falls through
+/// to the next rung rather than sinking the whole lookup.
 class LrcLibLyricsRepository implements LyricsRepository {
   LrcLibLyricsRepository({Dio? dio})
       : _dio = dio ??
             Dio(BaseOptions(
               baseUrl: 'https://lrclib.net',
+              connectTimeout: const Duration(seconds: 4),
+              receiveTimeout: const Duration(seconds: 4),
               headers: const {'User-Agent': 'Aura (https://github.com/aura)'},
             ));
 
@@ -37,35 +36,61 @@ class LrcLibLyricsRepository implements LyricsRepository {
 
   @override
   Future<Lyrics?> lyricsFor(Song song) async {
-    // Exact match first (LRCLIB enforces a ±2s duration match server-side).
+    // 1. Exact match with the raw tags.
+    var hit = await _get({
+      'artist_name': song.artist,
+      'track_name': song.title,
+      'album_name': song.album,
+      'duration': song.duration.inSeconds,
+    });
+    if (hit != null) return hit;
+
+    // 2. Exact match, cleaned tags, no album.
+    hit = await _get({
+      'artist_name': cleanForQuery(song.artist),
+      'track_name': cleanForQuery(song.title),
+      'duration': song.duration.inSeconds,
+    });
+    if (hit != null) return hit;
+
+    // 3. Fielded fuzzy search over the variant ladder (capped to keep the
+    //    total lookup bounded — the variants are deduped, loosest last).
+    for (final (t, a) in queryVariants(song.title, song.artist).take(3)) {
+      hit = await _searchBest(song, {
+        'track_name': t,
+        if (a.isNotEmpty) 'artist_name': a,
+      });
+      if (hit != null) return hit;
+    }
+
+    // 4. Free-text search as the last rung.
+    final q = '${cleanForQuery(song.title)} ${cleanForQuery(song.artist)}'
+        .trim();
+    if (q.isEmpty) return null;
+    return _searchBest(song, {'q': q});
+  }
+
+  /// One `/api/get` attempt; null on any miss or error.
+  Future<Lyrics?> _get(Map<String, dynamic> params) async {
     try {
       final res = await _dio.get<Map<String, dynamic>>(
         '/api/get',
-        queryParameters: {
-          'artist_name': song.artist,
-          'track_name': song.title,
-          'album_name': song.album,
-          'duration': song.duration.inSeconds,
-        },
+        queryParameters: params,
       );
-      final lyrics = await _fromPayload(res.data);
-      if (lyrics != null) return lyrics;
+      return _fromPayload(res.data);
     } on DioException {
-      // Fall through to fuzzy search on any miss/error.
+      return null;
     }
+  }
 
-    // Fuzzy fallback: search by title+artist and pick the best-scoring record
-    // (normalized title/artist similarity blended with duration proximity),
-    // preferring synced over plain among near-ties.
+  /// One `/api/search` attempt: scores every record (normalized title/artist
+  /// similarity blended with duration proximity), preferring synced among
+  /// near-ties, and returns the best above the accept threshold.
+  Future<Lyrics?> _searchBest(Song song, Map<String, dynamic> params) async {
     try {
       final res = await _dio.get<List<dynamic>>(
         '/api/search',
-        queryParameters: {
-          // Strip "(Remastered)" / "feat. X" tails that push the search off the
-          // record; matchScore below still guards against a wrong pick.
-          'artist_name': cleanForQuery(song.artist),
-          'track_name': cleanForQuery(song.title),
-        },
+        queryParameters: params,
       );
       final results = res.data ?? const [];
       Map<String, dynamic>? best;
@@ -80,7 +105,8 @@ class LrcLibLyricsRepository implements LyricsRepository {
           candidateDurationSec: (item['duration'] as num?)?.round() ?? 0,
         );
         // Nudge synced records ahead of equally-scored plain ones.
-        final hasSynced = (item['syncedLyrics'] as String?)?.isNotEmpty ?? false;
+        final hasSynced =
+            (item['syncedLyrics'] as String?)?.isNotEmpty ?? false;
         if (hasSynced) score += 0.02;
         if (score >= bestScore) {
           bestScore = score;

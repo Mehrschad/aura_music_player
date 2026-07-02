@@ -44,15 +44,30 @@ class NeteaseLyricsRepository implements LyricsRepository {
   }
 
   /// Searches NetEase and returns the best-scoring song id above the accept
-  /// threshold, or null when nothing matches confidently.
+  /// threshold, or null when nothing matches confidently. Tries the combined
+  /// "title artist" query first, then title alone — the artist tag is the
+  /// field most often romanized/aliased differently on NetEase, so dropping
+  /// it rescues many real matches (the score check still guards identity).
   Future<int?> _findSongId(Song song) async {
+    final title = cleanForQuery(song.title);
+    final artist = cleanForQuery(song.artist);
+    final keywords = <String>{
+      '$title $artist'.trim(),
+      title,
+    }..removeWhere((k) => k.isEmpty);
+    for (final kw in keywords) {
+      final id = await _searchId(kw, song);
+      if (id != null) return id;
+    }
+    return null;
+  }
+
+  Future<int?> _searchId(String keyword, Song song) async {
     try {
       final res = await _dio.get<Map<String, dynamic>>(
         '/api/search/get/',
         queryParameters: {
-          // Cleaned query (drops remaster/feat tails) widens the search recall;
-          // matchScore below still filters to a confident id.
-          's': '${cleanForQuery(song.title)} ${cleanForQuery(song.artist)}',
+          's': keyword,
           'type': 1,
           'offset': 0,
           'total': true,
@@ -111,30 +126,12 @@ class NeteaseLyricsRepository implements LyricsRepository {
       final tlrc =
           (data['tlyric'] as Map<String, dynamic>?)?['lyric'] as String?;
       if (base.synced && tlrc != null && tlrc.trim().isNotEmpty) {
-        return _withTranslations(base, await runOffMainThread(parseLyrics, tlrc));
+        return mergeTranslations(
+            base, await runOffMainThread(parseLyrics, tlrc));
       }
       return base;
     } on DioException {
       return null;
     }
-  }
-
-  /// Attaches [translated] lines onto [base] by exact start-time match.
-  static Lyrics _withTranslations(Lyrics base, Lyrics translated) {
-    if (!translated.synced || translated.isEmpty) return base;
-    final byMs = <int, String>{
-      for (final l in translated.lines)
-        if (l.text.trim().isNotEmpty) l.time.inMilliseconds: l.text,
-    };
-    final merged = [
-      for (final l in base.lines)
-        LyricsLine(
-          time: l.time,
-          text: l.text,
-          words: l.words,
-          translation: byMs[l.time.inMilliseconds] ?? l.translation,
-        ),
-    ];
-    return Lyrics(lines: merged, synced: base.synced, offset: base.offset);
   }
 }

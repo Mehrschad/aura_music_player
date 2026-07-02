@@ -42,6 +42,11 @@ class BreathingArtwork extends StatefulWidget {
 class _BreathingArtworkState extends State<BreathingArtwork>
     with TickerProviderStateMixin {
   late final AnimationController _breathCtrl;
+
+  // A second, slower loop (deliberately not a multiple of the breath period)
+  // drives a faint vertical drift. Two incommensurate periods layered together
+  // read as organic — the motion never quite repeats — instead of a metronome.
+  late final AnimationController _bobCtrl;
   late final AnimationController _scaleCtrl;
   late final Animation<double> _pauseScale;
   late final Animation<double> _pauseRise;
@@ -50,6 +55,10 @@ class _BreathingArtworkState extends State<BreathingArtwork>
   void initState() {
     super.initState();
     _breathCtrl = AnimationController(vsync: this, duration: MotionTokens.breathing);
+    _bobCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 6700),
+    );
     _scaleCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
@@ -79,6 +88,7 @@ class _BreathingArtworkState extends State<BreathingArtwork>
   @override
   void dispose() {
     _breathCtrl.dispose();
+    _bobCtrl.dispose();
     _scaleCtrl.dispose();
     super.dispose();
   }
@@ -87,10 +97,13 @@ class _BreathingArtworkState extends State<BreathingArtwork>
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
     if (widget.playing && !reduceMotion) {
       _breathCtrl.repeat(reverse: true);
+      _bobCtrl.repeat(reverse: true);
       _scaleCtrl.reverse(); // → 0.0 → _pauseScale = 1.0
     } else {
       _breathCtrl.stop();
       _breathCtrl.value = 0;
+      _bobCtrl.stop();
+      _bobCtrl.value = 0;
       if (reduceMotion) {
         _scaleCtrl.value = widget.playing ? 0.0 : 1.0;
       } else {
@@ -154,17 +167,22 @@ class _BreathingArtworkState extends State<BreathingArtwork>
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final breatheScale = Tween<double>(begin: 1.0, end: 1.015).animate(
-      CurvedAnimation(parent: _breathCtrl, curve: MotionTokens.emphasized),
+    // A clearly perceptible inhale/exhale — sine-eased so the turnarounds are
+    // soft, with the slower bob layered on top for an unmetronomic feel.
+    final breatheScale = Tween<double>(begin: 1.0, end: 1.04).animate(
+      CurvedAnimation(parent: _breathCtrl, curve: Curves.easeInOutSine),
+    );
+    final bob = Tween<double>(begin: 0.0, end: 3.0).animate(
+      CurvedAnimation(parent: _bobCtrl, curve: Curves.easeInOutSine),
     );
 
     return Hero(
       tag: kNowPlayingHeroTag,
       child: AnimatedBuilder(
-        animation: Listenable.merge([_breathCtrl, _scaleCtrl]),
+        animation: Listenable.merge([_breathCtrl, _bobCtrl, _scaleCtrl]),
         builder: (_, child) => Transform.translate(
           // Artwork floats up slightly when paused — matches light convergence.
-          offset: Offset(0, _pauseRise.value),
+          offset: Offset(0, _pauseRise.value + bob.value),
           child: Transform.scale(
             scale: breatheScale.value * _pauseScale.value,
             child: child,

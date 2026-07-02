@@ -27,6 +27,7 @@ class WaveformScrubber extends ConsumerStatefulWidget {
     required this.accent,
     required this.seed,
     required this.isPlaying,
+    this.barColor,
     this.onLongPress,
     this.bookmarkFractions = const [],
     this.abPointA,
@@ -35,6 +36,11 @@ class WaveformScrubber extends ConsumerStatefulWidget {
 
   final Duration duration;
   final Color accent;
+
+  /// Colour of the progress fill + playhead. Defaults to [accent]; Now Playing
+  /// passes the foreground colour so the rail reads clean and neutral while
+  /// the subdermal wave keeps the album accent.
+  final Color? barColor;
   final String seed;
   final bool isPlaying;
   final void Function(Duration position)? onLongPress;
@@ -246,7 +252,8 @@ class _WaveformScrubberState extends ConsumerState<WaveformScrubber>
                             size: Size(w, 44),
                             painter: _TrackPainter(
                               progress: fraction,
-                              activeColor: widget.accent,
+                              activeColor: widget.barColor ?? widget.accent,
+                              waveColor: widget.accent,
                               trackColor: colors.onSurface.withOpacity(0.10),
                               trackH: 4.0 + 2.0 * _thumbScale.value,
                               waveAmp: _waveAmpCtrl.value,
@@ -269,6 +276,7 @@ class _WaveformScrubberState extends ConsumerState<WaveformScrubber>
                       const dragR = 9.0;
                       final r = baseR + (dragR - baseR) * _thumbScale.value;
                       const trackY = 22.0;
+                      final thumbColor = widget.barColor ?? widget.accent;
                       return Positioned(
                         bottom: trackY - r,
                         left: (thumbX - r).clamp(0.0, math.max(0, w - r * 2)),
@@ -276,11 +284,11 @@ class _WaveformScrubberState extends ConsumerState<WaveformScrubber>
                           width: r * 2,
                           height: r * 2,
                           decoration: BoxDecoration(
-                            color: widget.accent,
+                            color: thumbColor,
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
-                                color: widget.accent.withOpacity(0.38),
+                                color: thumbColor.withOpacity(0.38),
                                 blurRadius: 7 + 4 * _thumbScale.value,
                                 spreadRadius: 1,
                               ),
@@ -366,14 +374,19 @@ class _TrackPainter extends CustomPainter {
     required this.trackColor,
     required this.waveAmp,
     required this.wavePhase,
+    Color? waveColor,
     this.trackH = 4.0,
     this.bookmarkFractions = const [],
     this.abA,
     this.abB,
-  });
+  }) : waveColor = waveColor ?? activeColor;
 
   final double progress;
   final Color activeColor;
+
+  /// The subdermal wave + A-B region + bookmark ticks keep their own colour
+  /// (the album accent) even when the rail itself is neutral.
+  final Color waveColor;
   final Color trackColor;
   final double waveAmp;
   final double wavePhase;
@@ -434,7 +447,7 @@ class _TrackPainter extends CustomPainter {
       canvas.drawPath(
         build(playheadX, size.width),
         Paint()
-          ..color = activeColor.withOpacity(0.06 * waveAmp)
+          ..color = waveColor.withOpacity(0.06 * waveAmp)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.3
           ..strokeCap = StrokeCap.round,
@@ -444,7 +457,7 @@ class _TrackPainter extends CustomPainter {
         canvas.drawPath(
           build(0, playheadX),
           Paint()
-            ..color = activeColor.withOpacity(0.16 * waveAmp)
+            ..color = waveColor.withOpacity(0.16 * waveAmp)
             ..style = PaintingStyle.stroke
             ..strokeWidth = 1.4
             ..strokeCap = StrokeCap.round,
@@ -461,16 +474,16 @@ class _TrackPainter extends CustomPainter {
       if (bx > ax) {
         canvas.drawRect(
           Rect.fromLTWH(ax, centerY - 5, bx - ax, 10),
-          Paint()..color = activeColor.withOpacity(0.18),
+          Paint()..color = waveColor.withOpacity(0.18),
         );
       }
-      _drawPin(canvas, ax, centerY, activeColor);
-      if (b != null) _drawPin(canvas, b * size.width, centerY, activeColor);
+      _drawPin(canvas, ax, centerY, waveColor);
+      if (b != null) _drawPin(canvas, b * size.width, centerY, waveColor);
     }
 
     // Bookmark ticks
     final tickPaint = Paint()
-      ..color = activeColor.withOpacity(0.65)
+      ..color = waveColor.withOpacity(0.65)
       ..strokeWidth = 1.5
       ..strokeCap = StrokeCap.round;
     for (final f in bookmarkFractions) {
@@ -494,6 +507,7 @@ class _TrackPainter extends CustomPainter {
   bool shouldRepaint(_TrackPainter o) =>
       o.progress != progress ||
       o.activeColor != activeColor ||
+      o.waveColor != waveColor ||
       o.trackColor != trackColor ||
       o.waveAmp != waveAmp ||
       o.wavePhase != wavePhase ||
