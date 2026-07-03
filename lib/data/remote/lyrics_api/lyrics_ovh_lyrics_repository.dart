@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 
 import '../../../domain/lyrics/lrc_parser.dart';
@@ -19,6 +21,8 @@ class LyricsOvhLyricsRepository implements LyricsRepository {
               baseUrl: 'https://api.lyrics.ovh',
               connectTimeout: const Duration(seconds: 5),
               receiveTimeout: const Duration(seconds: 5),
+              // Decode manually — immune to mislabelled content types.
+              responseType: ResponseType.plain,
             ));
 
   final Dio _dio;
@@ -33,10 +37,19 @@ class LyricsOvhLyricsRepository implements LyricsRepository {
     if (artist.isEmpty || title.isEmpty) return null;
 
     try {
-      final res = await _dio.get<Map<String, dynamic>>(
+      final res = await _dio.get<String>(
         '/v1/${Uri.encodeComponent(artist)}/${Uri.encodeComponent(title)}',
       );
-      final raw = res.data?['lyrics'] as String?;
+      final body = res.data;
+      if (body == null || body.isEmpty) return null;
+      final Object? decoded;
+      try {
+        decoded = jsonDecode(body);
+      } on FormatException {
+        return null;
+      }
+      if (decoded is! Map<String, dynamic>) return null;
+      final raw = decoded['lyrics'] as String?;
       if (raw == null || raw.trim().isEmpty) return null;
       // lyrics.ovh sometimes prefixes a "Paroles de la chanson … par …" header
       // and uses \r\n — parsePlainLyrics tolerates both; it's never timed.

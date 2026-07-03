@@ -73,45 +73,42 @@ class QQLyricsRepository implements LyricsRepository {
     return null;
   }
 
+  /// Searches via the `smartbox_new.fcg` suggest endpoint — the older
+  /// `client_search_cp` endpoint now returns HTTP 500 without login cookies,
+  /// while smartbox still answers anonymously. It carries no track duration,
+  /// so duration scores neutral and title/artist similarity decides.
   Future<String?> _searchMid(String keyword, Song song) async {
     try {
       final res = await _dio.get<String>(
-        'https://c.y.qq.com/soso/fcgi-bin/client_search_cp',
+        'https://c.y.qq.com/splcloud/fcgi-bin/smartbox_new.fcg',
         queryParameters: {
-          'w': keyword,
+          'is_xml': 0,
           'format': 'json',
-          'p': 1,
-          'n': 10,
-          'cr': 1,
-          'g_tk': 5381,
-          'outCharset': 'utf-8',
+          'key': keyword,
         },
       );
       final data = _decodeBody(res.data);
       final list = ((data?['data'] as Map<String, dynamic>?)?['song']
-          as Map<String, dynamic>?)?['list'] as List<dynamic>?;
+          as Map<String, dynamic>?)?['itemlist'] as List<dynamic>?;
       if (list == null || list.isEmpty) return null;
 
       String? bestMid;
       var bestScore = kMatchAcceptThreshold;
       for (final raw in list.cast<Map<String, dynamic>>()) {
-        final singers = (raw['singer'] as List<dynamic>?)
-                ?.map((s) =>
-                    (s as Map<String, dynamic>)['name'] as String? ?? '')
-                .where((s) => s.isNotEmpty)
-                .join(' ') ??
-            '';
+        // Multi-artist entries come slash-separated ("A/B").
+        final singer =
+            (raw['singer'] as String? ?? '').replaceAll('/', ' ');
         final score = matchScore(
           queryTitle: song.title,
           queryArtist: song.artist,
           queryDurationSec: song.duration.inSeconds,
-          candidateTitle: raw['songname'] as String? ?? '',
-          candidateArtist: singers,
-          candidateDurationSec: (raw['interval'] as num?)?.round() ?? 0,
+          candidateTitle: raw['name'] as String? ?? '',
+          candidateArtist: singer,
+          candidateDurationSec: 0, // smartbox has no duration → neutral
         );
         if (score >= bestScore) {
           bestScore = score;
-          bestMid = raw['songmid'] as String?;
+          bestMid = raw['mid'] as String?;
         }
       }
       return bestMid;

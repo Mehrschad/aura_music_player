@@ -77,14 +77,21 @@ final currentLyricsProvider = FutureProvider<Lyrics?>((ref) async {
 
   final cache = ref.read(lyricsCacheProvider);
 
-  // 2. Persistent cache — works offline.
+  // 2. Persistent cache — works offline. Empty entries (poisoned by older
+  //    builds that cached header-only payloads) are ignored so the network
+  //    lookup below gets a chance to repair them.
   final cached = await cache.read(song.id);
-  if (cached != null) return cached;
+  if (cached != null && !cached.isEmpty) return cached;
 
-  // 3. Remote repository — fetch and cache the result.
+  // 3. Remote repository — fetch and cache the result (never cache empties).
   final result = await ref.watch(lyricsRepositoryProvider).lyricsFor(song);
-  if (result != null) await cache.write(song.id, result);
-  return result;
+  if (result != null && !result.isEmpty) {
+    try {
+      await cache.write(song.id, result);
+    } catch (_) {/* cache write failure must never lose the lyrics */}
+    return result;
+  }
+  return null;
 });
 
 final lyricsFontSizeProvider =

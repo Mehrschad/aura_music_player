@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 
 import '../../../core/utils/background.dart';
@@ -9,16 +11,18 @@ import '../../../domain/repositories/lyrics_repository.dart';
 
 /// Fetches lyrics from NetEase Cloud Music via its public *legacy* endpoints,
 /// which need no account, token, or API key — only a `Referer` header (and a
-/// throwaway `appver` cookie). Verified working by long-running open-source
-/// plugins (e.g. MusicBee-NeteaseLyrics).
+/// throwaway `appver` cookie).
+///
+/// **Important**: these endpoints answer with `Content-Type: text/plain`, so
+/// Dio's automatic JSON decoding never kicks in. The responses are fetched as
+/// raw strings and decoded manually — asking Dio for a `Map` silently broke
+/// every call (the cast failure escaped the DioException catch), which is why
+/// this source used to contribute nothing.
 ///
 /// NetEase returns standard synced LRC plus, for many tracks, a *translated*
-/// LRC (`tlyric`) — which we fold into [LyricsLine.translation] to power the
-/// dual-language view for free. It has an enormous catalogue (especially Asian
-/// and a great deal of Western pop), making it a strong complement to LRCLIB.
-///
-/// All failures degrade to `null` — this source is one racer in the composite,
-/// never a hard dependency.
+/// LRC (`tlyric`) — folded into [LyricsLine.translation] to power the
+/// dual-language view for free. All failures degrade to `null` — this source
+/// is one racer in the composite, never a hard dependency.
 class NeteaseLyricsRepository implements LyricsRepository {
   NeteaseLyricsRepository({Dio? dio})
       : _dio = dio ??
@@ -26,6 +30,9 @@ class NeteaseLyricsRepository implements LyricsRepository {
               baseUrl: 'https://music.163.com',
               connectTimeout: const Duration(seconds: 5),
               receiveTimeout: const Duration(seconds: 5),
+              // The API lies about its content type (text/plain) — take the
+              // body as a string and decode it ourselves.
+              responseType: ResponseType.plain,
               headers: const {
                 'Referer': 'https://music.163.com',
                 'User-Agent':
@@ -41,6 +48,19 @@ class NeteaseLyricsRepository implements LyricsRepository {
     final id = await _findSongId(song);
     if (id == null) return null;
     return _fetchLyric(id);
+  }
+
+  /// Decodes a body that may be a raw JSON string (the usual case here, since
+  /// the server labels JSON as text/plain) or an already-decoded map.
+  static Map<String, dynamic>? _decodeBody(Object? body) {
+    if (body is Map<String, dynamic>) return body;
+    if (body is! String || body.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(body);
+      return decoded is Map<String, dynamic> ? decoded : null;
+    } on FormatException {
+      return null;
+    }
   }
 
   /// Searches NetEase and returns the best-scoring song id above the accept
@@ -64,7 +84,7 @@ class NeteaseLyricsRepository implements LyricsRepository {
 
   Future<int?> _searchId(String keyword, Song song) async {
     try {
-      final res = await _dio.get<Map<String, dynamic>>(
+      final res = await _dio.get<String>(
         '/api/search/get/',
         queryParameters: {
           's': keyword,
@@ -74,7 +94,8 @@ class NeteaseLyricsRepository implements LyricsRepository {
           'limit': 10,
         },
       );
-      final songs = (res.data?['result']
+      final data = _decodeBody(res.data);
+      final songs = (data?['result']
               as Map<String, dynamic>?)?['songs'] as List<dynamic>?;
       if (songs == null || songs.isEmpty) return null;
 
@@ -108,11 +129,11 @@ class NeteaseLyricsRepository implements LyricsRepository {
 
   Future<Lyrics?> _fetchLyric(int id) async {
     try {
-      final res = await _dio.get<Map<String, dynamic>>(
+      final res = await _dio.get<String>(
         '/api/song/lyric',
         queryParameters: {'os': 'pc', 'id': id, 'lv': -1, 'kv': -1, 'tv': -1},
       );
-      final data = res.data;
+      final data = _decodeBody(res.data);
       if (data == null) return null;
       final lrc = (data['lrc'] as Map<String, dynamic>?)?['lyric'] as String?;
       if (lrc == null || lrc.trim().isEmpty) return null;
