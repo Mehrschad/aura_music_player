@@ -90,6 +90,59 @@ String normalizeArtist(String raw) {
   return s;
 }
 
+/// A light, human-readable cleanup for building *search queries* (as opposed to
+/// [normalizeTitle], which is aggressive and punctuation-free for scoring). It
+/// strips feat/remaster/version qualifiers that push providers off the match,
+/// while preserving casing and in-title punctuation the provider may index on.
+String cleanForQuery(String raw) {
+  var s = raw.trim();
+  String prev;
+  do {
+    prev = s;
+    s = s.replaceAll(_noiseGroup, ' ');
+  } while (s != prev);
+  s = s.replaceAll(_trailingQualifier, ' ');
+  s = s.replaceAll(_featTail, ' ');
+  s = s.replaceAll(_spaces, ' ').trim();
+  return s.isEmpty ? raw.trim() : s;
+}
+
+/// Progressively looser (title, artist) query pairs for a lyric lookup, in the
+/// order they should be tried: the raw tags first, then cleaned, then with any
+/// bracketed group stripped wholesale, then with a trailing " - …" tail cut,
+/// then the lead artist alone. Deduplicated, so well-tagged songs yield just
+/// one or two pairs — the ladder only grows for messy tags, which are exactly
+/// the ones that miss on the first try.
+List<(String, String)> queryVariants(String title, String artist) {
+  final out = <(String, String)>[];
+  final seen = <String>{};
+  void add(String t, String a) {
+    final tt = t.trim();
+    final aa = a.trim();
+    if (tt.isEmpty) return;
+    if (seen.add('${tt.toLowerCase()} ${aa.toLowerCase()}')) {
+      out.add((tt, aa));
+    }
+  }
+
+  add(title, artist);
+  add(cleanForQuery(title), cleanForQuery(artist));
+  // Any parenthesised/bracketed group gone (covers non-noise ones too).
+  final noBrackets =
+      title.replaceAll(RegExp(r'[\(\[\{][^\)\]\}]*[\)\]\}]'), ' ');
+  add(cleanForQuery(noBrackets), cleanForQuery(artist));
+  // Trailing " - anything" cut (multi-artist file names, uploader suffixes).
+  final noDash = title.split(RegExp(r'\s[-–—]\s')).first;
+  add(cleanForQuery(noDash), cleanForQuery(artist));
+  // Lead artist only ("A & B", "A, B", "A x B" → "A").
+  final lead = artist
+      .split(RegExp(r'\s*[,;/&+]\s*|\s+(?:&|x|vs\.?|feat\.?|ft\.?)\s+',
+          caseSensitive: false))
+      .first;
+  add(cleanForQuery(noDash), cleanForQuery(lead));
+  return out;
+}
+
 Set<String> _tokens(String normalized) =>
     normalized.split(' ').where((t) => t.isNotEmpty).toSet();
 

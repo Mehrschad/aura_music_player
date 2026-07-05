@@ -15,8 +15,10 @@ class SharedPrefsLyricsCache {
   static const String _prefix = 'lyrics_v1_';
   static const String _missPrefix = 'lyrics_miss_v1_';
 
-  /// How long a "no lyrics found" result is trusted before retrying.
-  static const Duration missTtl = Duration(days: 14);
+  /// How long a "no lyrics found" result is trusted before retrying. Kept
+  /// short — lyrics get published all the time, and a stale miss is the
+  /// difference between "it just appeared" and "still nothing for two weeks".
+  static const Duration missTtl = Duration(days: 3);
 
   Future<Lyrics?> read(String songId) async {
     final prefs = await SharedPreferences.getInstance();

@@ -14,13 +14,12 @@ import '../../../core/theme/typography.dart';
 import '../../../core/utils/motion.dart';
 import '../../../core/utils/seed_color.dart';
 import '../../../domain/models/lyrics.dart';
-import '../../providers/async_value_x.dart';
 import '../../providers/cover_palette_provider.dart';
 import '../../providers/lyrics_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../widgets/artwork/aura_artwork.dart';
-import '../../widgets/async_state_view.dart';
 import '../../widgets/lyrics_view/karaoke_line.dart';
+import '../../widgets/press_scale.dart';
 import 'sync_editor_page.dart';
 
 Future<void> openLyrics(BuildContext context) {
@@ -83,6 +82,13 @@ class _LyricsPageState extends ConsumerState<LyricsPage> {
   }
 
   bool _didInitialJump = false;
+
+  /// Re-runs the lookup for the current track. Because failed lookups aren't
+  /// cached, invalidating the provider forces a fresh pass through every source
+  /// (with the composite's own retry) — the "Try again" affordance.
+  void _retry() {
+    ref.invalidate(currentLyricsProvider);
+  }
 
   void _scrollTo(int index, {bool instant = false}) {
     if (index < 0 || index >= _keys.length) return;
@@ -194,29 +200,49 @@ class _LyricsPageState extends ConsumerState<LyricsPage> {
                   onOpenSync: () => openSyncEditor(context),
                 ),
                 Expanded(
-                  child: AsyncStateView<Lyrics?>(
-                    value: lyricsAsync.like,
-                    isEmpty: (l) => l == null || l.isEmpty,
-                    emptyMessage: l10n.lyricsNone,
-                    emptyIcon: Icons.lyrics_outlined,
-                    data: (lyrics) => Stack(
-                      children: [
-                        _LyricsBody(
-                          lyrics: lyrics!,
-                          controller: _scrollController,
-                          keys: () {
-                            _ensureKeys(lyrics.lines.length);
-                            return _keys;
-                          }(),
-                          fontSize: fontSize,
-                          dual: dual,
-                          directionFor: _directionFor,
-                        ),
-                        // Fade masks so lines melt in/out at the edges.
-                        const _EdgeFade(top: true),
-                        const _EdgeFade(top: false),
-                      ],
+                  child: lyricsAsync.when(
+                    skipLoadingOnRefresh: false,
+                    loading: () => _LyricsStatus(
+                      icon: Icons.lyrics_outlined,
+                      message: l10n.lyricsLoading,
+                      loading: true,
+                      accent: accent,
                     ),
+                    error: (_, __) => _LyricsStatus(
+                      icon: Icons.cloud_off_rounded,
+                      message: l10n.errorGeneric,
+                      accent: accent,
+                      onRetry: _retry,
+                      retryLabel: l10n.retry,
+                    ),
+                    data: (lyrics) => (lyrics == null || lyrics.isEmpty)
+                        ? _LyricsStatus(
+                            icon: Icons.lyrics_outlined,
+                            message: l10n.lyricsNone,
+                            accent: accent,
+                            onRetry: _retry,
+                            retryLabel: l10n.retry,
+                            onAdd: () => openSyncEditor(context),
+                            addLabel: l10n.syncTitle,
+                          )
+                        : Stack(
+                            children: [
+                              _LyricsBody(
+                                lyrics: lyrics,
+                                controller: _scrollController,
+                                keys: () {
+                                  _ensureKeys(lyrics.lines.length);
+                                  return _keys;
+                                }(),
+                                fontSize: fontSize,
+                                dual: dual,
+                                directionFor: _directionFor,
+                              ),
+                              // Fade masks so lines melt in/out at the edges.
+                              const _EdgeFade(top: true),
+                              const _EdgeFade(top: false),
+                            ],
+                          ),
                   ),
                 ),
                 _MiniTransport(accent: accent),
@@ -295,6 +321,131 @@ class _TopBar extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+/// The centred state shown while lyrics are loading, missing, or failed. Unlike
+/// a bare empty label, the missing/error states offer a "Try again" (re-runs the
+/// whole source chain) and, when nothing is found, an "Add lyrics" shortcut into
+/// the sync editor — so a dry lookup is a starting point, not a dead end.
+class _LyricsStatus extends StatelessWidget {
+  const _LyricsStatus({
+    required this.icon,
+    required this.message,
+    required this.accent,
+    this.loading = false,
+    this.onRetry,
+    this.retryLabel,
+    this.onAdd,
+    this.addLabel,
+  });
+
+  final IconData icon;
+  final String message;
+  final Color accent;
+  final bool loading;
+  final VoidCallback? onRetry;
+  final String? retryLabel;
+  final VoidCallback? onAdd;
+  final String? addLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(SpacingTokens.xxl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (loading)
+              SizedBox(
+                width: 26,
+                height: 26,
+                child: CircularProgressIndicator(strokeWidth: 2, color: accent),
+              )
+            else
+              Icon(icon, size: 40, color: colors.onSurfaceFaint),
+            const SizedBox(height: SpacingTokens.lg),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: AppTextTheme.body.copyWith(color: colors.onSurfaceMuted),
+            ),
+            if (onRetry != null) ...[
+              const SizedBox(height: SpacingTokens.xl),
+              _StatusButton(
+                icon: Icons.refresh_rounded,
+                label: retryLabel ?? '',
+                filled: true,
+                accent: accent,
+                onTap: onRetry!,
+              ),
+            ],
+            if (onAdd != null) ...[
+              const SizedBox(height: SpacingTokens.sm),
+              _StatusButton(
+                icon: Icons.edit_note,
+                label: addLabel ?? '',
+                filled: false,
+                accent: accent,
+                onTap: onAdd!,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A pill action used on the lyrics status view — filled (primary "Try again")
+/// or outlined (secondary "Add lyrics").
+class _StatusButton extends StatelessWidget {
+  const _StatusButton({
+    required this.icon,
+    required this.label,
+    required this.filled,
+    required this.accent,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool filled;
+  final Color accent;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final fg = filled ? colors.onAccent : colors.onSurface;
+    return PressScale(
+      onTap: onTap,
+      pressedScale: 0.94,
+      semanticLabel: label,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+            horizontal: SpacingTokens.lg, vertical: SpacingTokens.sm + 2),
+        decoration: BoxDecoration(
+          color: filled ? accent : Colors.transparent,
+          borderRadius: RadiusTokens.brPill,
+          border: filled ? null : Border.all(color: colors.divider),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18, color: fg),
+            const SizedBox(width: SpacingTokens.sm),
+            Text(
+              label,
+              style: AppTextTheme.body
+                  .copyWith(color: fg, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

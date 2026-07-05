@@ -13,12 +13,14 @@ import '../../../domain/models/album.dart';
 import '../../../domain/models/artist.dart';
 import '../../../domain/models/genre.dart';
 import '../../../domain/models/library_sort.dart';
+import '../../../domain/models/playlist.dart';
 import '../../../domain/models/song.dart';
 import '../../providers/async_value_x.dart';
 import '../../../domain/taste/smart_collection.dart';
 import '../../providers/discovery_prefs_provider.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
+import '../../providers/playlist_providers.dart';
 import '../../providers/selection_providers.dart';
 import '../../providers/smart_collections_provider.dart';
 import '../../providers/taste_providers.dart';
@@ -40,10 +42,12 @@ import '../../widgets/library/song_list_tile.dart';
 import '../../widgets/player/song_actions_sheet.dart';
 import '../../widgets/player_bar_inset.dart';
 import '../../widgets/press_scale.dart';
+import '../../shell/nav_provider.dart';
 import '../albums/album_detail_page.dart';
 import '../artists/artist_detail_page.dart';
 import '../folders/folder_browser_page.dart';
 import '../genres/genre_detail_page.dart';
+import '../playlists/playlist_detail_page.dart';
 import '../settings/settings_page.dart';
 import 'collection_detail_page.dart';
 
@@ -67,6 +71,14 @@ const List<String> _kMonths = [
 /// Compact date label, e.g. "SAT · 28 JUN".
 String _dateLabel(DateTime d) =>
     '${_kWeekdays[d.weekday - 1]} · ${d.day} ${_kMonths[d.month - 1]}';
+
+/// Fixed row heights for the flat library lists. Pinning these lets the list
+/// use a [SliverFixedExtentList] — so a scrubber jump (or a tab switch that
+/// preserves a deep offset) is O(1) instead of forcing Flutter to build every
+/// intervening row, which is what made huge libraries hitch. They're driven by
+/// the leading artwork/avatar, so they stay stable across text scales.
+const double _kSongRowExtent = 66; // 48 art + 8·2 pad + 1·2 margin
+const double _kArtistRowExtent = 72; // 56 avatar + 8·2 pad
 
 /// Shared monospace label style for the home's small-caps eyebrows/labels —
 /// the type system's "machine voice" for dates, counts and section tags.
@@ -123,6 +135,15 @@ class _CyclingTitleState extends State<_CyclingTitle> {
       duration: const Duration(milliseconds: 480),
       switchInCurve: Curves.easeOut,
       switchOutCurve: Curves.easeIn,
+      // Keep both the outgoing and incoming title anchored to the left corner
+      // (the default centres them, which made the text drift mid-animation).
+      layoutBuilder: (currentChild, previousChildren) => Stack(
+        alignment: Alignment.centerLeft,
+        children: [
+          ...previousChildren,
+          if (currentChild != null) currentChild,
+        ],
+      ),
       transitionBuilder: (child, anim) => FadeTransition(
         opacity: anim,
         child: SlideTransition(
@@ -157,8 +178,134 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
   // Drives the largeTitle → headline morph per iOS 26 spec §10.
   bool _scrolled = false;
 
+  // True once the discovery rails have scrolled away and the tab bar is pinned
+  // at the top — only then is the A-Z scrubber shown, so it never floats over
+  // the rails at rest.
+  bool _tabsPinned = false;
+
+  // The single page scroll, driven by the A-Z scrubber's jumps.
+  final ScrollController _scrollController = ScrollController();
+
+  // Measures the discovery header's height so the scrubber can translate a
+  // letter into an exact scroll offset (discovery sits above the pinned tabs).
+  final GlobalKey _discoveryKey = GlobalKey();
+  double _discoveryExtent = 0;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  /// After each frame, cache the discovery header's measured height while it's
+  /// still mounted, so a scrubber jump made after scrolling deep still lands
+  /// accurately (the value is stable until the rails' data changes).
+  void _scheduleDiscoveryMeasure() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final box = _discoveryKey.currentContext?.findRenderObject();
+      if (box is RenderBox && box.hasSize && box.size.height > 0) {
+        _discoveryExtent = box.size.height;
+      }
+    });
+  }
+
+  /// Scrolls so the [index]-th item of [segment]/[mode] rests just beneath the
+  /// pinned tab bar. Items in a segment share a fixed height, so the offset is
+  /// `discovery + index·extent` (the pinned bar's own extent cancels out).
+  void _jumpToItem({
+    required LibrarySegment segment,
+    required int index,
+    required double viewportWidth,
+  }) {
+    if (!_scrollController.hasClients) return;
+    final max = _scrollController.position.maxScrollExtent;
+    double target;
+    if (segment == LibrarySegment.albums) {
+      final tileW =
+          (viewportWidth - 2 * SpacingTokens.lg - SpacingTokens.lg) / 2;
+      final rowExtent = tileW / 0.76 + SpacingTokens.xl;
+      target = _discoveryExtent + SpacingTokens.md + (index ~/ 2) * rowExtent;
+    } else {
+      final extent = segment == LibrarySegment.artists
+          ? _kArtistRowExtent
+          : _kSongRowExtent;
+      target = _discoveryExtent + index * extent;
+    }
+    _scrollController.jumpTo(target.clamp(0.0, max));
+  }
+
+  /// Smoothly returns the page to the very top (the "back to top" button).
+  void _scrollToTop() {
+    if (!_scrollController.hasClients) return;
+    HapticFeedback.selectionClick();
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 420),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  /// Builds the A–Z model for [segment], or null when a scrubber doesn't apply
+  /// (Genres, non-alphabetical song sorts, or too few items to be worth it).
+  _Alphabet? _alphabetFor(
+    LibrarySegment segment,
+    DisplayMode mode,
+    LibrarySort sort,
+    List<Song> allSongs,
+  ) {
+    const int threshold = 24;
+    final List<String> keys;
+    switch (segment) {
+      case LibrarySegment.songs:
+        // Only meaningful when the list is actually ordered A→Z by title.
+        if (sort.field != SortField.title ||
+            sort.direction != SortDirection.ascending ||
+            mode != DisplayMode.list) {
+          return null;
+        }
+        keys = [for (final s in allSongs) s.title];
+      case LibrarySegment.albums:
+        final albums = ref.watch(albumsProvider).valueOrNull ?? const <Album>[];
+        keys = [for (final a in albums) a.name];
+      case LibrarySegment.artists:
+        final artists =
+            ref.watch(artistsProvider).valueOrNull ?? const <Artist>[];
+        keys = [for (final a in artists) a.name];
+      case LibrarySegment.genres:
+        return null;
+    }
+    if (keys.length < threshold) return null;
+    return _Alphabet.fromKeys(keys);
+  }
+
   void _play(List<Song> queue, int index) {
     ref.read(audioControllerProvider).playQueue(queue, startIndex: index);
+  }
+
+  /// The sliver that renders the currently-selected segment's content. Returned
+  /// as a sliver (not a box body) so it lives in the page's single
+  /// [CustomScrollView] beneath the pinned tab bar — no nested scroll view.
+  Widget _segmentSliver({
+    required LibrarySegment segment,
+    required AsyncValue<List<Song>> songsAsync,
+    required DisplayMode mode,
+    required bool miniPlayerVisible,
+  }) {
+    switch (segment) {
+      case LibrarySegment.songs:
+        return _SongsSliver(
+          songsAsync: songsAsync,
+          mode: mode,
+          miniPlayerVisible: miniPlayerVisible,
+          onPlay: _play,
+        );
+      case LibrarySegment.albums:
+        return _AlbumsSliver(miniPlayerVisible: miniPlayerVisible);
+      case LibrarySegment.artists:
+        return _ArtistsSliver(miniPlayerVisible: miniPlayerVisible);
+      case LibrarySegment.genres:
+        return _GenresSliver(miniPlayerVisible: miniPlayerVisible);
+    }
   }
 
   PopupMenuItem<String> _menuItem(String value, IconData icon, String label) {
@@ -187,6 +334,22 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
         selectionProvider(LibraryPage._listId).select((s) => s.active));
     final allSongs = songsAsync.valueOrNull ?? const <Song>[];
 
+    // Keep the discovery height measured so scrubber jumps stay accurate.
+    if (!selecting) _scheduleDiscoveryMeasure();
+
+    // A-Z fast-scroll model for the active alphabetical segment (Songs sorted
+    // A–Z in list mode, Artists, Albums). Null hides the scrubber.
+    final _Alphabet? alphabet =
+        selecting ? null : _alphabetFor(segment, mode, sort, allSongs);
+
+    // "Back to top" sits beside the shrunk mini player — it appears once the
+    // page is scrolled down (the same signal that collapses the mini player),
+    // so it only shows when there's room beside the centred capsule.
+    final navMinimized = ref.watch(navMinimizedProvider);
+    final showToTop =
+        !selecting && navMinimized && _scrolled && miniPlayerVisible;
+    final safeBottom = MediaQuery.viewPaddingOf(context).bottom;
+
     // Collapsed = title at headline; expanded = big editorial display title.
     final collapsed = _scrolled && !selecting;
 
@@ -202,8 +365,18 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
         // horizontal "For You" / shelf rails, which otherwise made the header
         // and shelves vanish as you swiped a rail sideways.
         if (n.metrics.axis != Axis.vertical) return false;
-        final scrolled = n.metrics.pixels > 20;
-        if (scrolled != _scrolled) setState(() => _scrolled = scrolled);
+        final px = n.metrics.pixels;
+        final scrolled = px > 20;
+        // The tab bar pins once the discovery rails have fully scrolled past;
+        // only then reveal the scrubber so it never overlaps the rails.
+        final pinned = _discoveryExtent > 0 && px >= _discoveryExtent - 4;
+        // Only flip state on a real threshold crossing — never per pixel.
+        if (scrolled != _scrolled || pinned != _tabsPinned) {
+          setState(() {
+            _scrolled = scrolled;
+            _tabsPinned = pinned;
+          });
+        }
         return false; // don't absorb — let the scroll view handle it too
       },
       child: SafeArea(
@@ -296,28 +469,83 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                   ],
                 ),
               ),
-            if (!selecting) _SegmentRow(selected: segment),
+            // One unified scroll for the whole page. The discovery rails lead,
+            // then the Songs/Albums/Artists/Genres tabs **pin** below them, and
+            // the selected segment's content scrolls under the pinned tabs. The
+            // discovery header is the same sliver regardless of segment, so
+            // switching tabs never tears it down — it stays put while only the
+            // content sliver below the tabs swaps.
             Expanded(
-              child: switch (segment) {
-                LibrarySegment.songs => AsyncStateView<List<Song>>(
-                    value: songsAsync.like,
-                    isEmpty: (s) => s.isEmpty,
-                    emptyMessage: l10n.libraryEmpty,
-                    onRetry: () => ref.invalidate(songsProvider),
-                    data: (songs) => _SongsBody(
-                      songs: songs,
-                      mode: mode,
-                      miniPlayerVisible: miniPlayerVisible,
-                      onPlayAt: (i) => _play(songs, i),
+              child: Stack(
+                children: [
+                  CustomScrollView(
+                    controller: _scrollController,
+                    slivers: [
+                      if (!selecting)
+                        SliverToBoxAdapter(
+                          child: KeyedSubtree(
+                            key: _discoveryKey,
+                            child: const _DiscoveryHeader(),
+                          ),
+                        ),
+                      if (!selecting)
+                        SliverPersistentHeader(
+                          pinned: true,
+                          delegate: _SegmentHeaderDelegate(segment: segment),
+                        ),
+                      _segmentSliver(
+                        segment: segment,
+                        songsAsync: songsAsync,
+                        mode: mode,
+                        miniPlayerVisible: miniPlayerVisible,
+                      ),
+                    ],
+                  ),
+                  if (alphabet != null)
+                    Positioned(
+                      top: _SegmentHeaderDelegate._height + SpacingTokens.sm,
+                      bottom: playerBarInset(context,
+                              miniPlayerVisible: miniPlayerVisible) +
+                          SpacingTokens.sm,
+                      right: 0,
+                      child: IgnorePointer(
+                        // Hidden (and inert) until the rails scroll away, so it
+                        // never floats over the discovery cards at the top.
+                        ignoring: !_tabsPinned,
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 180),
+                          opacity: _tabsPinned ? 1 : 0,
+                          child: _AlphaScrubber(
+                            alphabet: alphabet,
+                            onJump: (index) => _jumpToItem(
+                              segment: segment,
+                              index: index,
+                              viewportWidth: MediaQuery.sizeOf(context).width,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  // Back-to-top, beside the collapsed mini player.
+                  Positioned(
+                    right: SpacingTokens.lg,
+                    bottom: safeBottom + 9,
+                    child: IgnorePointer(
+                      ignoring: !showToTop,
+                      child: AnimatedScale(
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOutBack,
+                        scale: showToTop ? 1 : 0.6,
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 160),
+                          opacity: showToTop ? 1 : 0,
+                          child: _BackToTopButton(onTap: _scrollToTop),
+                        ),
+                      ),
                     ),
                   ),
-                LibrarySegment.albums =>
-                  _AlbumsBody(miniPlayerVisible: miniPlayerVisible),
-                LibrarySegment.artists =>
-                  _ArtistsBody(miniPlayerVisible: miniPlayerVisible),
-                LibrarySegment.genres =>
-                  _GenresBody(miniPlayerVisible: miniPlayerVisible),
-              },
+                ],
+              ),
             ),
           ],
         ),
@@ -404,110 +632,383 @@ class _SegChip extends StatelessWidget {
   }
 }
 
-class _SongsBody extends ConsumerWidget {
-  const _SongsBody({
-    required this.songs,
+/// Pins the Songs/Albums/Artists/Genres tab row below the discovery rails. The
+/// background matches the page so content scrolls invisibly under it, and a
+/// hairline divider fades in only once content is actually tucked behind it.
+class _SegmentHeaderDelegate extends SliverPersistentHeaderDelegate {
+  _SegmentHeaderDelegate({required this.segment});
+
+  final LibrarySegment segment;
+
+  /// 8 (top) + 34 (chip) + 10 (bottom) — matches [_SegmentRow]'s own padding.
+  static const double _height = 52;
+
+  @override
+  double get minExtent => _height;
+
+  @override
+  double get maxExtent => _height;
+
+  @override
+  Widget build(
+      BuildContext context, double shrinkOffset, bool overlapsContent) {
+    final colors = context.colors;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.background,
+        border: overlapsContent
+            ? Border(bottom: BorderSide(color: colors.divider, width: 0.5))
+            : null,
+      ),
+      child: SizedBox(
+        height: _height,
+        child: _SegmentRow(selected: segment),
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(_SegmentHeaderDelegate oldDelegate) =>
+      oldDelegate.segment != segment;
+}
+
+/// The displayable A–Z index for a list: the full alphabet (plus a leading '#'
+/// bucket when non-letter titles exist), the first item index each label jumps
+/// to, and which labels actually have items (the rest render dimmed).
+class _Alphabet {
+  const _Alphabet(this.labels, this.target, this.present);
+
+  /// Labels shown top→bottom, e.g. ['#','A','B',…,'Z'].
+  final List<String> labels;
+
+  /// Label → the item index its jump should land on. Absent letters resolve to
+  /// the next present section below them (or the last one).
+  final Map<String, int> target;
+
+  /// Labels that have at least one item — shown at full strength.
+  final Set<String> present;
+
+  factory _Alphabet.fromKeys(List<String> keys) {
+    final first = <String, int>{};
+    for (var i = 0; i < keys.length; i++) {
+      final k = keys[i].trimLeft();
+      final c = k.isEmpty ? '#' : k[0].toUpperCase();
+      final code = c.codeUnitAt(0);
+      final bucket = (code >= 65 && code <= 90) ? c : '#';
+      first.putIfAbsent(bucket, () => i);
+    }
+    final present = first.keys.toSet();
+    final labels = <String>[
+      if (present.contains('#')) '#',
+      for (var c = 65; c <= 90; c++) String.fromCharCode(c),
+    ];
+    final target = <String, int>{};
+    // Fill each label with the nearest present section at or below it…
+    int? next;
+    for (var j = labels.length - 1; j >= 0; j--) {
+      final lab = labels[j];
+      if (first.containsKey(lab)) next = first[lab];
+      if (next != null) target[lab] = next;
+    }
+    // …and any trailing labels past the last section fall back to the last one.
+    int? prev;
+    for (var j = 0; j < labels.length; j++) {
+      final lab = labels[j];
+      if (first.containsKey(lab)) prev = first[lab];
+      target.putIfAbsent(lab, () => prev ?? 0);
+    }
+    return _Alphabet(labels, target, present);
+  }
+}
+
+/// The right-edge A–Z fast-scroll rail. Dragging a finger along it jumps the
+/// list to that letter; letters near the finger swell in a fisheye "wave" (and
+/// drift left toward the content) so the active region reads at a glance.
+/// Reduce-motion keeps the type flat.
+class _AlphaScrubber extends StatefulWidget {
+  const _AlphaScrubber({required this.alphabet, required this.onJump});
+
+  final _Alphabet alphabet;
+  final void Function(int itemIndex) onJump;
+
+  @override
+  State<_AlphaScrubber> createState() => _AlphaScrubberState();
+}
+
+class _AlphaScrubberState extends State<_AlphaScrubber> {
+  // The finger's local-Y while engaged; null when released (wave at rest).
+  double? _dragY;
+  int _activeIdx = -1;
+
+  // How far the wave reaches and how strongly it magnifies.
+  static const double _radius = 72;
+  static const double _maxBoost = 0.95;
+
+  void _engage(double localDy, double height) {
+    final n = widget.alphabet.labels.length;
+    if (n == 0) return;
+    final slot = height / n;
+    var idx = (localDy / slot).floor();
+    if (idx < 0) idx = 0;
+    if (idx >= n) idx = n - 1;
+    setState(() => _dragY = localDy);
+    if (idx != _activeIdx) {
+      _activeIdx = idx;
+      HapticFeedback.selectionClick();
+      final t = widget.alphabet.target[widget.alphabet.labels[idx]];
+      if (t != null) widget.onJump(t);
+    }
+  }
+
+  void _release() {
+    if (_dragY == null && _activeIdx == -1) return;
+    setState(() {
+      _dragY = null;
+      _activeIdx = -1;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    final labels = widget.alphabet.labels;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final height = constraints.maxHeight;
+        final n = labels.length;
+        final slot = n > 0 ? height / n : height;
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (d) => _engage(d.localPosition.dy, height),
+          onTapUp: (_) => _release(),
+          onTapCancel: _release,
+          onVerticalDragStart: (d) => _engage(d.localPosition.dy, height),
+          onVerticalDragUpdate: (d) => _engage(d.localPosition.dy, height),
+          onVerticalDragEnd: (_) => _release(),
+          onVerticalDragCancel: _release,
+          child: SizedBox(
+            width: 30,
+            height: height,
+            child: Stack(
+              children: [
+                for (var k = 0; k < n; k++)
+                  _buildLabel(k, slot, colors, reduceMotion),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildLabel(
+      int k, double slot, AppColors colors, bool reduceMotion) {
+    final centerY = (k + 0.5) * slot;
+    var scale = 1.0;
+    var dx = 0.0;
+    if (!reduceMotion && _dragY != null) {
+      final dist = (centerY - _dragY!).abs();
+      if (dist < _radius) {
+        final t = 1 - dist / _radius; // 0…1, peaks at the finger
+        final e = t * t; // ease so the crest is pronounced
+        scale = 1 + _maxBoost * e;
+        dx = -14 * e; // fisheye: swell toward the content
+      }
+    }
+    final lab = widget.alphabet.labels[k];
+    final present = widget.alphabet.present.contains(lab);
+    final active = k == _activeIdx;
+    final Color color = active
+        ? colors.accent
+        : present
+            ? colors.onSurfaceMuted
+            : colors.onSurfaceFaint.withOpacity(0.45);
+    return Positioned(
+      top: centerY - slot / 2,
+      height: slot,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: Transform.translate(
+          offset: Offset(dx, 0),
+          child: Transform.scale(
+            scale: scale,
+            alignment: Alignment.centerRight,
+            child: Text(
+              lab,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 11,
+                height: 1,
+                fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+                color: color,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A small circular "back to top" affordance that sits beside the collapsed
+/// mini player. Tapping it glides the page back to the very top.
+class _BackToTopButton extends StatelessWidget {
+  const _BackToTopButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return PressScale(
+      onTap: onTap,
+      pressedScale: 0.88,
+      semanticLabel: 'Back to top',
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: colors.surfaceElevated,
+          shape: BoxShape.circle,
+          border: Border.all(color: colors.divider),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.35),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Icon(Icons.keyboard_arrow_up_rounded,
+            color: colors.accent, size: 26),
+      ),
+    );
+  }
+}
+
+class _SongsSliver extends ConsumerWidget {
+  const _SongsSliver({
+    required this.songsAsync,
     required this.mode,
     required this.miniPlayerVisible,
-    required this.onPlayAt,
+    required this.onPlay,
   });
 
-  final List<Song> songs;
+  final AsyncValue<List<Song>> songsAsync;
   final DisplayMode mode;
   final bool miniPlayerVisible;
-  final ValueChanged<int> onPlayAt;
+  final void Function(List<Song> queue, int index) onPlay;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final bottom =
         playerBarInset(context, miniPlayerVisible: miniPlayerVisible);
-    final selection = ref.watch(selectionProvider(LibraryPage._listId));
-    final notifier = ref.read(selectionProvider(LibraryPage._listId).notifier);
-    final selecting = selection.active;
-    final orderedIds = [for (final s in songs) s.id];
 
-    void onLongPress(Song song) {
-      HapticFeedback.mediumImpact();
-      if (selecting) {
-        notifier.selectRange(orderedIds, song.id);
-      } else {
-        notifier.enter(song.id);
-      }
-    }
-
-    void onTapAt(int i) {
-      if (selecting) {
-        HapticFeedback.selectionClick();
-        notifier.toggle(songs[i].id);
-      } else {
-        onPlayAt(i);
-      }
-    }
-
-    bool? selectedOf(Song s) => selecting ? selection.contains(s.id) : null;
-
-    // The content sliver depends on the display mode.
-    final Widget contentSliver;
-    switch (mode) {
-      case DisplayMode.list:
-        contentSliver = SliverPadding(
-          padding:
-              EdgeInsets.fromLTRB(SpacingTokens.md, 0, SpacingTokens.md, bottom),
-          sliver: SliverList.builder(
-            itemCount: songs.length,
-            itemBuilder: (_, i) => SongListTile(
-              song: songs[i],
-              selected: selectedOf(songs[i]),
-              onTap: () => onTapAt(i),
-              onLongPress: () => onLongPress(songs[i]),
-              onMore: () => showSongActions(context, songs[i]),
-            ),
+    SliverFillRemaining statusOf(AsyncValueLike<List<Song>> v) =>
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: AsyncStateView<List<Song>>(
+            value: v,
+            data: (_) => const SizedBox.shrink(),
+            isEmpty: (_) => true,
+            emptyMessage: l10n.libraryEmpty,
+            onRetry: () => ref.invalidate(songsProvider),
           ),
         );
-      case DisplayMode.compact:
-        contentSliver = SliverPadding(
-          padding:
-              EdgeInsets.fromLTRB(SpacingTokens.sm, 0, SpacingTokens.sm, bottom),
-          sliver: SliverList.builder(
-            itemCount: songs.length,
-            itemBuilder: (_, i) => SongCompactTile(
-              song: songs[i],
-              selected: selectedOf(songs[i]),
-              onTap: () => onTapAt(i),
-              onLongPress: () => onLongPress(songs[i]),
-            ),
-          ),
-        );
-      case DisplayMode.grid:
-        contentSliver = SliverPadding(
-          padding:
-              EdgeInsets.fromLTRB(SpacingTokens.lg, 0, SpacingTokens.lg, bottom),
-          sliver: SliverGrid.builder(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: SpacingTokens.lg,
-              crossAxisSpacing: SpacingTokens.lg,
-              childAspectRatio: 0.78,
-            ),
-            itemCount: songs.length,
-            itemBuilder: (_, i) => SongGridTile(
-              song: songs[i],
-              selected: selectedOf(songs[i]),
-              onTap: () => onTapAt(i),
-              onLongPress: () => onLongPress(songs[i]),
-            ),
-          ),
-        );
-    }
 
-    // The discovery rails (For You + Top Artists/Tracks/Albums) lead the scroll
-    // so they scroll away naturally into the song list. Hidden while selecting.
-    return CustomScrollView(
-      slivers: [
-        if (!selecting)
-          const SliverToBoxAdapter(child: _DiscoveryHeader()),
-        contentSliver,
-      ],
+    return songsAsync.like.map(
+      loading: () => statusOf(AsyncValueLike<List<Song>>.loading()),
+      error: (e) => statusOf(AsyncValueLike<List<Song>>.error(e)),
+      data: (songs) {
+        if (songs.isEmpty) {
+          return statusOf(AsyncValueLike<List<Song>>.data(const []));
+        }
+
+        final selection = ref.watch(selectionProvider(LibraryPage._listId));
+        final notifier =
+            ref.read(selectionProvider(LibraryPage._listId).notifier);
+        final selecting = selection.active;
+        final orderedIds = [for (final s in songs) s.id];
+
+        void onLongPress(Song song) {
+          HapticFeedback.mediumImpact();
+          if (selecting) {
+            notifier.selectRange(orderedIds, song.id);
+          } else {
+            notifier.enter(song.id);
+          }
+        }
+
+        void onTapAt(int i) {
+          if (selecting) {
+            HapticFeedback.selectionClick();
+            notifier.toggle(songs[i].id);
+          } else {
+            onPlay(songs, i);
+          }
+        }
+
+        bool? selectedOf(Song s) =>
+            selecting ? selection.contains(s.id) : null;
+
+        switch (mode) {
+          case DisplayMode.list:
+            return SliverPadding(
+              padding: EdgeInsets.fromLTRB(
+                  SpacingTokens.md, 0, SpacingTokens.md, bottom),
+              // Fixed extent → O(1) scrubber jumps on huge libraries.
+              sliver: SliverFixedExtentList.builder(
+                itemExtent: _kSongRowExtent,
+                itemCount: songs.length,
+                itemBuilder: (_, i) => SongListTile(
+                  song: songs[i],
+                  selected: selectedOf(songs[i]),
+                  onTap: () => onTapAt(i),
+                  onLongPress: () => onLongPress(songs[i]),
+                  onMore: () => showSongActions(context, songs[i]),
+                ),
+              ),
+            );
+          case DisplayMode.compact:
+            return SliverPadding(
+              padding: EdgeInsets.fromLTRB(
+                  SpacingTokens.sm, 0, SpacingTokens.sm, bottom),
+              sliver: SliverList.builder(
+                itemCount: songs.length,
+                itemBuilder: (_, i) => SongCompactTile(
+                  song: songs[i],
+                  selected: selectedOf(songs[i]),
+                  onTap: () => onTapAt(i),
+                  onLongPress: () => onLongPress(songs[i]),
+                ),
+              ),
+            );
+          case DisplayMode.grid:
+            return SliverPadding(
+              padding: EdgeInsets.fromLTRB(
+                  SpacingTokens.lg, 0, SpacingTokens.lg, bottom),
+              sliver: SliverGrid.builder(
+                gridDelegate:
+                    const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: SpacingTokens.lg,
+                  crossAxisSpacing: SpacingTokens.lg,
+                  childAspectRatio: 0.78,
+                ),
+                itemCount: songs.length,
+                itemBuilder: (_, i) => SongGridTile(
+                  song: songs[i],
+                  selected: selectedOf(songs[i]),
+                  onTap: () => onTapAt(i),
+                  onLongPress: () => onLongPress(songs[i]),
+                ),
+              ),
+            );
+        }
+      },
     );
   }
 }
@@ -524,9 +1025,12 @@ class _DiscoveryHeader extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _ColdStartCard(),
+        _PinnedRail(),
         _TopPicksGrid(),
         _ForYouSection(),
         _OnThisDayShelf(),
+        _YourPlaylistsRail(),
+        _QuickPlaylistsRail(),
         _WeeklyRecapCard(),
         _SuggestedArtistsBox(),
         _TopArtistsShelf(),
@@ -717,48 +1221,51 @@ class _PickTile extends StatelessWidget {
       onTap: onTap,
       pressedScale: 0.96,
       semanticLabel: pick.title,
-      child: Container(
-        height: 58,
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
+      // ClipRRect (rather than a bordered Container) guarantees clean, even
+      // corners — the cover on the left is clipped to the same radius.
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: ColoredBox(
           color: colors.surfaceElevated,
-          borderRadius: RadiusTokens.brMd,
-          border: Border.all(color: colors.divider),
-        ),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 58,
-              height: 58,
-              child: cover != null
-                  ? AuraArtwork(
-                      seed: cover.artworkSeed,
-                      fill: true,
-                      borderRadius: BorderRadius.zero,
-                      hasArtwork: cover.hasArtwork,
-                      artworkId: int.tryParse(cover.id),
-                    )
-                  : ColoredBox(
-                      color: colors.accent.withOpacity(0.18),
-                      child: Icon(pick.icon, color: colors.accent, size: 22),
+          child: SizedBox(
+            height: 58,
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 58,
+                  height: 58,
+                  child: cover != null
+                      ? AuraArtwork(
+                          seed: cover.artworkSeed,
+                          fill: true,
+                          borderRadius: BorderRadius.zero,
+                          hasArtwork: cover.hasArtwork,
+                          artworkId: int.tryParse(cover.id),
+                        )
+                      : ColoredBox(
+                          color: colors.accent.withOpacity(0.18),
+                          child:
+                              Icon(pick.icon, color: colors.accent, size: 22),
+                        ),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Text(
+                      pick.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextTheme.body.copyWith(
+                        color: colors.onSurface,
+                        fontWeight: FontWeight.w600,
+                        height: 1.1,
+                      ),
                     ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                child: Text(
-                  pick.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextTheme.body.copyWith(
-                    color: colors.onSurface,
-                    fontWeight: FontWeight.w600,
-                    height: 1.1,
                   ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -1006,9 +1513,9 @@ class _TopAlbumsShelf extends ConsumerWidget {
   }
 }
 
-/// Albums grid — mirrors the Albums page body.
-class _AlbumsBody extends ConsumerWidget {
-  const _AlbumsBody({required this.miniPlayerVisible});
+/// Albums grid — rendered as a sliver so it tucks under the pinned tabs.
+class _AlbumsSliver extends ConsumerWidget {
+  const _AlbumsSliver({required this.miniPlayerVisible});
 
   final bool miniPlayerVisible;
 
@@ -1018,38 +1525,54 @@ class _AlbumsBody extends ConsumerWidget {
     final albumsAsync = ref.watch(albumsProvider);
     final bottom =
         playerBarInset(context, miniPlayerVisible: miniPlayerVisible);
-    return AsyncStateView<List<Album>>(
-      value: albumsAsync.like,
-      isEmpty: (a) => a.isEmpty,
-      emptyMessage: l10n.libraryEmpty,
-      emptyIcon: Icons.album_outlined,
-      onRetry: () => ref.invalidate(songsProvider),
-      data: (albums) => GridView.builder(
-        padding:
-            EdgeInsets.fromLTRB(SpacingTokens.lg, 0, SpacingTokens.lg, bottom),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          mainAxisSpacing: SpacingTokens.xl,
-          crossAxisSpacing: SpacingTokens.lg,
-          childAspectRatio: 0.76,
-        ),
-        itemCount: albums.length,
-        itemBuilder: (_, i) => AlbumGridTile(
-          album: albums[i],
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => AlbumDetailPage(album: albums[i]),
-            ),
+
+    SliverFillRemaining statusOf(AsyncValueLike<List<Album>> v) =>
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: AsyncStateView<List<Album>>(
+            value: v,
+            data: (_) => const SizedBox.shrink(),
+            isEmpty: (_) => true,
+            emptyMessage: l10n.libraryEmpty,
+            emptyIcon: Icons.album_outlined,
+            onRetry: () => ref.invalidate(songsProvider),
           ),
-        ),
-      ),
+        );
+
+    return albumsAsync.like.map(
+      loading: () => statusOf(AsyncValueLike<List<Album>>.loading()),
+      error: (e) => statusOf(AsyncValueLike<List<Album>>.error(e)),
+      data: (albums) => albums.isEmpty
+          ? statusOf(AsyncValueLike<List<Album>>.data(const []))
+          : SliverPadding(
+              padding: EdgeInsets.fromLTRB(
+                  SpacingTokens.lg, SpacingTokens.md, SpacingTokens.lg, bottom),
+              sliver: SliverGrid.builder(
+                gridDelegate:
+                    const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: SpacingTokens.xl,
+                  crossAxisSpacing: SpacingTokens.lg,
+                  childAspectRatio: 0.76,
+                ),
+                itemCount: albums.length,
+                itemBuilder: (_, i) => AlbumGridTile(
+                  album: albums[i],
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => AlbumDetailPage(album: albums[i]),
+                    ),
+                  ),
+                ),
+              ),
+            ),
     );
   }
 }
 
-/// Artists list — mirrors the Artists page body.
-class _ArtistsBody extends ConsumerWidget {
-  const _ArtistsBody({required this.miniPlayerVisible});
+/// Artists list — rendered as a sliver so it tucks under the pinned tabs.
+class _ArtistsSliver extends ConsumerWidget {
+  const _ArtistsSliver({required this.miniPlayerVisible});
 
   final bool miniPlayerVisible;
 
@@ -1059,38 +1582,54 @@ class _ArtistsBody extends ConsumerWidget {
     final artistsAsync = ref.watch(artistsProvider);
     final bottom =
         playerBarInset(context, miniPlayerVisible: miniPlayerVisible);
-    return AsyncStateView<List<Artist>>(
-      value: artistsAsync.like,
-      isEmpty: (a) => a.isEmpty,
-      emptyMessage: l10n.libraryEmpty,
-      emptyIcon: Icons.person_outline,
-      onRetry: () => ref.invalidate(songsProvider),
-      data: (artists) => ListView.builder(
-        padding:
-            EdgeInsets.fromLTRB(SpacingTokens.md, 0, SpacingTokens.md, bottom),
-        itemCount: artists.length,
-        itemBuilder: (_, i) {
-          final a = artists[i];
-          final subtitle =
-              '${l10n.albumsCount(a.albumCount)} · ${l10n.songsCount(a.songCount)}';
-          return ArtistListTile(
-            artist: a,
-            subtitle: subtitle,
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => ArtistDetailPage(artist: a),
+
+    SliverFillRemaining statusOf(AsyncValueLike<List<Artist>> v) =>
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: AsyncStateView<List<Artist>>(
+            value: v,
+            data: (_) => const SizedBox.shrink(),
+            isEmpty: (_) => true,
+            emptyMessage: l10n.libraryEmpty,
+            emptyIcon: Icons.person_outline,
+            onRetry: () => ref.invalidate(songsProvider),
+          ),
+        );
+
+    return artistsAsync.like.map(
+      loading: () => statusOf(AsyncValueLike<List<Artist>>.loading()),
+      error: (e) => statusOf(AsyncValueLike<List<Artist>>.error(e)),
+      data: (artists) => artists.isEmpty
+          ? statusOf(AsyncValueLike<List<Artist>>.data(const []))
+          : SliverPadding(
+              padding: EdgeInsets.fromLTRB(
+                  SpacingTokens.md, 0, SpacingTokens.md, bottom),
+              sliver: SliverFixedExtentList.builder(
+                itemExtent: _kArtistRowExtent,
+                itemCount: artists.length,
+                itemBuilder: (_, i) {
+                  final a = artists[i];
+                  final subtitle =
+                      '${l10n.albumsCount(a.albumCount)} · ${l10n.songsCount(a.songCount)}';
+                  return ArtistListTile(
+                    artist: a,
+                    subtitle: subtitle,
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ArtistDetailPage(artist: a),
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
-          );
-        },
-      ),
     );
   }
 }
 
-/// Genres list — mirrors the Genres page body.
-class _GenresBody extends ConsumerWidget {
-  const _GenresBody({required this.miniPlayerVisible});
+/// Genres list — rendered as a sliver so it tucks under the pinned tabs.
+class _GenresSliver extends ConsumerWidget {
+  const _GenresSliver({required this.miniPlayerVisible});
 
   final bool miniPlayerVisible;
 
@@ -1100,29 +1639,97 @@ class _GenresBody extends ConsumerWidget {
     final genresAsync = ref.watch(genresProvider);
     final bottom =
         playerBarInset(context, miniPlayerVisible: miniPlayerVisible);
-    return AsyncStateView<List<Genre>>(
-      value: genresAsync.like,
-      isEmpty: (g) => g.isEmpty,
-      emptyMessage: l10n.libraryEmpty,
-      emptyIcon: Icons.category_outlined,
-      onRetry: () => ref.invalidate(songsProvider),
-      data: (genres) => ListView.builder(
-        padding:
-            EdgeInsets.fromLTRB(SpacingTokens.md, 0, SpacingTokens.md, bottom),
-        itemCount: genres.length,
-        itemBuilder: (_, i) {
-          final g = genres[i];
-          return GenreListTile(
-            genre: g,
-            subtitle: l10n.songsCount(g.songCount),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => GenreDetailPage(genre: g),
+
+    SliverFillRemaining statusOf(AsyncValueLike<List<Genre>> v) =>
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: AsyncStateView<List<Genre>>(
+            value: v,
+            data: (_) => const SizedBox.shrink(),
+            isEmpty: (_) => true,
+            emptyMessage: l10n.libraryEmpty,
+            emptyIcon: Icons.category_outlined,
+            onRetry: () => ref.invalidate(songsProvider),
+          ),
+        );
+
+    return genresAsync.like.map(
+      loading: () => statusOf(AsyncValueLike<List<Genre>>.loading()),
+      error: (e) => statusOf(AsyncValueLike<List<Genre>>.error(e)),
+      data: (genres) => genres.isEmpty
+          ? statusOf(AsyncValueLike<List<Genre>>.data(const []))
+          : SliverPadding(
+              padding: EdgeInsets.fromLTRB(
+                  SpacingTokens.md, 0, SpacingTokens.md, bottom),
+              sliver: SliverList.builder(
+                itemCount: genres.length,
+                itemBuilder: (_, i) {
+                  final g = genres[i];
+                  return GenreListTile(
+                    genre: g,
+                    subtitle: l10n.songsCount(g.songCount),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => GenreDetailPage(genre: g),
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
-          );
-        },
-      ),
+    );
+  }
+}
+
+/// "Pinned" — collections the user pinned, floated to the top in their own
+/// rail (and removed from For You so they're not shown twice). Hidden when no
+/// pins resolve to a current collection.
+class _PinnedRail extends ConsumerWidget {
+  const _PinnedRail();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pinned = ref.watch(pinnedCollectionsProvider);
+    if (pinned.isEmpty) return const SizedBox.shrink();
+    final collections = ref.watch(smartCollectionsProvider);
+    final items = [for (final c in collections) if (pinned.contains(c.id)) c];
+    if (items.isEmpty) return const SizedBox.shrink();
+    final colors = context.colors;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              SpacingTokens.lg, SpacingTokens.md, SpacingTokens.lg, 2),
+          child: Row(
+            children: [
+              Icon(Icons.push_pin, size: 16, color: colors.accent),
+              const SizedBox(width: 8),
+              Text(
+                'Pinned',
+                style: AppTextTheme.display.copyWith(
+                  color: colors.onSurface,
+                  fontSize: 21,
+                  letterSpacing: -0.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 188,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(
+                SpacingTokens.lg, SpacingTokens.sm, SpacingTokens.lg, 0),
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const SizedBox(width: SpacingTokens.md),
+            itemBuilder: (_, i) => _CollectionCard(collection: items[i]),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1136,7 +1743,12 @@ class _ForYouSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final collections = ref.watch(smartCollectionsProvider);
+    final all = ref.watch(smartCollectionsProvider);
+    // Pinned collections live in their own rail above — drop them here.
+    final pinned = ref.watch(pinnedCollectionsProvider);
+    final collections = pinned.isEmpty
+        ? all
+        : [for (final c in all) if (!pinned.contains(c.id)) c];
     if (collections.isEmpty) return const SizedBox(width: double.infinity);
     final colors = context.colors;
 
@@ -1176,7 +1788,6 @@ class _ForYouSection extends ConsumerWidget {
             ],
           ),
         ),
-        const _DiscoveryBalanceSlider(),
         SizedBox(
           height: 188,
           child: ListView.separated(
@@ -1189,47 +1800,6 @@ class _ForYouSection extends ConsumerWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// The "Familiar ↔ New" balance slider under the For You header — biases the
-/// recommendation engine toward well-worn favourites or fresh discovery.
-class _DiscoveryBalanceSlider extends ConsumerWidget {
-  const _DiscoveryBalanceSlider();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.colors;
-    final bias = ref.watch(discoveryBalanceProvider);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(SpacingTokens.lg, 0, SpacingTokens.lg, 0),
-      child: Row(
-        children: [
-          Text('FAMILIAR', style: _monoLabel(colors.onSurfaceFaint, size: 9)),
-          Expanded(
-            child: SliderTheme(
-              data: SliderThemeData(
-                trackHeight: 3,
-                activeTrackColor: colors.accent,
-                inactiveTrackColor: colors.divider,
-                thumbColor: colors.accent,
-                overlayColor: colors.accent.withOpacity(0.18),
-                thumbShape:
-                    const RoundSliderThumbShape(enabledThumbRadius: 7),
-                overlayShape:
-                    const RoundSliderOverlayShape(overlayRadius: 16),
-              ),
-              child: Slider(
-                value: bias,
-                onChanged: (v) =>
-                    ref.read(discoveryBalanceProvider.notifier).state = v,
-              ),
-            ),
-          ),
-          Text('NEW', style: _monoLabel(colors.onSurfaceFaint, size: 9)),
-        ],
-      ),
     );
   }
 }
@@ -1335,7 +1905,7 @@ class _CollectionCard extends ConsumerWidget {
         height: 172,
         child: Stack(
           children: [
-            Positioned.fill(child: CollectionCover(collection: collection)),
+            Positioned.fill(child: CollectionCover.collection(collection)),
             Positioned(
               right: 10,
               bottom: 10,
@@ -1459,6 +2029,129 @@ class _RecapStat extends StatelessWidget {
           Text(label, style: _monoLabel(colors.onSurfaceFaint, size: 9)),
         ],
       ),
+    );
+  }
+}
+
+/// "Your Playlists" — the user's own playlists, as solid mono covers.
+class _YourPlaylistsRail extends ConsumerWidget {
+  const _YourPlaylistsRail();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final playlists =
+        ref.watch(playlistsProvider).valueOrNull ?? const <Playlist>[];
+    if (playlists.isEmpty) return const SizedBox.shrink();
+    final songs = ref.watch(songsProvider).valueOrNull ?? const <Song>[];
+    final byId = <String, Song>{for (final s in songs) s.id: s};
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _ShelfHeader('Your Playlists'),
+        SizedBox(
+          height: 188,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(
+                SpacingTokens.lg, SpacingTokens.sm, SpacingTokens.lg, 0),
+            itemCount: playlists.length,
+            separatorBuilder: (_, __) => const SizedBox(width: SpacingTokens.md),
+            itemBuilder: (_, i) {
+              final p = playlists[i];
+              final plSongs = [
+                for (final id in p.songIds)
+                  if (byId.containsKey(id)) byId[id]!,
+              ];
+              return PressScale(
+                onTap: () => openUserPlaylist(context, p.id),
+                pressedScale: 0.97,
+                semanticLabel: p.name,
+                child: CollectionCover.label(
+                  title: p.name,
+                  count: p.songIds.length,
+                  icon: Icons.queue_music_rounded,
+                  colorSeed: p.id,
+                  songs: plSongs,
+                  size: 172,
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// "Quick Playlists" — the built-in auto playlists. Only the ones that actually
+/// have tracks are shown (so no empty cards), each with its real count, and any
+/// two that resolve to the same tracks are de-duplicated.
+class _QuickPlaylistsRail extends ConsumerWidget {
+  const _QuickPlaylistsRail();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final specs = <(AutoPlaylist, String, IconData)>[
+      (AutoPlaylist.mostPlayed, l10n.autoMostPlayed,
+          Icons.local_fire_department_rounded),
+      (AutoPlaylist.recentlyAdded, l10n.autoRecentlyAdded,
+          Icons.fiber_new_rounded),
+      (AutoPlaylist.recentlyPlayed, l10n.autoRecentlyPlayed,
+          Icons.history_rounded),
+      (AutoPlaylist.favorites, l10n.autoFavorites, Icons.favorite_rounded),
+      (AutoPlaylist.topRated, l10n.autoTopRated, Icons.star_rounded),
+    ];
+
+    final tiles = <(AutoPlaylist, String, IconData, int, List<Song>)>[];
+    final seen = <String>{};
+    for (final (type, label, icon) in specs) {
+      final songs =
+          ref.watch(autoPlaylistSongsProvider(type)).valueOrNull ??
+              const <Song>[];
+      if (songs.isEmpty) continue;
+      // De-dupe: skip any auto playlist that resolves to the same track set as
+      // one already shown.
+      final sig =
+          '${songs.length}:${songs.take(20).map((s) => s.id).join('|')}';
+      if (!seen.add(sig)) continue;
+      tiles.add((type, label, icon, songs.length, songs));
+    }
+    if (tiles.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _ShelfHeader('Quick Playlists'),
+        SizedBox(
+          height: 188,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(
+                SpacingTokens.lg, SpacingTokens.sm, SpacingTokens.lg, 0),
+            itemCount: tiles.length,
+            separatorBuilder: (_, __) => const SizedBox(width: SpacingTokens.md),
+            itemBuilder: (_, i) {
+              final (type, label, icon, count, plSongs) = tiles[i];
+              return PressScale(
+                onTap: () => openAutoPlaylist(context, type),
+                pressedScale: 0.97,
+                semanticLabel: label,
+                child: CollectionCover.label(
+                  title: label,
+                  count: count,
+                  icon: icon,
+                  colorSeed: 'auto_${type.name}',
+                  songs: plSongs,
+                  size: 172,
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }

@@ -17,6 +17,14 @@ final hiddenCollectionsProvider =
   (ref) => IdSetNotifier(),
 );
 
+/// Smart-collection ids the user has pinned to the top of the home. They float
+/// into a dedicated "Pinned" rail and are removed from the regular For You rail
+/// so they aren't shown twice. Session-scoped.
+final pinnedCollectionsProvider =
+    StateNotifierProvider<IdSetNotifier, Set<String>>(
+  (ref) => IdSetNotifier(),
+);
+
 /// Song ids the user marked "Not interested". These are excluded from
 /// recommendations and feed a negative signal into the taste profile (their
 /// artists are down-weighted), so the engine learns from the rejection.
@@ -25,6 +33,3 @@ final notInterestedProvider =
   (ref) => IdSetNotifier(),
 );
 
-/// Familiar ↔ new bias for recommendations: 0 = lean familiar, 0.5 = balanced,
-/// 1 = lean discovery. Driven by the home's balance slider. Session-scoped.
-final discoveryBalanceProvider = StateProvider<double>((ref) => 0.5);

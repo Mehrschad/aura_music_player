@@ -100,6 +100,28 @@ Duration _applyOffset(Duration base, Duration offset) {
   return Duration(milliseconds: ms < 0 ? 0 : ms);
 }
 
+/// Attaches [translated]'s lines onto [base] as per-line translations, matched
+/// by exact start time. Providers that ship a separate translated LRC (NetEase
+/// `tlyric`, QQ `trans`) fold into the dual-language view through this.
+Lyrics mergeTranslations(Lyrics base, Lyrics translated) {
+  if (!base.synced || !translated.synced || translated.isEmpty) return base;
+  final byMs = <int, String>{
+    for (final l in translated.lines)
+      if (l.text.trim().isNotEmpty) l.time.inMilliseconds: l.text,
+  };
+  if (byMs.isEmpty) return base;
+  final merged = [
+    for (final l in base.lines)
+      LyricsLine(
+        time: l.time,
+        text: l.text,
+        words: l.words,
+        translation: byMs[l.time.inMilliseconds] ?? l.translation,
+      ),
+  ];
+  return Lyrics(lines: merged, synced: base.synced, offset: base.offset);
+}
+
 /// Index of the line that should be highlighted at [position]: the last line
 /// whose start time is at or before [position]. Returns -1 before the first
 /// line, or for unsynced lyrics. Binary search — cheap to call every tick.

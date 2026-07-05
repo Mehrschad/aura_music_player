@@ -320,7 +320,6 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
       return Scaffold(backgroundColor: colors.background, body: const SizedBox());
     }
 
-    final ctrl = ref.read(audioControllerProvider);
     final dynamicColor = ref.watch(settingsProvider.select((s) => s.dynamicColor));
 
     // Real colours pulled from the album cover (Material Color Utilities),
@@ -351,39 +350,10 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
     final visualizerStyle = ref.watch(settingsProvider.select((s) => s.visualizerStyle));
     if (visualizerStyle != VisualizerStyle.off) _kickAnalysis(song);
 
-    return GestureDetector(
-      onVerticalDragEnd: (d) {
-        final v = d.primaryVelocity ?? 0;
-        final lyricsMode = ref.read(nowPlayingLyricsModeProvider);
-        if (v > 600) {
-          // Swipe down: leave Lyrics Mode first, otherwise dismiss the screen.
-          if (lyricsMode && !isLandscape) {
-            HapticFeedback.selectionClick();
-            ref.read(nowPlayingLyricsModeProvider.notifier).state = false;
-          } else {
-            Navigator.of(context).maybePop();
-          }
-        } else if (v < -600 && !lyricsMode && !isLandscape) {
-          // Swipe up: reveal lyrics, but only when synced lyrics exist.
-          final lyr = ref.read(currentLyricsProvider).valueOrNull;
-          if (lyr != null && !lyr.isEmpty && lyr.synced) {
-            HapticFeedback.selectionClick();
-            ref.read(nowPlayingLyricsModeProvider.notifier).state = true;
-          }
-        }
-      },
-      onHorizontalDragEnd: (d) {
-        final v = d.primaryVelocity ?? 0;
-        if (v < -600) {
-          HapticFeedback.selectionClick();
-          ctrl.skipToNext();
-        }
-        if (v > 600) {
-          HapticFeedback.selectionClick();
-          ctrl.skipToPrevious();
-        }
-      },
-      child: Scaffold(
+    // Swipe gestures (skip / lyrics-mode / dismiss) live on the album cover
+    // only — see [_CoverGestures] — so the scrubber, lyrics and empty page
+    // space never hijack a drag.
+    return Scaffold(
         backgroundColor: colors.background,
         body: Stack(
           children: [
@@ -472,7 +442,57 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
             ),
           ],
         ),
-      ),
+    );
+  }
+}
+
+/// Wraps the album cover with the screen's swipe gestures — horizontal flicks
+/// skip tracks, vertical flicks enter/leave Lyrics Mode or dismiss the screen.
+/// They live on the cover *only*, so drags anywhere else on the page (the
+/// scrubber, the lyrics list, empty space) are never hijacked.
+class _CoverGestures extends ConsumerWidget {
+  const _CoverGestures({required this.isLandscape, required this.child});
+
+  final bool isLandscape;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ctrl = ref.read(audioControllerProvider);
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onVerticalDragEnd: (d) {
+        final v = d.primaryVelocity ?? 0;
+        final lyricsMode = ref.read(nowPlayingLyricsModeProvider);
+        if (v > 600) {
+          // Swipe down: leave Lyrics Mode first, otherwise dismiss the screen.
+          if (lyricsMode && !isLandscape) {
+            HapticFeedback.selectionClick();
+            ref.read(nowPlayingLyricsModeProvider.notifier).state = false;
+          } else {
+            Navigator.of(context).maybePop();
+          }
+        } else if (v < -600 && !lyricsMode && !isLandscape) {
+          // Swipe up: reveal lyrics, but only when synced lyrics exist.
+          final lyr = ref.read(currentLyricsProvider).valueOrNull;
+          if (lyr != null && !lyr.isEmpty && lyr.synced) {
+            HapticFeedback.selectionClick();
+            ref.read(nowPlayingLyricsModeProvider.notifier).state = true;
+          }
+        }
+      },
+      onHorizontalDragEnd: (d) {
+        final v = d.primaryVelocity ?? 0;
+        if (v < -600) {
+          HapticFeedback.selectionClick();
+          ctrl.skipToNext();
+        }
+        if (v > 600) {
+          HapticFeedback.selectionClick();
+          ctrl.skipToPrevious();
+        }
+      },
+      child: child,
     );
   }
 }
@@ -560,10 +580,16 @@ class _PortraitBodyState extends ConsumerState<_PortraitBody>
     with SingleTickerProviderStateMixin {
   late final AnimationController _modeCtrl = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 460), // SwiftUI .smooth ≈ 0.5s
+    duration: const Duration(milliseconds: 420),
+    reverseDuration: const Duration(milliseconds: 380),
   );
-  late final Animation<double> _mode =
-      CurvedAnimation(parent: _modeCtrl, curve: Curves.easeInOutCubic);
+  // M3 "emphasized" ease: quick to commit, long soft settle — the morph feels
+  // responsive the instant it starts yet lands with no visible snap.
+  late final Animation<double> _mode = CurvedAnimation(
+    parent: _modeCtrl,
+    curve: Curves.easeInOutCubicEmphasized,
+    reverseCurve: Curves.easeInOutCubicEmphasized.flipped,
+  );
 
   @override
   void initState() {
@@ -641,13 +667,16 @@ class _PortraitBodyState extends ConsumerState<_PortraitBody>
             const thumbTop = 6.0;
             const titleBlockH = 58.0;
 
-            // Big artwork: centred in the region above the title block.
+            // Big artwork: deliberately smaller than edge-to-edge (~78% of the
+            // available width) so the page breathes, centred in the region
+            // above the bottom-anchored title block.
             final bigSide = math
-                .min(w - sideMargin * 2, hm - titleBlockH - 28)
+                .min((w - sideMargin * 2) * 0.78, hm - titleBlockH - 40)
                 .clamp(96.0, w - sideMargin * 2)
                 .toDouble();
             final bigLeft = (w - bigSide) / 2;
-            final bigTop = math.max(0.0, ((hm - titleBlockH - 18) - bigSide) / 2);
+            final bigTop =
+                math.max(0.0, ((hm - titleBlockH - 12) - bigSide) / 2);
 
             // Built once per layout (its props don't depend on the morph), so
             // referencing this identical instance inside the per-frame builder
@@ -668,9 +697,11 @@ class _PortraitBodyState extends ConsumerState<_PortraitBody>
                   const Rect.fromLTWH(sideMargin, thumbTop, thumbSide, thumbSide),
                   m,
                 )!;
+                // Artwork Mode anchors the title to the very bottom of the
+                // morph region — directly above the progress bar in the deck.
                 final titleRect = Rect.lerp(
                   Rect.fromLTWH(
-                      sideMargin, bigTop + bigSide + 18, w - sideMargin * 2, titleBlockH),
+                      sideMargin, hm - titleBlockH, w - sideMargin * 2, titleBlockH),
                   Rect.fromLTWH(sideMargin + thumbSide + 12, thumbTop,
                       w - sideMargin * 2 - thumbSide - 12, thumbSide),
                   m,
@@ -695,14 +726,18 @@ class _PortraitBodyState extends ConsumerState<_PortraitBody>
                         ),
                       ),
                     // Album art — the shared element that shrinks + travels.
+                    // The swipe gestures live here, on the cover alone.
                     Positioned.fromRect(
                       rect: artRect,
-                      child: _ArtworkWithGlow(
-                        song: song,
-                        size: artRect.width,
-                        accent: accent,
-                        state: state,
-                        slideDirection: widget.slideDirection,
+                      child: _CoverGestures(
+                        isLandscape: false,
+                        child: _ArtworkWithGlow(
+                          song: song,
+                          size: artRect.width,
+                          accent: accent,
+                          state: state,
+                          slideDirection: widget.slideDirection,
+                        ),
                       ),
                     ),
                     // Title / artist (+ like, fading out in Lyrics Mode).
@@ -728,6 +763,8 @@ class _PortraitBodyState extends ConsumerState<_PortraitBody>
               WaveformScrubber(
                 duration: song.duration,
                 accent: accent,
+                // Neutral white rail; the subdermal wave keeps the accent.
+                barColor: context.colors.onSurface,
                 seed: song.artworkSeed,
                 isPlaying: state.playing,
                 bookmarkFractions: bookmarkFracs,
@@ -1218,12 +1255,15 @@ class _LandscapeBody extends ConsumerWidget {
               builder: (context, c) {
                 final side =
                     math.min(c.maxWidth * 0.86, c.maxHeight * 0.72);
-                return _ArtworkWithGlow(
-                  song: song,
-                  size: side,
-                  accent: accent,
-                  state: state,
-                  slideDirection: slideDirection,
+                return _CoverGestures(
+                  isLandscape: true,
+                  child: _ArtworkWithGlow(
+                    song: song,
+                    size: side,
+                    accent: accent,
+                    state: state,
+                    slideDirection: slideDirection,
+                  ),
                 );
               },
             ),
@@ -1256,6 +1296,7 @@ class _LandscapeBody extends ConsumerWidget {
                   WaveformScrubber(
                     duration: song.duration,
                     accent: accent,
+                    barColor: context.colors.onSurface,
                     seed: song.artworkSeed,
                     isPlaying: state.playing,
                     bookmarkFractions: bookmarkFracs,
@@ -2146,38 +2187,32 @@ class _PlayerToggleState extends State<_PlayerToggle>
           _press.forward(from: 0);
           widget.onTap();
         },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 260),
-          curve: Curves.easeOut,
+        // Bare icon — no encircling disc. Active state reads through the
+        // accent colour plus a small dot beneath, keeping the row light.
+        child: SizedBox(
           width: 46,
           height: 46,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            // Active: a glowing accent disc. Inactive: a faint glass circle so
-            // it still reads as a Liquid-Glass control (iOS 26), not a bare icon.
-            color: widget.active
-                ? widget.accent.withOpacity(0.16)
-                : colors.onSurface.withOpacity(0.06),
-            border: Border.all(
-              color: widget.active
-                  ? widget.accent.withOpacity(0.30)
-                  : Colors.white.withOpacity(0.10),
-              width: 1,
-            ),
-            boxShadow: widget.active
-                ? [
-                    BoxShadow(
-                      color: widget.accent.withOpacity(0.30),
-                      blurRadius: 16,
-                      spreadRadius: -2,
-                    ),
-                  ]
-                : null,
-          ),
-          child: ScaleTransition(
-            scale: _bump,
-            child: Icon(widget.icon, color: color, size: 23),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ScaleTransition(
+                scale: _bump,
+                child: Icon(widget.icon, color: color, size: 23),
+              ),
+              const SizedBox(height: 3),
+              AnimatedOpacity(
+                duration: const Duration(milliseconds: 200),
+                opacity: widget.active ? 1.0 : 0.0,
+                child: Container(
+                  width: 4,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: widget.accent,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -2356,12 +2391,15 @@ void openArtistForSong(BuildContext context, WidgetRef ref, Song song) {
   );
 }
 
-/// The three-dot overflow sheet for the playing track.
+/// The three-dot overflow sheet for the playing track. Scroll-controlled so
+/// the full action list is reachable — it opens at up to ~82% of the screen
+/// and scrolls inside the glass card rather than being clipped at half height.
 Future<void> showNowPlayingMenu(
     BuildContext context, Song song, Color accent) {
   return showModalBottomSheet<void>(
     context: context,
     backgroundColor: Colors.transparent,
+    isScrollControlled: true,
     builder: (_) => _NowPlayingMenu(song: song, accent: accent),
   );
 }
@@ -2380,10 +2418,15 @@ class _NowPlayingMenu extends ConsumerWidget {
       top: false,
       child: Padding(
         padding: const EdgeInsets.all(SpacingTokens.md),
-        child: GlassSurface(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.82,
+          ),
+          child: GlassSurface(
           borderRadius: RadiusTokens.brLg,
           intensity: GlassIntensity.strong,
           padding: const EdgeInsets.symmetric(vertical: SpacingTokens.sm),
+          child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -2478,6 +2521,8 @@ class _NowPlayingMenu extends ConsumerWidget {
                 },
               ),
             ],
+          ),
+          ),
           ),
         ),
       ),

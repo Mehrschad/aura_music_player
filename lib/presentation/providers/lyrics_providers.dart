@@ -2,7 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/local/lyrics_cache/shared_prefs_lyrics_cache.dart';
 import '../../data/remote/lyrics_api/lrclib_lyrics_repository.dart';
+import '../../data/remote/lyrics_api/lyrics_ovh_lyrics_repository.dart';
 import '../../data/remote/lyrics_api/netease_lyrics_repository.dart';
+import '../../data/remote/lyrics_api/qq_lyrics_repository.dart';
 import '../../data/repositories/composite_lyrics_repository.dart';
 import '../../data/repositories/sample_lyrics_repository.dart';
 import '../../domain/lyrics/lrc_parser.dart';
@@ -20,10 +22,13 @@ final lyricsCacheProvider = Provider<SharedPrefsLyricsCache>((ref) {
 });
 
 /// The active lyrics source. With auto-fetch enabled, a composite resolver
-/// checks a local sidecar `.lrc` first, then races LRCLIB and NetEase in
-/// parallel and returns the richest match (synced › word-level › translated).
-/// With auto-fetch disabled it falls back to bundled sample data (also keeps
-/// tests fast and offline).
+/// checks a local sidecar `.lrc` first, then races LRCLIB, NetEase and QQ
+/// Music in parallel (the synced/quality tier — each with its own internal
+/// query ladder, and the tier retried once on a transient failure), returning
+/// the richest match (synced › word-level › translated). If all three come up
+/// empty it falls back to lyrics.ovh (plain text, different catalogue) so far
+/// fewer tracks end up with nothing. With auto-fetch disabled it uses bundled
+/// sample data (also keeps tests fast and offline).
 final lyricsRepositoryProvider = Provider<LyricsRepository>((ref) {
   final autoFetch = ref.watch(settingsProvider.select((s) => s.lyricsAutoFetch));
   if (!autoFetch) return const SampleLyricsRepository();
@@ -31,7 +36,14 @@ final lyricsRepositoryProvider = Provider<LyricsRepository>((ref) {
     network: [
       LrcLibLyricsRepository(),
       NeteaseLyricsRepository(),
+      QQLyricsRepository(),
     ],
+    fallback: [
+      LyricsOvhLyricsRepository(),
+    ],
+    // Wide enough for LRCLIB's multi-rung ladder; sources race in parallel so
+    // this bounds the whole tier, not each request.
+    timeout: const Duration(seconds: 10),
   );
 });
 
@@ -65,14 +77,21 @@ final currentLyricsProvider = FutureProvider<Lyrics?>((ref) async {
 
   final cache = ref.read(lyricsCacheProvider);
 
-  // 2. Persistent cache — works offline.
+  // 2. Persistent cache — works offline. Empty entries (poisoned by older
+  //    builds that cached header-only payloads) are ignored so the network
+  //    lookup below gets a chance to repair them.
   final cached = await cache.read(song.id);
-  if (cached != null) return cached;
+  if (cached != null && !cached.isEmpty) return cached;
 
-  // 3. Remote repository — fetch and cache the result.
+  // 3. Remote repository — fetch and cache the result (never cache empties).
   final result = await ref.watch(lyricsRepositoryProvider).lyricsFor(song);
-  if (result != null) await cache.write(song.id, result);
-  return result;
+  if (result != null && !result.isEmpty) {
+    try {
+      await cache.write(song.id, result);
+    } catch (_) {/* cache write failure must never lose the lyrics */}
+    return result;
+  }
+  return null;
 });
 
 final lyricsFontSizeProvider =

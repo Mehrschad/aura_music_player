@@ -75,12 +75,22 @@ final recommendationsProvider = Provider<List<ScoredSong>>((ref) {
 
   final favs = ref.watch(favoritesProvider);
   final ratings = ref.watch(songRatingsProvider);
-  final discoveryBias = ref.watch(discoveryBalanceProvider);
 
   final now = DateTime.now();
   // Refresh the mix every 3 days for variety — stable within each 3-day window
   // so it doesn't reshuffle on every rebuild, then rotates.
   final daySeed = now.difference(DateTime(2020)).inDays ~/ 3;
+  // Auto-balanced familiar ↔ new by the part of the day (replaces the manual
+  // slider): calmer/familiar in the morning and at night, leaning discovery
+  // through midday and the evening.
+  final hour = now.hour;
+  final discoveryBias = (hour >= 5 && hour < 11)
+      ? 0.35
+      : (hour >= 17 && hour < 22)
+          ? 0.62
+          : (hour >= 22 || hour < 5)
+              ? 0.40
+              : 0.55;
 
   return TasteEngine.recommend(
     library: library,
