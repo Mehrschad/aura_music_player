@@ -61,6 +61,34 @@ class SharedPrefsLyricsCache {
     return age < missTtl;
   }
 
+  /// Every cached song's lyric text, keyed by song id and lowercased for
+  /// case-insensitive substring search. Powers "search inside lyrics" — the
+  /// user types a line and finds the track. Read once and memoised upstream
+  /// (it walks every cached entry), so this stays a plain bulk read.
+  Future<Map<String, String>> allText() async {
+    final prefs = await SharedPreferences.getInstance();
+    final out = <String, String>{};
+    for (final key in prefs.getKeys()) {
+      if (!key.startsWith(_prefix)) continue;
+      final raw = prefs.getString(key);
+      if (raw == null || raw.isEmpty) continue;
+      try {
+        final j = jsonDecode(raw) as Map<String, dynamic>;
+        final lines = (j['lines'] as List?)?.cast<Map<String, dynamic>>();
+        if (lines == null || lines.isEmpty) continue;
+        final buf = StringBuffer();
+        for (final l in lines) {
+          buf.write((l['text'] as String? ?? '').toLowerCase());
+          buf.write('\n');
+        }
+        out[key.substring(_prefix.length)] = buf.toString();
+      } catch (_) {
+        // Skip malformed entries.
+      }
+    }
+    return out;
+  }
+
   Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
     final keys = prefs

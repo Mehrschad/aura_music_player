@@ -96,6 +96,18 @@
       }
     }
   },
+  "searchSeeAllSongs": "{count, plural, =1{See all 1 song} other{See all {count} songs}}",
+  "@searchSeeAllSongs": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "searchScopeAll": "All",
+  "searchTopResult": "Top result",
+  "searchInLyrics": "In lyrics",
+  "searchRecentlyPlayed": "Recently played",
   "searchNoResults": "No matches for “{query}”",
   "@searchNoResults": {
     "description": "Shown when a search returns nothing.",
