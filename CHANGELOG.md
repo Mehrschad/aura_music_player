@@ -6,6 +6,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is
 
 ## [Unreleased]
 
+### Changed — Artists page redesign
+- **Photo-forward artists grid** — the plain artist list is now a two-column
+  grid of large circular avatars with a centred name and album/song count,
+  matching the app's palette-driven, artwork-forward visual language.
+- **Favourites rail** pinned above the grid surfaces favourited artists as a
+  horizontal row of circular avatars (wired to the existing favourite-artist
+  store, previously unused on this page).
+- **A–Z fast-scroll index** down the right edge lets you drag or tap a letter
+  to jump straight to that section, with a floating letter bubble and haptics.
+
 ### Changed — iOS 26/27 Liquid Glass redesign
 - **Ambient track colour** bleeds behind the glass nav bar as a coloured wash
   that shifts smoothly with every track change — makes the frosted-glass effect
