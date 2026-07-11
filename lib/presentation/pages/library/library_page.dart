@@ -76,6 +76,18 @@ const List<String> _kMonths = [
 String _dateLabel(DateTime d) =>
     '${_kWeekdays[d.weekday - 1]} · ${d.day} ${_kMonths[d.month - 1]}';
 
+/// Decoration for the home's boxed discovery panels (Your Week, Suggested
+/// Artists, the cold-start nudge). On the AMOLED theme the elevated surface is
+/// almost pure black and its divider-hairline vanishes, so we lift the fill a
+/// few percent and give it a clearly visible border — the card then reads as a
+/// distinct panel rather than a shape lost in the background.
+BoxDecoration _discoveryCardDecoration(AppColors colors) => BoxDecoration(
+      color:
+          Color.alphaBlend(Colors.white.withOpacity(0.03), colors.surfaceElevated),
+      borderRadius: RadiusTokens.brLg,
+      border: Border.all(color: colors.onSurface.withOpacity(0.08)),
+    );
+
 /// Fixed row heights for the flat library lists. Pinning these lets the list
 /// use a [SliverFixedExtentList] — so a scrubber jump (or a tab switch that
 /// preserves a deep offset) is O(1) instead of forcing Flutter to build every
@@ -87,10 +99,10 @@ const double _kArtistRowExtent = 72; // 56 avatar + 8·2 pad
 // Fixed heights for the tree (folded Songs) rows. Pinning them keeps the A–Z
 // scrubber's offset maths exact: a letter jump is `discovery + Σ heights of the
 // rows above its header`, so it never has to build intervening rows.
-const double _kLetterHeaderExtent = 52; // section letter divider
-const double _kArtistHeaderExtent = 68; // 48 avatar + 10·2 pad
-const double _kAlbumHeaderExtent = 64; // 48 artwork + 8·2 pad
-const double _kTreeSongExtent = 58; // 40 artwork/number + 9·2 pad
+const double _kLetterHeaderExtent = 44; // section letter divider
+const double _kArtistHeaderExtent = 62; // 46 avatar + 8·2 pad
+const double _kAlbumHeaderExtent = 60; // 44 artwork + 8·2 pad
+const double _kTreeSongExtent = 52; // 40 artwork/number, centred
 
 /// Row height for a folded-tree row of [kind].
 double _treeRowExtent(LibRowKind kind) => switch (kind) {
@@ -384,8 +396,23 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
         selectionProvider(LibraryPage._listId).select((s) => s.active));
     final allSongs = songsAsync.valueOrNull ?? const <Song>[];
 
-    // Keep the discovery height measured so scrubber jumps stay accurate.
-    if (!selecting) _scheduleDiscoveryMeasure();
+    // When the discovery rails are collapsed the browser sits directly under the
+    // header, so the tabs pin from the very top.
+    final discoveryCollapsed = ref.watch(discoveryCollapsedProvider);
+    final showDiscovery = !selecting && !discoveryCollapsed;
+    // With no discovery rails above them the tabs are pinned from the start, so
+    // the A–Z scrubber should be available immediately rather than waiting for
+    // the (absent) rails to scroll away.
+    final tabsPinned = _tabsPinned || !showDiscovery;
+
+    // Keep the discovery height measured so scrubber jumps stay accurate; when
+    // it isn't shown its extent is zero (the widget isn't in the tree to
+    // measure, so pin the value here).
+    if (showDiscovery) {
+      _scheduleDiscoveryMeasure();
+    } else {
+      _discoveryExtent = 0;
+    }
 
     // A-Z fast-scroll model for the active alphabetical segment (Songs sorted
     // A–Z in list mode, Artists, Albums). Null hides the scrubber.
@@ -480,6 +507,10 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                                     .read(librarySortProvider.notifier)
                                     .update(s),
                               );
+                            } else if (v == 'discovery') {
+                              ref
+                                  .read(discoveryCollapsedProvider.notifier)
+                                  .toggle();
                             } else if (v == 'folders') {
                               openFolderBrowser(context);
                             } else if (v == 'settings') {
@@ -488,6 +519,15 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                           },
                           itemBuilder: (_) => [
                             _menuItem('sort', Icons.sort, l10n.sortLabel),
+                            _menuItem(
+                              'discovery',
+                              discoveryCollapsed
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                              discoveryCollapsed
+                                  ? 'Show discovery'
+                                  : 'Hide discovery',
+                            ),
                             _menuItem(
                                 'folders', Icons.folder_outlined, l10n.folders),
                             _menuItem('settings', Icons.settings_outlined,
@@ -531,7 +571,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                   CustomScrollView(
                     controller: _scrollController,
                     slivers: [
-                      if (!selecting)
+                      if (showDiscovery)
                         SliverToBoxAdapter(
                           child: KeyedSubtree(
                             key: _discoveryKey,
@@ -562,10 +602,10 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                       child: IgnorePointer(
                         // Hidden (and inert) until the rails scroll away, so it
                         // never floats over the discovery cards at the top.
-                        ignoring: !_tabsPinned,
+                        ignoring: !tabsPinned,
                         child: AnimatedOpacity(
                           duration: const Duration(milliseconds: 180),
-                          opacity: _tabsPinned ? 1 : 0,
+                          opacity: tabsPinned ? 1 : 0,
                           child: _AlphaScrubber(
                             alphabet: alphabet,
                             onJump: (index) => _jumpToItem(
@@ -1292,14 +1332,14 @@ class _ArtistHeaderRow extends StatelessWidget {
         height: _kArtistHeaderExtent,
         child: Padding(
           padding: const EdgeInsets.symmetric(
-              horizontal: SpacingTokens.sm, vertical: SpacingTokens.sm + 2),
+              horizontal: SpacingTokens.sm, vertical: SpacingTokens.sm),
           child: Row(
             children: [
               ClipOval(
                 child: AuraArtwork(
                   seed: artist.artworkSeed,
-                  size: 48,
-                  borderRadius: BorderRadius.circular(24),
+                  size: 46,
+                  borderRadius: BorderRadius.circular(23),
                   hasArtwork: artist.hasArtwork,
                   artworkId: artist.firstSongId,
                 ),
@@ -1376,7 +1416,7 @@ class _AlbumHeaderRow extends StatelessWidget {
             children: [
               AuraArtwork(
                 seed: album.artworkSeed,
-                size: 48,
+                size: 44,
                 borderRadius: RadiusTokens.brSm,
                 hasArtwork: album.hasArtwork,
                 artworkId: album.firstSongId,
@@ -1640,11 +1680,7 @@ class _ColdStartCard extends ConsumerWidget {
           SpacingTokens.lg, SpacingTokens.md, SpacingTokens.lg, 0),
       child: Container(
         padding: const EdgeInsets.all(SpacingTokens.lg),
-        decoration: BoxDecoration(
-          color: colors.surfaceElevated,
-          borderRadius: RadiusTokens.brLg,
-          border: Border.all(color: colors.divider),
-        ),
+        decoration: _discoveryCardDecoration(colors),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -2319,11 +2355,16 @@ class _ForYouSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final all = ref.watch(smartCollectionsProvider);
-    // Pinned collections live in their own rail above — drop them here.
+    // Drop anything already surfaced elsewhere so the home never shows the same
+    // mix twice: pinned collections have their own rail above, and a collection
+    // promoted into the Top Picks grid (e.g. the contextual "Chill" mood)
+    // shouldn't reappear here.
     final pinned = ref.watch(pinnedCollectionsProvider);
-    final collections = pinned.isEmpty
-        ? all
-        : [for (final c in all) if (!pinned.contains(c.id)) c];
+    final pickIds = {for (final p in ref.watch(topPicksProvider)) p.id};
+    final collections = [
+      for (final c in all)
+        if (!pinned.contains(c.id) && !pickIds.contains(c.id)) c,
+    ];
     if (collections.isEmpty) return const SizedBox(width: double.infinity);
     final colors = context.colors;
 
@@ -2533,11 +2574,7 @@ class _WeeklyRecapCard extends ConsumerWidget {
           SpacingTokens.lg, SpacingTokens.md, SpacingTokens.lg, 0),
       child: Container(
         padding: const EdgeInsets.all(SpacingTokens.lg),
-        decoration: BoxDecoration(
-          color: colors.surfaceElevated,
-          borderRadius: RadiusTokens.brLg,
-          border: Border.all(color: colors.divider),
-        ),
+        decoration: _discoveryCardDecoration(colors),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2739,18 +2776,19 @@ class _SuggestedArtistsBox extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final artists = ref.watch(suggestedArtistsProvider);
+    // Don't re-suggest artists that already appear in the Top Artists shelf.
+    final topIds = {for (final a in ref.watch(topArtistsProvider)) a.id};
+    final artists = [
+      for (final a in ref.watch(suggestedArtistsProvider))
+        if (!topIds.contains(a.id)) a,
+    ];
     if (artists.isEmpty) return const SizedBox.shrink();
     final colors = context.colors;
     return Padding(
       padding: const EdgeInsets.fromLTRB(
           SpacingTokens.lg, SpacingTokens.md, SpacingTokens.lg, 0),
       child: Container(
-        decoration: BoxDecoration(
-          color: colors.surfaceElevated,
-          borderRadius: RadiusTokens.brLg,
-          border: Border.all(color: colors.divider),
-        ),
+        decoration: _discoveryCardDecoration(colors),
         padding: const EdgeInsets.symmetric(vertical: SpacingTokens.md),
         child: Column(
           mainAxisSize: MainAxisSize.min,
