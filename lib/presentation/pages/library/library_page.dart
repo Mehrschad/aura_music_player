@@ -478,7 +478,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                                 current: sort,
                                 onChanged: (s) => ref
                                     .read(librarySortProvider.notifier)
-                                    .state = s,
+                                    .update(s),
                               );
                             } else if (v == 'folders') {
                               openFolderBrowser(context);

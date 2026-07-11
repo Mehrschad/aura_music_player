@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../data/local/audio_query/device_library_repository.dart';
 import '../../data/local/tag_editor/audiotagger_tag_writer.dart';
@@ -98,9 +99,54 @@ Song _withRating(Song song, Map<String, int> ratings) {
 
 // ── Per-section UI state ───────────────────────────────────────────────────
 
-/// Sort selection for the Library (all-songs) section.
+/// Persisted sort selection for the Library (all-songs) section. Survives app
+/// restarts via SharedPreferences, so the list keeps the arrangement the user
+/// chose. Best-effort, matching the app's other persisted stores: load/save
+/// failures (e.g. no platform channel in widget tests) are swallowed so the
+/// in-memory value always works.
+class LibrarySortNotifier extends StateNotifier<LibrarySort> {
+  LibrarySortNotifier() : super(LibrarySort.defaultSort) {
+    _load();
+  }
+
+  static const String _fieldKey = 'library_sort_field_v1';
+  static const String _dirKey = 'library_sort_direction_v1';
+
+  Future<void> _load() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final field = prefs.getString(_fieldKey);
+      if (field == null) return;
+      final f = SortField.values
+          .firstWhere((e) => e.name == field, orElse: () => state.field);
+      final dirName = prefs.getString(_dirKey);
+      final d = SortDirection.values.firstWhere(
+        (e) => e.name == dirName,
+        orElse: () => LibrarySort.defaultDirectionFor(f),
+      );
+      if (mounted) state = LibrarySort(f, d);
+    } catch (_) {/* tests / first launch */}
+  }
+
+  Future<void> _save() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_fieldKey, state.field.name);
+      await prefs.setString(_dirKey, state.direction.name);
+    } catch (_) {/* tests */}
+  }
+
+  /// Applies a new sort and persists it.
+  void update(LibrarySort sort) {
+    state = sort;
+    _save();
+  }
+}
+
 final librarySortProvider =
-    StateProvider<LibrarySort>((ref) => LibrarySort.defaultSort);
+    StateNotifierProvider<LibrarySortNotifier, LibrarySort>(
+  (ref) => LibrarySortNotifier(),
+);
 
 /// Display mode for the Library section.
 final libraryDisplayModeProvider =
