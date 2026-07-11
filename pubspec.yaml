@@ -49,6 +49,9 @@ dependencies:
   #
   # UI & animations
   phosphor_flutter: ^2.0.0
+  # High refresh rate — opt the app into the panel's fastest mode (e.g. 120 Hz)
+  # on Android so scrolling and animations are as smooth as the device allows.
+  flutter_displaymode: ^0.6.0
   # flutter_animate: ^4.5.0
   # animations: ^2.0.11
   # palette_dart: ^0.1.0
