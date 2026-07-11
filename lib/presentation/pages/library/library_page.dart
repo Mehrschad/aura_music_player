@@ -6,9 +6,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/radius_tokens.dart';
 import '../../../core/constants/spacing_tokens.dart';
+import '../../../core/extensions/duration_format.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/color_scheme.dart';
 import '../../../core/theme/typography.dart';
+import '../../../core/utils/seed_color.dart';
+import '../../../domain/library/song_tree.dart';
 import '../../../domain/models/album.dart';
 import '../../../domain/models/artist.dart';
 import '../../../domain/models/genre.dart';
@@ -35,6 +38,7 @@ import '../../widgets/library/collection_actions.dart';
 import '../../widgets/library/collection_cover.dart';
 import '../../widgets/library/genre_list_tile.dart';
 import '../../widgets/library/library_controls.dart';
+import '../../widgets/library/now_playing_indicator.dart';
 import '../../widgets/library/selection_bar.dart';
 import '../../widgets/library/song_compact_tile.dart';
 import '../../widgets/library/song_grid_tile.dart';
@@ -79,6 +83,26 @@ String _dateLabel(DateTime d) =>
 /// the leading artwork/avatar, so they stay stable across text scales.
 const double _kSongRowExtent = 66; // 48 art + 8·2 pad + 1·2 margin
 const double _kArtistRowExtent = 72; // 56 avatar + 8·2 pad
+
+// Fixed heights for the tree (folded Songs) rows. Pinning them keeps the A–Z
+// scrubber's offset maths exact: a letter jump is `discovery + Σ heights of the
+// rows above its header`, so it never has to build intervening rows.
+const double _kLetterHeaderExtent = 52; // section letter divider
+const double _kArtistHeaderExtent = 68; // 48 avatar + 10·2 pad
+const double _kAlbumHeaderExtent = 64; // 48 artwork + 8·2 pad
+const double _kTreeSongExtent = 58; // 40 artwork/number + 9·2 pad
+
+/// Row height for a folded-tree row of [kind].
+double _treeRowExtent(LibRowKind kind) => switch (kind) {
+      LibRowKind.letter => _kLetterHeaderExtent,
+      LibRowKind.artist => _kArtistHeaderExtent,
+      LibRowKind.album => _kAlbumHeaderExtent,
+      LibRowKind.song => _kTreeSongExtent,
+    };
+
+/// Left gutter and per-level indent for the tree's VS-Code-style guide lines.
+const double _kTreeGutter = SpacingTokens.md;
+const double _kIndentStep = 20;
 
 /// Shared monospace label style for the home's small-caps eyebrows/labels —
 /// the type system's "machine voice" for dates, counts and section tags.
@@ -191,6 +215,11 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
   final GlobalKey _discoveryKey = GlobalKey();
   double _discoveryExtent = 0;
 
+  // Cumulative pixel offset of each folded-tree row from the top of the songs
+  // sliver, or null when the Songs list isn't folded. Recomputed in build from
+  // the fixed per-kind heights so an A–Z jump into the tree lands exactly.
+  List<double>? _songRowOffsets;
+
   @override
   void dispose() {
     _scrollController.dispose();
@@ -220,7 +249,13 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
     if (!_scrollController.hasClients) return;
     final max = _scrollController.position.maxScrollExtent;
     double target;
-    if (segment == LibrarySegment.albums) {
+    if (segment == LibrarySegment.songs && _songRowOffsets != null) {
+      // Folded Songs tree: [index] is a *row* index; jump to its exact offset.
+      final offsets = _songRowOffsets!;
+      final off =
+          (index >= 0 && index < offsets.length) ? offsets[index] : 0.0;
+      target = _discoveryExtent + off;
+    } else if (segment == LibrarySegment.albums) {
       final tileW =
           (viewportWidth - 2 * SpacingTokens.lg - SpacingTokens.lg) / 2;
       final rowExtent = tileW / 0.76 + SpacingTokens.xl;
@@ -257,13 +292,12 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
     final List<String> keys;
     switch (segment) {
       case LibrarySegment.songs:
-        // Only meaningful when the list is actually ordered A→Z by title.
-        if (sort.field != SortField.title ||
-            sort.direction != SortDirection.ascending ||
-            mode != DisplayMode.list) {
-          return null;
-        }
-        keys = [for (final s in allSongs) s.title];
+        // The Songs list only carries a scrubber when it's folded into a tree
+        // (Title/Album/Artist ascending, list mode). The scrubber then jumps to
+        // section *headers* rather than raw song indices.
+        final tree = ref.watch(songTreeProvider);
+        if (tree == null || tree.orderedSongs.length < threshold) return null;
+        return _Alphabet.fromLetterRows(tree.letterFirstRow);
       case LibrarySegment.albums:
         final albums = ref.watch(albumsProvider).valueOrNull ?? const <Album>[];
         keys = [for (final a in albums) a.name];
@@ -289,6 +323,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
     required LibrarySegment segment,
     required AsyncValue<List<Song>> songsAsync,
     required DisplayMode mode,
+    required SongTreeData? tree,
     required bool miniPlayerVisible,
   }) {
     switch (segment) {
@@ -296,6 +331,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
         return _SongsSliver(
           songsAsync: songsAsync,
           mode: mode,
+          tree: tree,
           miniPlayerVisible: miniPlayerVisible,
           onPlay: _play,
         );
@@ -329,6 +365,20 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
     final songsAsync = ref.watch(sortedSongsProvider);
     final sort = ref.watch(librarySortProvider);
     final mode = ref.watch(libraryDisplayModeProvider);
+    // The folded Songs tree (null unless the sort folds). Cache each row's pixel
+    // offset so the A–Z scrubber can jump into it without building rows.
+    final songTree = ref.watch(songTreeProvider);
+    if (songTree != null) {
+      final offsets = <double>[];
+      var acc = 0.0;
+      for (final r in songTree.rows) {
+        offsets.add(acc);
+        acc += _treeRowExtent(r.kind);
+      }
+      _songRowOffsets = offsets;
+    } else {
+      _songRowOffsets = null;
+    }
     final miniPlayerVisible = ref.watch(hasMediaProvider);
     final selecting = ref.watch(
         selectionProvider(LibraryPage._listId).select((s) => s.active));
@@ -497,6 +547,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                         segment: segment,
                         songsAsync: songsAsync,
                         mode: mode,
+                        tree: songTree,
                         miniPlayerVisible: miniPlayerVisible,
                       ),
                     ],
@@ -719,6 +770,31 @@ class _Alphabet {
     }
     return _Alphabet(labels, target, present);
   }
+
+  /// Builds the index from a folded tree's `letter → first header row` map. The
+  /// resulting [target] values are **row** indices (not song indices), which
+  /// [_jumpToItem] resolves to a pixel offset for the Songs segment.
+  factory _Alphabet.fromLetterRows(Map<String, int> firstRowByLetter) {
+    final present = firstRowByLetter.keys.toSet();
+    final labels = <String>[
+      if (present.contains('#')) '#',
+      for (var c = 65; c <= 90; c++) String.fromCharCode(c),
+    ];
+    final target = <String, int>{};
+    int? next;
+    for (var j = labels.length - 1; j >= 0; j--) {
+      final lab = labels[j];
+      if (firstRowByLetter.containsKey(lab)) next = firstRowByLetter[lab];
+      if (next != null) target[lab] = next;
+    }
+    int? prev;
+    for (var j = 0; j < labels.length; j++) {
+      final lab = labels[j];
+      if (firstRowByLetter.containsKey(lab)) prev = firstRowByLetter[lab];
+      target.putIfAbsent(lab, () => prev ?? 0);
+    }
+    return _Alphabet(labels, target, present);
+  }
 }
 
 /// The right-edge A–Z fast-scroll rail. Dragging a finger along it jumps the
@@ -892,12 +968,16 @@ class _SongsSliver extends ConsumerWidget {
   const _SongsSliver({
     required this.songsAsync,
     required this.mode,
+    required this.tree,
     required this.miniPlayerVisible,
     required this.onPlay,
   });
 
   final AsyncValue<List<Song>> songsAsync;
   final DisplayMode mode;
+
+  /// The folded hierarchy for list mode, or null when the sort doesn't fold.
+  final SongTreeData? tree;
   final bool miniPlayerVisible;
   final void Function(List<Song> queue, int index) onPlay;
 
@@ -906,6 +986,13 @@ class _SongsSliver extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final bottom =
         playerBarInset(context, miniPlayerVisible: miniPlayerVisible);
+
+    // Folded tree (Title/Album/Artist ascending, list mode): render the
+    // hierarchy. A non-null tree already implies loaded, non-empty data.
+    final tree = this.tree;
+    if (mode == DisplayMode.list && tree != null) {
+      return _buildTreeSliver(context, ref, tree, bottom);
+    }
 
     SliverFillRemaining statusOf(AsyncValueLike<List<Song>> v) =>
         SliverFillRemaining(
@@ -1009,6 +1096,494 @@ class _SongsSliver extends ConsumerWidget {
             );
         }
       },
+    );
+  }
+
+  /// Renders the folded hierarchy as one lazy [SliverList]. Every row is boxed
+  /// to a fixed height (see `_treeRowExtent`) so it stays cheap to build and the
+  /// scrubber's offset table stays exact. Tapping a track plays the tree's
+  /// [SongTreeData.orderedSongs] from that point; selection mirrors the flat
+  /// list, ranging over the same visual order.
+  Widget _buildTreeSliver(
+    BuildContext context,
+    WidgetRef ref,
+    SongTreeData tree,
+    double bottom,
+  ) {
+    final rows = tree.rows;
+    final ordered = tree.orderedSongs;
+    final selection = ref.watch(selectionProvider(LibraryPage._listId));
+    final notifier =
+        ref.read(selectionProvider(LibraryPage._listId).notifier);
+    final selecting = selection.active;
+    final orderedIds = [for (final s in ordered) s.id];
+
+    void onLongPressAt(int songIndex) {
+      HapticFeedback.mediumImpact();
+      final id = ordered[songIndex].id;
+      if (selecting) {
+        notifier.selectRange(orderedIds, id);
+      } else {
+        notifier.enter(id);
+      }
+    }
+
+    void onTapAt(int songIndex) {
+      if (selecting) {
+        HapticFeedback.selectionClick();
+        notifier.toggle(ordered[songIndex].id);
+      } else {
+        onPlay(ordered, songIndex);
+      }
+    }
+
+    return SliverPadding(
+      padding: EdgeInsets.fromLTRB(
+          SpacingTokens.sm, 0, SpacingTokens.sm, bottom),
+      // Varied *but fixed-per-row* extents: the layout geometry is exact (like a
+      // fixed-extent list), so the A–Z scrubber's `discovery + Σ extents` jump
+      // lands precisely and never has to build the rows in between.
+      sliver: SliverVariedExtentList.builder(
+        itemCount: rows.length,
+        itemExtentBuilder: (index, _) => _treeRowExtent(rows[index].kind),
+        itemBuilder: (context, i) {
+          final row = rows[i];
+          switch (row.kind) {
+            case LibRowKind.letter:
+              return _LetterHeaderRow(label: row.label!);
+            case LibRowKind.artist:
+              final artist = row.artist!;
+              return _ArtistHeaderRow(
+                artist: artist,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ArtistDetailPage(artist: artist),
+                  ),
+                ),
+              );
+            case LibRowKind.album:
+              final album = row.album!;
+              return _AlbumHeaderRow(
+                album: album,
+                depth: row.depth,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => AlbumDetailPage(album: album),
+                  ),
+                ),
+                onPlay: () {
+                  final q = [
+                    for (final s in ordered)
+                      if (s.albumId == album.id) s
+                  ];
+                  if (q.isNotEmpty) onPlay(q, 0);
+                },
+              );
+            case LibRowKind.song:
+              final song = row.song!;
+              return _TreeSongRow(
+                song: song,
+                depth: row.depth,
+                trackNumber: row.trackNumber,
+                isLastInGroup: row.isLastInGroup,
+                selected: selecting ? selection.contains(song.id) : null,
+                onTap: () => onTapAt(row.songIndex),
+                onLongPress: () => onLongPressAt(row.songIndex),
+                onMore: () => showSongActions(context, song),
+              );
+          }
+        },
+      ),
+    );
+  }
+}
+
+/// Wraps a fixed-height tree row's content with a left gutter and one vertical
+/// guide line per nesting level — the VS-Code "indent guide" look. Guides are
+/// drawn as left borders on full-height cells so they read as continuous rails.
+class _TreeRowFrame extends StatelessWidget {
+  const _TreeRowFrame({
+    required this.depth,
+    required this.height,
+    required this.child,
+  });
+
+  final int depth;
+  final double height;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final guide = context.colors.divider;
+    return SizedBox(
+      height: height,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(width: _kTreeGutter),
+          for (var i = 0; i < depth; i++)
+            Container(
+              width: _kIndentStep,
+              decoration: BoxDecoration(
+                border: Border(left: BorderSide(color: guide, width: 1.2)),
+              ),
+            ),
+          Expanded(child: child),
+        ],
+      ),
+    );
+  }
+}
+
+/// A big letter divider ("A") heading a title-sorted section, with a hairline
+/// rule trailing off to the right.
+class _LetterHeaderRow extends StatelessWidget {
+  const _LetterHeaderRow({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return _TreeRowFrame(
+      depth: 0,
+      height: _kLetterHeaderExtent,
+      child: Padding(
+        padding: const EdgeInsets.only(
+            right: SpacingTokens.lg, top: SpacingTokens.md),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text(
+              label,
+              style: AppTextTheme.display.copyWith(
+                color: colors.accent,
+                fontSize: 22,
+                height: 1,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
+              ),
+            ),
+            const SizedBox(width: SpacingTokens.md),
+            Expanded(child: Divider(color: colors.divider, height: 1)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// An artist section header (avatar · name · albums/songs count) that opens the
+/// artist page. Top level of the by-artist tree.
+class _ArtistHeaderRow extends StatelessWidget {
+  const _ArtistHeaderRow({required this.artist, required this.onTap});
+  final Artist artist;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final l10n = AppLocalizations.of(context);
+    return PressScale(
+      onTap: onTap,
+      pressedScale: 0.98,
+      semanticLabel: artist.name,
+      child: _TreeRowFrame(
+        depth: 0,
+        height: _kArtistHeaderExtent,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+              horizontal: SpacingTokens.sm, vertical: SpacingTokens.sm + 2),
+          child: Row(
+            children: [
+              ClipOval(
+                child: AuraArtwork(
+                  seed: artist.artworkSeed,
+                  size: 48,
+                  borderRadius: BorderRadius.circular(24),
+                  hasArtwork: artist.hasArtwork,
+                  artworkId: artist.firstSongId,
+                ),
+              ),
+              const SizedBox(width: SpacingTokens.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      artist.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextTheme.title.copyWith(
+                        color: colors.onSurface,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      '${l10n.albumsCount(artist.albumCount)} · ${l10n.songsCount(artist.songCount)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextTheme.caption
+                          .copyWith(color: colors.onSurfaceMuted),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right,
+                  size: 20, color: colors.onSurfaceFaint),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// An album section header (cover · name · year) with a play button. Opens the
+/// album page on tap. Sits at depth 0 (by-album tree) or depth 1 (nested under
+/// an artist).
+class _AlbumHeaderRow extends StatelessWidget {
+  const _AlbumHeaderRow({
+    required this.album,
+    required this.depth,
+    required this.onTap,
+    required this.onPlay,
+  });
+
+  final Album album;
+  final int depth;
+  final VoidCallback onTap;
+  final VoidCallback onPlay;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final l10n = AppLocalizations.of(context);
+    final accent = SeedPalette.accent(album.artworkSeed);
+    final subtitle = album.year?.toString() ?? l10n.songsCount(album.songCount);
+    return PressScale(
+      onTap: onTap,
+      pressedScale: 0.98,
+      semanticLabel: album.name,
+      child: _TreeRowFrame(
+        depth: depth,
+        height: _kAlbumHeaderExtent,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+              horizontal: SpacingTokens.sm, vertical: SpacingTokens.sm),
+          child: Row(
+            children: [
+              AuraArtwork(
+                seed: album.artworkSeed,
+                size: 48,
+                borderRadius: RadiusTokens.brSm,
+                hasArtwork: album.hasArtwork,
+                artworkId: album.firstSongId,
+              ),
+              const SizedBox(width: SpacingTokens.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      album.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextTheme.title.copyWith(
+                        color: colors.onSurface,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextTheme.caption
+                          .copyWith(color: colors.onSurfaceMuted),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: l10n.play,
+                onPressed: onPlay,
+                visualDensity: VisualDensity.compact,
+                icon: Icon(Icons.play_circle_fill, size: 30, color: accent),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A track row inside the tree. In the title tree it shows a thumbnail + artist;
+/// in the album/artist trees it shows a track number (or a now-playing
+/// indicator) and no thumbnail, since the album header already carries the art.
+/// A hairline under each track (dropped on the last of a group) separates rows.
+class _TreeSongRow extends ConsumerWidget {
+  const _TreeSongRow({
+    required this.song,
+    required this.depth,
+    required this.trackNumber,
+    required this.isLastInGroup,
+    required this.selected,
+    required this.onTap,
+    required this.onLongPress,
+    required this.onMore,
+  });
+
+  final Song song;
+  final int depth;
+  final int? trackNumber;
+  final bool isLastInGroup;
+  final bool? selected;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+  final VoidCallback onMore;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final selecting = selected != null;
+    final isSelected = selected ?? false;
+    final isCurrent = !selecting &&
+        ref.watch(currentSongProvider.select((s) => s?.id == song.id));
+    final playing = isCurrent &&
+        ref.watch(playbackStateProvider
+            .select((st) => st.valueOrNull?.playing ?? false));
+    final accent = SeedPalette.accent(song.artworkSeed);
+    final highlight = isSelected || isCurrent;
+
+    // Leading slot: a check in selection mode, otherwise the now-playing bars,
+    // the track number (album/artist trees) or a thumbnail (title tree).
+    final Widget leading;
+    if (selecting) {
+      leading = SizedBox(
+        width: 40,
+        child: Center(child: _TreeSelectCheck(selected: isSelected)),
+      );
+    } else if (trackNumber != null) {
+      leading = SizedBox(
+        width: 34,
+        child: Center(
+          child: isCurrent
+              ? NowPlayingIndicator(color: accent, animating: playing)
+              : Text(
+                  '$trackNumber',
+                  style: AppTextTheme.body.copyWith(
+                    color: colors.onSurfaceFaint,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+        ),
+      );
+    } else {
+      leading = AuraArtwork(
+        seed: song.artworkSeed,
+        size: 40,
+        hasArtwork: song.hasArtwork,
+        artworkId: int.tryParse(song.id),
+      );
+    }
+
+    return PressScale(
+      onTap: onTap,
+      onLongPress: onLongPress,
+      pressedScale: 0.98,
+      semanticLabel: '${song.title}, ${song.artist}',
+      child: _TreeRowFrame(
+        depth: depth,
+        height: _kTreeSongExtent,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: highlight ? accent.withOpacity(0.07) : Colors.transparent,
+            border: isLastInGroup
+                ? null
+                : Border(bottom: BorderSide(color: colors.divider, width: 0.5)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.only(right: SpacingTokens.xs),
+            child: Row(
+              children: [
+                leading,
+                const SizedBox(width: SpacingTokens.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        song.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextTheme.body.copyWith(
+                          color: isCurrent ? accent : colors.onSurface,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      if (trackNumber == null) ...[
+                        const SizedBox(height: 1),
+                        Text(
+                          song.artist,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextTheme.caption
+                              .copyWith(color: colors.onSurfaceMuted),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: SpacingTokens.sm),
+                Text(
+                  song.duration.clock,
+                  style: AppTextTheme.caption
+                      .copyWith(color: colors.onSurfaceFaint),
+                ),
+                if (!selecting)
+                  IconButton(
+                    onPressed: onMore,
+                    visualDensity: VisualDensity.compact,
+                    icon: Icon(Icons.more_vert,
+                        size: 20, color: colors.onSurfaceFaint),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The leading check circle shown on a tree track row in selection mode.
+class _TreeSelectCheck extends StatelessWidget {
+  const _TreeSelectCheck({required this.selected});
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: selected ? colors.accent : Colors.transparent,
+        border: Border.all(
+          color: selected ? colors.accent : colors.onSurfaceFaint,
+          width: 2,
+        ),
+      ),
+      child: selected
+          ? Icon(Icons.check, size: 14, color: colors.background)
+          : null,
     );
   }
 }

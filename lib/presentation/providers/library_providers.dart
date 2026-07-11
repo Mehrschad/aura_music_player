@@ -6,6 +6,7 @@ import '../../domain/library/folder_logic.dart';
 import '../../domain/library/library_grouping.dart';
 import '../../domain/library/song_search.dart';
 import '../../domain/library/song_sorting.dart';
+import '../../domain/library/song_tree.dart';
 import '../../domain/models/album.dart';
 import '../../domain/models/artist.dart';
 import '../../domain/models/genre.dart';
@@ -127,6 +128,30 @@ final sortedSongsProvider = Provider<AsyncValue<List<Song>>>((ref) {
   final songs = ref.watch(effectiveSongsProvider);
   final sort = ref.watch(librarySortProvider);
   return songs.whenData((list) => sortSongs(list, sort));
+});
+
+/// The folded tree for the Songs list, or null when the current sort doesn't
+/// fold (any non-ascending direction, or a field other than Title/Album/Artist,
+/// or a non-list display mode). Memoised by Riverpod so the O(n log n) grouping
+/// only reruns when the songs, sort field, or display mode actually change —
+/// never on a scroll-driven rebuild.
+final songTreeProvider = Provider<SongTreeData?>((ref) {
+  final sort = ref.watch(librarySortProvider);
+  final mode = ref.watch(libraryDisplayModeProvider);
+  if (mode != DisplayMode.list ||
+      sort.direction != SortDirection.ascending) {
+    return null;
+  }
+  final treeMode = switch (sort.field) {
+    SortField.title => SongTreeMode.title,
+    SortField.album => SongTreeMode.album,
+    SortField.artist => SongTreeMode.artist,
+    _ => null,
+  };
+  if (treeMode == null) return null;
+  final songs = ref.watch(sortedSongsProvider).valueOrNull;
+  if (songs == null || songs.isEmpty) return null;
+  return buildSongTree(songs, treeMode);
 });
 
 final albumsProvider = Provider<AsyncValue<List<Album>>>((ref) {
