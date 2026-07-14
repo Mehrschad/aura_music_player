@@ -19,6 +19,7 @@ import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../widgets/artwork/aura_artwork.dart';
 import '../../widgets/library/now_playing_indicator.dart';
+import '../../widgets/library/song_list_tile.dart';
 import '../../widgets/player/song_actions_sheet.dart';
 import '../../widgets/player_bar_inset.dart';
 import '../../widgets/press_scale.dart';
@@ -44,19 +45,30 @@ class ArtistDetailPage extends ConsumerWidget {
     final wash = palette?.wash ?? SeedPalette.wash(artist.artworkSeed);
     final isFav = ref.watch(isArtistFavoriteProvider(artist.id));
 
-    // iOS 27: entire page background gets a gentle wash tint so the artwork
-    // colour bleeds through the whole scroll area — not just the header.
+    // The artwork colour is carried into the top of the scroll area (so the
+    // content feels connected to the art), fading to pure black lower down.
+    // A stronger wash than before makes the page feel alive rather than a flat
+    // black sheet.
     final pageBackground =
-        Color.alphaBlend(wash.withOpacity(0.18), colors.background);
+        Color.alphaBlend(wash.withOpacity(0.38), colors.background);
 
     // Half-screen hero: the artwork fills the top 50 % of the display.
     final screenHeight = MediaQuery.sizeOf(context).height;
     final heroHeight = screenHeight * 0.50;
 
     return Scaffold(
-      backgroundColor: pageBackground,
-      body: CustomScrollView(
-        slivers: [
+      backgroundColor: colors.background,
+      body: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            stops: const [0.0, 0.42, 0.9],
+            colors: [pageBackground, pageBackground, colors.background],
+          ),
+        ),
+        child: CustomScrollView(
+          slivers: [
           SliverAppBar(
             backgroundColor: Colors.transparent,
             // Start transparent so the hero photo shows through the status bar.
@@ -80,6 +92,51 @@ class ArtistDetailPage extends ConsumerWidget {
                   isFav ? Icons.favorite : Icons.favorite_border,
                   color: isFav ? colors.favorite : Colors.white,
                 ),
+              ),
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert, color: Colors.white),
+                onSelected: (v) {
+                  final songs = songsAsync.valueOrNull ?? const <Song>[];
+                  if (songs.isEmpty) return;
+                  final ctrl = ref.read(audioControllerProvider);
+                  if (v == 'next') {
+                    for (final s in songs.reversed) {
+                      ctrl.playNext(s);
+                    }
+                  } else {
+                    for (final s in songs) {
+                      ctrl.addToQueue(s);
+                    }
+                  }
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(l10n.addedToQueue),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+                itemBuilder: (_) => [
+                  PopupMenuItem<String>(
+                    value: 'next',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.queue_play_next, size: 20),
+                        const SizedBox(width: 12),
+                        Text(l10n.playNext),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'queue',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.add_to_queue, size: 20),
+                        const SizedBox(width: 12),
+                        Text(l10n.addToQueue),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ],
             flexibleSpace: FlexibleSpaceBar(
@@ -169,6 +226,24 @@ class ArtistDetailPage extends ConsumerWidget {
                     style: AppTextTheme.body
                         .copyWith(color: colors.onSurfaceMuted),
                   ),
+                  songsAsync.maybeWhen(
+                    data: (songs) {
+                      final genres = _topGenres(songs);
+                      if (genres.isEmpty) return const SizedBox.shrink();
+                      return Padding(
+                        padding: const EdgeInsets.only(top: SpacingTokens.sm),
+                        child: Wrap(
+                          spacing: SpacingTokens.sm,
+                          runSpacing: SpacingTokens.xs,
+                          children: [
+                            for (final g in genres)
+                              _GenreChip(label: g, accent: accent),
+                          ],
+                        ),
+                      );
+                    },
+                    orElse: () => const SizedBox.shrink(),
+                  ),
                   const SizedBox(height: SpacingTokens.sm),
                   songsAsync.maybeWhen(
                     data: (songs) => songs.isEmpty
@@ -215,6 +290,20 @@ class ArtistDetailPage extends ConsumerWidget {
           // ── Biography (downloaded from Wikipedia, cached offline) ────────
           SliverToBoxAdapter(child: _ArtistBio(artistName: artist.name)),
 
+          // ── Popular — the artist's most-played tracks ───────────────────
+          songsAsync.maybeWhen(
+            data: (songs) {
+              final popular = _popularTracks(songs);
+              if (popular.isEmpty) {
+                return const SliverToBoxAdapter(child: SizedBox.shrink());
+              }
+              return SliverToBoxAdapter(
+                child: _PopularSection(songs: popular, accent: accent),
+              );
+            },
+            orElse: () => const SliverToBoxAdapter(child: SizedBox.shrink()),
+          ),
+
           // ── Tracks, grouped album-by-album ──────────────────────────────
           // Each album is a titled section (cover · name · year) followed by
           // its tracks, numbered from 1. Newest albums come first.
@@ -254,6 +343,7 @@ class ArtistDetailPage extends ConsumerWidget {
                     if (row.group != null) {
                       return _AlbumSectionHeader(
                         group: row.group!,
+                        accent: accent,
                         onTap: row.group!.album == null
                             ? null
                             : () => Navigator.of(context).push(
@@ -272,6 +362,7 @@ class ArtistDetailPage extends ConsumerWidget {
                       song: group.songs[row.trackIndex],
                       trackNumber: row.trackIndex + 1,
                       isLast: row.trackIndex == group.songs.length - 1,
+                      accent: accent,
                       onTap: () => ref
                           .read(audioControllerProvider)
                           .playQueue(group.songs, startIndex: row.trackIndex),
@@ -291,7 +382,8 @@ class ArtistDetailPage extends ConsumerWidget {
                   miniPlayerVisible: miniPlayerVisible),
             ),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -442,16 +534,122 @@ class _Row {
   final int trackIndex;
 }
 
+/// The artist's up-to-five most-played tracks, most first. Empty when there's
+/// no play history yet, so the "Popular" section simply doesn't appear.
+List<Song> _popularTracks(List<Song> songs) {
+  final withPlays = [for (final s in songs) if (s.playCount > 0) s]
+    ..sort((a, b) => b.playCount.compareTo(a.playCount));
+  return withPlays.take(5).toList();
+}
+
+/// The artist's most common genre tags (up to three), busiest first.
+List<String> _topGenres(List<Song> songs) {
+  final counts = <String, int>{};
+  for (final s in songs) {
+    final g = (s.genre ?? '').trim();
+    if (g.isEmpty) continue;
+    counts[g] = (counts[g] ?? 0) + 1;
+  }
+  final sorted = counts.keys.toList()
+    ..sort((a, b) => counts[b]!.compareTo(counts[a]!));
+  return sorted.take(3).toList();
+}
+
+/// A small accent-tinted genre pill shown under the artist name.
+class _GenreChip extends StatelessWidget {
+  const _GenreChip({required this.label, required this.accent});
+  final String label;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: SpacingTokens.md, vertical: 5),
+      decoration: BoxDecoration(
+        color: accent.withOpacity(0.14),
+        borderRadius: RadiusTokens.brPill,
+        border: Border.all(color: accent.withOpacity(0.32)),
+      ),
+      child: Text(
+        label,
+        style: AppTextTheme.caption
+            .copyWith(color: accent, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
+
+/// The "Popular" section: the artist's most-played tracks in the standard
+/// library row so it feels native. Tapping plays the list from that track.
+class _PopularSection extends ConsumerWidget {
+  const _PopularSection({required this.songs, required this.accent});
+  final List<Song> songs;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            SpacingTokens.xl,
+            SpacingTokens.md,
+            SpacingTokens.xl,
+            SpacingTokens.xs,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 4,
+                height: 15,
+                margin: const EdgeInsets.only(right: SpacingTokens.sm),
+                decoration: BoxDecoration(
+                  color: accent,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Text(
+                'POPULAR',
+                style: AppTextTheme.caption.copyWith(
+                  color: colors.onSurfaceFaint,
+                  letterSpacing: 0.8,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+        for (var i = 0; i < songs.length; i++)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.sm),
+            child: SongListTile(
+              song: songs[i],
+              onTap: () => ref
+                  .read(audioControllerProvider)
+                  .playQueue(songs, startIndex: i),
+              onMore: () => showSongActions(context, songs[i]),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 /// Album section header: cover · name · year, with a small round play button.
 /// Tapping the row opens the full album page.
 class _AlbumSectionHeader extends StatelessWidget {
   const _AlbumSectionHeader({
     required this.group,
+    required this.accent,
     required this.onTap,
     required this.onPlay,
   });
 
   final _AlbumGroup group;
+  final Color accent;
   final VoidCallback? onTap;
   final VoidCallback onPlay;
 
@@ -459,7 +657,6 @@ class _AlbumSectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final l10n = AppLocalizations.of(context);
-    final accent = SeedPalette.accent(group.artworkSeed);
     final subtitle = group.year?.toString() ?? l10n.songsCount(group.songs.length);
 
     return PressScale(
@@ -469,7 +666,7 @@ class _AlbumSectionHeader extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
           SpacingTokens.xl,
-          SpacingTokens.lg,
+          SpacingTokens.md,
           SpacingTokens.md,
           SpacingTokens.xs,
         ),
@@ -528,6 +725,7 @@ class _AlbumTrackTile extends ConsumerWidget {
     required this.song,
     required this.trackNumber,
     required this.isLast,
+    required this.accent,
     required this.onTap,
     required this.onMore,
   });
@@ -535,6 +733,7 @@ class _AlbumTrackTile extends ConsumerWidget {
   final Song song;
   final int trackNumber;
   final bool isLast;
+  final Color accent;
   final VoidCallback onTap;
   final VoidCallback onMore;
 
@@ -546,7 +745,6 @@ class _AlbumTrackTile extends ConsumerWidget {
     final playing = isCurrent &&
         ref.watch(playbackStateProvider
             .select((st) => st.valueOrNull?.playing ?? false));
-    final accent = SeedPalette.accent(song.artworkSeed);
 
     return PressScale(
       onTap: onTap,
