@@ -9,6 +9,7 @@ import '../../../core/constants/spacing_tokens.dart';
 import '../../../core/extensions/duration_format.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/color_scheme.dart';
+import '../../../core/theme/stat_palette.dart';
 import '../../../core/theme/typography.dart';
 import '../../../core/utils/seed_color.dart';
 import '../../../domain/library/song_tree.dart';
@@ -52,6 +53,7 @@ import '../artists/artist_detail_page.dart';
 import '../folders/folder_browser_page.dart';
 import '../genres/genre_detail_page.dart';
 import '../playlists/playlist_detail_page.dart';
+import '../statistics/statistics_page.dart';
 import '../settings/settings_page.dart';
 import 'collection_detail_page.dart';
 
@@ -2280,7 +2282,7 @@ class _InsightsCardState extends ConsumerState<_InsightsCard> {
           mainAxisSize: MainAxisSize.min,
           children: [
             SizedBox(
-              height: 188,
+              height: 150,
               child: PageView(
                 controller: _controller,
                 onPageChanged: (i) => setState(() => _page = i),
@@ -2315,7 +2317,8 @@ class _InsightsCardState extends ConsumerState<_InsightsCard> {
   }
 }
 
-/// The "Your Week" page of the insights card: three big stats + most-played.
+/// The "Your Week" page of the insights card: three colour-coded, count-up
+/// stats over a most-played line. Tapping opens the full animated stats page.
 class _WeekPage extends StatelessWidget {
   const _WeekPage({required this.recap});
   final WeeklyRecap recap;
@@ -2323,39 +2326,72 @@ class _WeekPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.lg),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.insights_rounded, size: 16, color: colors.accent),
-              const SizedBox(width: 8),
-              Text('YOUR WEEK',
-                  style: _monoLabel(colors.onSurfaceMuted, spacing: 1.8)),
-            ],
-          ),
-          const SizedBox(height: SpacingTokens.md),
-          Row(
-            children: [
-              _RecapStat(value: '${recap.plays}', label: 'PLAYS'),
-              _RecapStat(value: '${recap.minutes}', label: 'MINUTES'),
-              _RecapStat(value: '${recap.distinctArtists}', label: 'ARTISTS'),
-            ],
-          ),
-          if (recap.topArtist != null) ...[
-            const SizedBox(height: SpacingTokens.md),
-            Text(
-              'Most played · ${recap.topArtist}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextTheme.body.copyWith(color: colors.onSurfaceMuted),
+    const teal = StatHues.teal;
+    const violet = StatHues.violet;
+    const amber = StatHues.amber;
+    return PressScale(
+      onTap: () => openStatistics(context),
+      pressedScale: 0.99,
+      semanticLabel: 'Your week in music, tap for details',
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.insights_rounded, size: 16, color: teal),
+                const SizedBox(width: 8),
+                Text('YOUR WEEK',
+                    style: _monoLabel(colors.onSurfaceMuted, spacing: 1.8)),
+                const Spacer(),
+                Text('Details',
+                    style: AppTextTheme.caption.copyWith(
+                      color: colors.accent,
+                      fontWeight: FontWeight.w600,
+                    )),
+                Icon(Icons.chevron_right, size: 16, color: colors.accent),
+              ],
             ),
+            const SizedBox(height: SpacingTokens.md),
+            Row(
+              children: [
+                _RecapStat(value: recap.plays, label: 'PLAYS', color: teal),
+                _RecapStat(
+                    value: recap.minutes, label: 'MINUTES', color: violet),
+                _RecapStat(
+                    value: recap.distinctArtists,
+                    label: 'ARTISTS',
+                    color: amber),
+              ],
+            ),
+            if (recap.topArtist != null) ...[
+              const SizedBox(height: SpacingTokens.md),
+              Row(
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration:
+                        const BoxDecoration(color: teal, shape: BoxShape.circle),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Most played · ${recap.topArtist}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style:
+                          AppTextTheme.body.copyWith(color: colors.onSurfaceMuted),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -2485,7 +2521,7 @@ class _TrackRailPage extends ConsumerWidget {
         ),
         const SizedBox(height: SpacingTokens.sm),
         SizedBox(
-          height: 152,
+          height: 118,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.lg),
@@ -2503,14 +2539,14 @@ class _TrackRailPage extends ConsumerWidget {
                 pressedScale: 0.97,
                 semanticLabel: s.title,
                 child: SizedBox(
-                  width: 108,
+                  width: 92,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       AuraArtwork(
                         seed: s.artworkSeed,
-                        size: 108,
+                        size: 92,
                         borderRadius: RadiusTokens.brMd,
                         hasArtwork: s.hasArtwork,
                         artworkId: int.tryParse(s.id),
@@ -2525,13 +2561,6 @@ class _TrackRailPage extends ConsumerWidget {
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                      Text(
-                        s.artist,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTextTheme.caption
-                            .copyWith(color: colors.onSurfaceMuted),
-                      ),
                     ],
                   ),
                 ),
@@ -2544,12 +2573,18 @@ class _TrackRailPage extends ConsumerWidget {
   }
 }
 
-/// One big-number stat inside the weekly recap card.
+/// One big-number stat inside the weekly recap card: a colour-coded number that
+/// counts up on first appearance, over a short accent underline.
 class _RecapStat extends StatelessWidget {
-  const _RecapStat({required this.value, required this.label});
+  const _RecapStat({
+    required this.value,
+    required this.label,
+    required this.color,
+  });
 
-  final String value;
+  final int value;
   final String label;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
@@ -2559,17 +2594,31 @@ class _RecapStat extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            value,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: colors.onSurface,
-              fontSize: 26,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.5,
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: value.toDouble()),
+            duration: const Duration(milliseconds: 900),
+            curve: Curves.easeOutCubic,
+            builder: (context, v, _) => Text(
+              '${v.round()}',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: color,
+                fontSize: 26,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.5,
+              ),
             ),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 3),
+          Container(
+            width: 20,
+            height: 3,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.55),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 5),
           Text(label, style: _monoLabel(colors.onSurfaceFaint, size: 9)),
         ],
       ),
