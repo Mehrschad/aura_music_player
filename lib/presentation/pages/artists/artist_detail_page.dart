@@ -139,11 +139,30 @@ class ArtistDetailPage extends ConsumerWidget {
                 ],
               ),
             ],
-            flexibleSpace: FlexibleSpaceBar(
-              titlePadding: const EdgeInsetsDirectional.fromSTEB(
-                SpacingTokens.xl, 0, SpacingTokens.xl, SpacingTokens.lg),
-              title: Text(
-                artist.name,
+            flexibleSpace: LayoutBuilder(
+              builder: (context, constraints) {
+                // As the bar collapses, slide the title's start padding out to
+                // clear the back button — a fixed start padding let the name
+                // slide under the arrow.
+                final settings = context.dependOnInheritedWidgetOfExactType<
+                    FlexibleSpaceBarSettings>();
+                var t = 0.0;
+                if (settings != null) {
+                  final delta = settings.maxExtent - settings.minExtent;
+                  if (delta > 0) {
+                    t = (1 -
+                            (settings.currentExtent - settings.minExtent) /
+                                delta)
+                        .clamp(0.0, 1.0);
+                  }
+                }
+                final startPad =
+                    SpacingTokens.xl + (56 - SpacingTokens.xl) * t;
+                return FlexibleSpaceBar(
+                  titlePadding: EdgeInsetsDirectional.fromSTEB(
+                      startPad, 0, SpacingTokens.xl, SpacingTokens.lg),
+                  title: Text(
+                    artist.name,
                 style: AppTextTheme.display.copyWith(
                   color: Colors.white,
                   shadows: [
@@ -207,6 +226,8 @@ class ArtistDetailPage extends ConsumerWidget {
                   ),
                 ],
               ),
+                );
+              },
             ),
           ),
 
