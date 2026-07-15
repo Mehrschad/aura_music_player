@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/icon_sizes.dart';
 import '../../../core/constants/radius_tokens.dart';
@@ -6,10 +7,11 @@ import '../../../core/constants/spacing_tokens.dart';
 import '../../../core/theme/color_scheme.dart';
 import '../../../core/theme/typography.dart';
 import '../../../domain/models/artist.dart';
+import '../../providers/artist_favorites_providers.dart';
 import '../artwork/aura_artwork.dart';
 import '../press_scale.dart';
 
-class ArtistListTile extends StatelessWidget {
+class ArtistListTile extends ConsumerWidget {
   const ArtistListTile({
     super.key,
     required this.artist,
@@ -24,8 +26,9 @@ class ArtistListTile extends StatelessWidget {
   final String subtitle;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
+    final isFav = ref.watch(isArtistFavoriteProvider(artist.id));
     return PressScale(
       onTap: onTap,
       pressedScale: 0.97,
@@ -68,6 +71,10 @@ class ArtistListTile extends StatelessWidget {
                 ],
               ),
             ),
+            if (isFav) ...[
+              Icon(Icons.favorite, size: 16, color: colors.favorite),
+              const SizedBox(width: SpacingTokens.sm),
+            ],
             Icon(Icons.chevron_right,
                 size: IconSizes.md, color: colors.onSurfaceFaint),
           ],

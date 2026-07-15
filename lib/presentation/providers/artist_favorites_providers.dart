@@ -55,3 +55,7 @@ final artistFavoritesProvider =
 final isArtistFavoriteProvider = Provider.family<bool, String>((ref, id) {
   return ref.watch(artistFavoritesProvider).contains(id);
 });
+
+/// When true, the Artists list is filtered to favourited artists only. Session
+/// scoped — a filter shouldn't outlive the app the way the favourites do.
+final artistsFavoritesOnlyProvider = StateProvider<bool>((ref) => false);
