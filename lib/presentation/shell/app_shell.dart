@@ -10,6 +10,8 @@ import '../pages/playlists/playlists_page.dart';
 import '../pages/search/search_page.dart';
 import '../providers/engine_bridge_provider.dart';
 import '../providers/home_widget_providers.dart';
+import '../providers/library_providers.dart';
+import '../providers/playback_providers.dart';
 import '../providers/scrobbler_provider.dart';
 import '../providers/selection_providers.dart';
 import '../providers/settings_providers.dart';
@@ -293,6 +295,14 @@ class _HomeWidgetBridge extends ConsumerWidget {
     ref.listen(homeWidgetStateProvider, (_, next) {
       ref.read(homeWidgetSyncProvider).push(next);
     });
+    // Keep the media browser (Android Auto etc.) stocked with the current
+    // library so it can list Albums / Artists / songs and answer "play this".
+    ref.listen(effectiveSongsProvider, (_, next) {
+      final songs = next.valueOrNull;
+      if (songs != null) {
+        ref.read(audioControllerProvider).setBrowsableLibrary(songs);
+      }
+    }, fireImmediately: true);
     return const SizedBox.shrink();
   }
 }

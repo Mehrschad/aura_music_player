@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Declares which Android Auto capabilities Aura supports. "media" marks it as a
+  media-browsing app so it appears in Android Auto's launcher and drives its
+  content through the MediaBrowserService (audio_service) + MediaSession.
+-->
+<automotiveApp>
+    <uses name="media"/>
+</automotiveApp>
