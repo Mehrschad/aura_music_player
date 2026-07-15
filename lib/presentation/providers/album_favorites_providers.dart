@@ -56,3 +56,7 @@ final albumFavoritesProvider =
 final isAlbumFavoriteProvider = Provider.family<bool, String>((ref, id) {
   return ref.watch(albumFavoritesProvider).contains(id);
 });
+
+/// When true, the Albums list is filtered to favourited albums only. Session
+/// scoped — a filter shouldn't outlive the app the way the favourites do.
+final albumsFavoritesOnlyProvider = StateProvider<bool>((ref) => false);
