@@ -297,12 +297,13 @@ class _HomeWidgetBridge extends ConsumerWidget {
     });
     // Keep the media browser (Android Auto etc.) stocked with the current
     // library so it can list Albums / Artists / songs and answer "play this".
-    ref.listen(effectiveSongsProvider, (_, next) {
-      final songs = next.valueOrNull;
-      if (songs != null) {
-        ref.read(audioControllerProvider).setBrowsableLibrary(songs);
-      }
-    }, fireImmediately: true);
+    // Watching pushes the initial value and every later change; setting the
+    // browse list is a plain field write on the controller, not a provider
+    // mutation, so it's safe to call from build.
+    final librarySongs = ref.watch(effectiveSongsProvider).valueOrNull;
+    if (librarySongs != null) {
+      ref.read(audioControllerProvider).setBrowsableLibrary(librarySongs);
+    }
     return const SizedBox.shrink();
   }
 }
