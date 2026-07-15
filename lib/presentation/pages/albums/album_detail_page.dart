@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/radius_tokens.dart';
@@ -10,6 +11,7 @@ import '../../../core/theme/typography.dart';
 import '../../../core/utils/seed_color.dart';
 import '../../../domain/models/album.dart';
 import '../../../domain/models/song.dart';
+import '../../providers/album_favorites_providers.dart';
 import '../../providers/cover_palette_provider.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
@@ -46,6 +48,7 @@ class AlbumDetailPage extends ConsumerWidget {
     ))).valueOrNull;
     final accent = palette?.accent ?? SeedPalette.accent(album.artworkSeed);
     final wash = palette?.wash ?? SeedPalette.wash(album.artworkSeed);
+    final isFav = ref.watch(isAlbumFavoriteProvider(album.id));
     // A stronger wash carried into the top of the scroll area, fading to pure
     // black lower down, so the page picks up the cover's colour instead of
     // dropping to a flat black sheet under the hero.
@@ -89,6 +92,19 @@ class AlbumDetailPage extends ConsumerWidget {
               ),
             ),
             actions: [
+              // Like the album — kept with the user's favourite albums.
+              IconButton(
+                tooltip:
+                    isFav ? l10n.removeFromFavorites : l10n.addToFavorites,
+                onPressed: () {
+                  HapticFeedback.mediumImpact();
+                  ref.read(albumFavoritesProvider.notifier).toggle(album.id);
+                },
+                icon: Icon(
+                  isFav ? Icons.favorite : Icons.favorite_border,
+                  color: isFav ? colors.favorite : Colors.white,
+                ),
+              ),
               // Edit the album's tags / artwork — applies to all its tracks.
               songsAsync.maybeWhen(
                 data: (songs) => songs.isEmpty
@@ -240,12 +256,12 @@ class AlbumDetailPage extends ConsumerWidget {
   /// display number: the file's real track number, or its running position when
   /// the tag is missing.
   List<_Row> _buildRows(List<Song> songs) {
-    final discs = <int>{for (final s in songs) s.discNumber ?? 1};
+    final discs = <int>{for (final s in songs) _effectiveDisc(s)};
     if (discs.length < 2) {
       return [
         for (var i = 0; i < songs.length; i++)
           _Row.song(songs[i],
-              queueIndex: i, trackNumber: songs[i].trackNumber ?? (i + 1)),
+              queueIndex: i, trackNumber: _displayTrackNo(songs[i], i + 1)),
       ];
     }
 
@@ -254,7 +270,7 @@ class AlbumDetailPage extends ConsumerWidget {
     for (final disc in sortedDiscs) {
       final discIndices = [
         for (var i = 0; i < songs.length; i++)
-          if ((songs[i].discNumber ?? 1) == disc) i,
+          if (_effectiveDisc(songs[i]) == disc) i,
       ];
       final discDuration = discIndices.fold<Duration>(
           Duration.zero, (sum, i) => sum + songs[i].duration);
@@ -263,11 +279,37 @@ class AlbumDetailPage extends ConsumerWidget {
       for (var pos = 0; pos < discIndices.length; pos++) {
         final i = discIndices[pos];
         rows.add(_Row.song(songs[i],
-            queueIndex: i, trackNumber: songs[i].trackNumber ?? (pos + 1)));
+            queueIndex: i, trackNumber: _displayTrackNo(songs[i], pos + 1)));
       }
     }
     return rows;
   }
+}
+
+/// The album's real track number for [song], normalised for display. Some
+/// taggers encode the track as `disc * 1000 + track` (so disc 1 track 1 is
+/// 1001, disc 2 track 3 is 2003) — strip that offset so the list shows 1, 2, 3
+/// rather than 1001, 1002. Falls back to [fallback] (the running position) when
+/// the tag is missing or resolves to zero.
+int _displayTrackNo(Song song, int fallback) {
+  final tn = song.trackNumber;
+  if (tn == null || tn <= 0) return fallback;
+  if (tn >= 1000) {
+    final within = tn % 1000;
+    return within == 0 ? fallback : within;
+  }
+  return tn;
+}
+
+/// The disc a [song] belongs to: its disc tag when present, otherwise the disc
+/// encoded in a `disc * 1000 + track` style track number (1xxx → 1, 2xxx → 2),
+/// so those albums still split into discs even without an explicit disc tag.
+int _effectiveDisc(Song song) {
+  final dn = song.discNumber;
+  if (dn != null && dn > 0) return dn;
+  final tn = song.trackNumber;
+  if (tn != null && tn >= 1000) return tn ~/ 1000;
+  return 1;
 }
 
 /// The album hero: artwork fills the backdrop under a top→bottom scrim that
