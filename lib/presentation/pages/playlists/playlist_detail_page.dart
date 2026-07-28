@@ -14,6 +14,7 @@ import '../../../domain/models/song.dart';
 import '../../providers/async_value_x.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
+import '../../providers/playlist_covers_provider.dart';
 import '../../providers/playlist_providers.dart';
 import '../../providers/smart_playlist_providers.dart';
 import '../../widgets/async_state_view.dart';
@@ -374,6 +375,10 @@ class _OverflowMenu extends ConsumerWidget {
                 .showSnackBar(SnackBar(content: Text(l10n.playlistCopied)));
           case 'edittags':
             if (songs.isNotEmpty) openTagEditor(context, songs);
+          case 'cover':
+            await pickPlaylistCover(ref, playlistId!);
+          case 'removecover':
+            ref.read(playlistCoversProvider.notifier).removeCover(playlistId!);
           case 'rename':
             final name =
                 await promptPlaylistName(context, initial: playlistName);
@@ -391,6 +396,10 @@ class _OverflowMenu extends ConsumerWidget {
         if (songs.isNotEmpty)
           PopupMenuItem(value: 'edittags', child: Text(l10n.editTags)),
         if (editable) ...[
+          const PopupMenuItem(value: 'cover', child: Text('Change cover')),
+          if (ref.watch(playlistCoversProvider).containsKey(playlistId))
+            const PopupMenuItem(
+                value: 'removecover', child: Text('Remove cover')),
           PopupMenuItem(value: 'rename', child: Text(l10n.rename)),
           PopupMenuItem(value: 'delete', child: Text(l10n.delete)),
         ],

@@ -14,6 +14,7 @@ import '../../../domain/taste/smart_collection.dart';
 import '../../providers/discovery_prefs_provider.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
+import '../../providers/playlist_covers_provider.dart';
 import '../../providers/playlist_providers.dart';
 import '../../providers/smart_collections_provider.dart';
 import '../../providers/smart_playlist_providers.dart';
@@ -51,6 +52,7 @@ class PlaylistsPage extends ConsumerWidget {
     final smartCollections = ref.watch(smartCollectionsProvider);
     final repo = ref.read(playlistRepositoryProvider);
 
+    final covers = ref.watch(playlistCoversProvider);
     // Resolve song ids → songs so playlist covers can draw an art mosaic.
     final songsById = {
       for (final s in ref.watch(songsProvider).valueOrNull ?? const <Song>[])
@@ -124,7 +126,13 @@ class PlaylistsPage extends ConsumerWidget {
                   icon: Icon(Icons.add, color: colors.onSurface),
                   onPressed: () async {
                     final name = await promptPlaylistName(context);
-                    if (name != null) await repo.create(name);
+                    if (name == null) return;
+                    final created = await repo.create(name);
+                    // Drop straight into the new playlist so songs and a cover
+                    // can be added immediately.
+                    if (context.mounted) {
+                      openUserPlaylist(context, created.id);
+                    }
                   },
                 ),
               ],
@@ -143,6 +151,7 @@ class PlaylistsPage extends ConsumerWidget {
               _PlaylistRow(
                 playlist: p,
                 coverSongs: coverSongs(p),
+                coverPath: covers[p.id],
                 onTap: () => openUserPlaylist(context, p.id),
               ),
 
@@ -323,11 +332,13 @@ class _PlaylistRow extends StatelessWidget {
   const _PlaylistRow({
     required this.playlist,
     required this.coverSongs,
+    required this.coverPath,
     required this.onTap,
   });
 
   final Playlist playlist;
   final List<Song> coverSongs;
+  final String? coverPath;
   final VoidCallback onTap;
 
   @override
@@ -338,6 +349,7 @@ class _PlaylistRow extends StatelessWidget {
       leading: PlaylistCover(
         seed: playlist.id,
         songs: coverSongs,
+        coverPath: coverPath,
         size: 48,
       ),
       title: Text(playlist.name,
