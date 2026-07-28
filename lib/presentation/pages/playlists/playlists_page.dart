@@ -9,12 +9,21 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/color_scheme.dart';
 import '../../../core/theme/typography.dart';
 import '../../../domain/models/playlist.dart';
+import '../../../domain/models/song.dart';
+import '../../../domain/taste/smart_collection.dart';
+import '../../providers/discovery_prefs_provider.dart';
+import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../providers/playlist_providers.dart';
+import '../../providers/smart_collections_provider.dart';
 import '../../providers/smart_playlist_providers.dart';
+import '../../widgets/library/collection_actions.dart';
+import '../../widgets/library/collection_cover.dart';
+import '../../widgets/library/playlist_cover.dart';
 import '../../widgets/player_bar_inset.dart';
 import '../../widgets/press_scale.dart';
 import '../../widgets/section_header.dart';
+import '../library/collection_detail_page.dart';
 import 'playlist_detail_page.dart';
 import 'playlist_dialogs.dart';
 import 'smart_playlist_editor_page.dart';
@@ -37,7 +46,20 @@ class PlaylistsPage extends ConsumerWidget {
     final playlists = ref.watch(playlistsProvider).valueOrNull ?? const [];
     final smartPlaylists =
         ref.watch(smartPlaylistsProvider).valueOrNull ?? const [];
+    // Taste-based collections (For You / Mix / Mood / Hidden Gems …), each
+    // savable into a real playlist or dismissable.
+    final smartCollections = ref.watch(smartCollectionsProvider);
     final repo = ref.read(playlistRepositoryProvider);
+
+    // Resolve song ids → songs so playlist covers can draw an art mosaic.
+    final songsById = {
+      for (final s in ref.watch(songsProvider).valueOrNull ?? const <Song>[])
+        s.id: s,
+    };
+    List<Song> coverSongs(Playlist p) => [
+          for (final id in p.songIds.take(8))
+            if (songsById[id] != null) songsById[id]!,
+        ].take(4).toList();
 
     return SafeArea(
       bottom: false,
@@ -120,6 +142,7 @@ class PlaylistsPage extends ConsumerWidget {
             for (final p in playlists)
               _PlaylistRow(
                 playlist: p,
+                coverSongs: coverSongs(p),
                 onTap: () => openUserPlaylist(context, p.id),
               ),
 
@@ -141,6 +164,21 @@ class PlaylistsPage extends ConsumerWidget {
               ],
             ),
           ),
+          // Taste-based suggestions — save one to keep it, dismiss to hide it.
+          for (final c in smartCollections)
+            _CollectionRow(
+              collection: c,
+              onOpen: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => CollectionDetailPage(collection: c),
+                ),
+              ),
+              onSave: () => saveCollectionAsPlaylist(context, ref, c),
+              onDismiss: () => ref
+                  .read(hiddenCollectionsProvider.notifier)
+                  .add(c.id),
+            ),
+          // The user's own rule-based smart playlists.
           for (final sp in smartPlaylists)
             _SmartRow(
               name: sp.name,
@@ -282,9 +320,14 @@ class _SmartRow extends StatelessWidget {
 }
 
 class _PlaylistRow extends StatelessWidget {
-  const _PlaylistRow({required this.playlist, required this.onTap});
+  const _PlaylistRow({
+    required this.playlist,
+    required this.coverSongs,
+    required this.onTap,
+  });
 
   final Playlist playlist;
+  final List<Song> coverSongs;
   final VoidCallback onTap;
 
   @override
@@ -292,14 +335,10 @@ class _PlaylistRow extends StatelessWidget {
     final colors = context.colors;
     final l10n = AppLocalizations.of(context);
     return ListTile(
-      leading: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          color: colors.surfaceElevated,
-          borderRadius: RadiusTokens.brXs,
-        ),
-        child: Icon(Icons.queue_music, color: colors.onSurfaceMuted),
+      leading: PlaylistCover(
+        seed: playlist.id,
+        songs: coverSongs,
+        size: 48,
       ),
       title: Text(playlist.name,
           maxLines: 1,
@@ -309,6 +348,63 @@ class _PlaylistRow extends StatelessWidget {
           style: AppTextTheme.caption.copyWith(color: colors.onSurfaceFaint)),
       trailing: Icon(Icons.chevron_right, color: colors.onSurfaceFaint),
       onTap: onTap,
+    );
+  }
+}
+
+/// A taste-based smart collection row: tap to open, save to keep it as a real
+/// playlist (it then shows under "Your playlists"), or dismiss to hide it.
+class _CollectionRow extends StatelessWidget {
+  const _CollectionRow({
+    required this.collection,
+    required this.onOpen,
+    required this.onSave,
+    required this.onDismiss,
+  });
+
+  final SmartCollection collection;
+  final VoidCallback onOpen;
+  final VoidCallback onSave;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return ListTile(
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: SpacingTokens.lg),
+      leading: SizedBox(
+        width: 48,
+        height: 48,
+        child: CollectionCover.collection(collection,
+            size: 48, radius: RadiusTokens.sm),
+      ),
+      title: Text(collection.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppTextTheme.title.copyWith(color: colors.onSurface)),
+      subtitle: Text(collection.subtitle,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppTextTheme.caption.copyWith(color: colors.onSurfaceFaint)),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: MaterialLocalizations.of(context).saveButtonLabel,
+            visualDensity: VisualDensity.compact,
+            icon: Icon(Icons.bookmark_add_outlined, color: colors.accent),
+            onPressed: onSave,
+          ),
+          IconButton(
+            tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+            visualDensity: VisualDensity.compact,
+            icon: Icon(Icons.close, color: colors.onSurfaceFaint),
+            onPressed: onDismiss,
+          ),
+        ],
+      ),
+      onTap: onOpen,
     );
   }
 }
