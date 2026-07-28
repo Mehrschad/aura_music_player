@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/repositories/shared_prefs_playlist_repository.dart';
 import '../../domain/library/playlist_logic.dart';
+import '../../domain/library/playlist_suggestions.dart';
 import '../../domain/models/playlist.dart';
 import '../../domain/models/song.dart';
 import '../../domain/repositories/playlist_repository.dart';
@@ -46,6 +47,17 @@ final userPlaylistSongsProvider =
         if (byId[sid] != null) byId[sid]!,
     ];
   });
+});
+
+/// Taste-based suggestions for a playlist: library songs similar to the ones
+/// already in it (same artists / genres / eras), excluding those present.
+final playlistSuggestionsProvider =
+    Provider.family<List<Song>, String>((ref, id) {
+  final playlistSongs =
+      ref.watch(userPlaylistSongsProvider(id)).valueOrNull ?? const <Song>[];
+  final library =
+      ref.watch(effectiveSongsProvider).valueOrNull ?? const <Song>[];
+  return suggestForPlaylist(playlistSongs, library);
 });
 
 /// The derived songs for an auto-playlist (Recently added / Most played /

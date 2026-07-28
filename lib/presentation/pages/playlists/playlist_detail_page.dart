@@ -23,6 +23,7 @@ import '../../widgets/library/song_list_tile.dart';
 import '../../widgets/press_scale.dart';
 import '../../widgets/player_bar_inset.dart';
 import '../tag_editor/tag_editor_page.dart';
+import 'add_songs_page.dart';
 import 'playlist_dialogs.dart';
 import 'smart_playlist_editor_page.dart';
 
@@ -140,7 +141,9 @@ class PlaylistDetailPage extends ConsumerWidget {
       ),
       body: AsyncStateView<List<Song>>(
         value: songsAsync.like,
-        isEmpty: (s) => s.isEmpty,
+        // Editable playlists always render the header (with its "Add songs"
+        // button) even when empty, so a freshly created playlist can be filled.
+        isEmpty: (s) => s.isEmpty && !_editable,
         emptyMessage: l10n.playlistNoSongs,
         emptyIcon: Icons.music_note_outlined,
         onRetry: () => ref.invalidate(songsProvider),
@@ -154,15 +157,30 @@ class PlaylistDetailPage extends ConsumerWidget {
                 _play(ref, songs, 0);
                 ref.read(audioControllerProvider).setShuffle(true);
               },
+              onAddSongs: _editable
+                  ? () => openAddSongs(context, playlistId!)
+                  : null,
             ),
             Expanded(
-              child: _editable
-                  ? _ReorderableSongs(
-                      playlistId: playlistId!,
-                      songs: songs,
-                      onPlay: (i) => _play(ref, songs, i),
+              child: songs.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(SpacingTokens.xxl),
+                        child: Text(
+                          'This playlist is empty.\nTap "Add songs" to fill it.',
+                          textAlign: TextAlign.center,
+                          style: AppTextTheme.body
+                              .copyWith(color: colors.onSurfaceFaint),
+                        ),
+                      ),
                     )
-                  : ListView.builder(
+                  : _editable
+                      ? _ReorderableSongs(
+                          playlistId: playlistId!,
+                          songs: songs,
+                          onPlay: (i) => _play(ref, songs, i),
+                        )
+                      : ListView.builder(
                       padding: EdgeInsets.fromLTRB(SpacingTokens.md, 0,
                           SpacingTokens.md, playerBarInset(context,
                               miniPlayerVisible:
@@ -186,11 +204,15 @@ class _Header extends StatelessWidget {
     required this.count,
     required this.onPlayAll,
     required this.onShuffle,
+    this.onAddSongs,
   });
 
   final int count;
   final VoidCallback onPlayAll;
   final VoidCallback onShuffle;
+
+  /// When non-null (editable playlists), shows an "Add songs" button.
+  final VoidCallback? onAddSongs;
 
   @override
   Widget build(BuildContext context) {
@@ -277,6 +299,33 @@ class _Header extends StatelessWidget {
               ),
             ],
           ),
+          if (onAddSongs != null) ...[
+            const SizedBox(height: SpacingTokens.sm),
+            PressScale(
+              onTap: onAddSongs,
+              pressedScale: 0.98,
+              child: Container(
+                height: 44,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: colors.accent.withOpacity(0.12),
+                  borderRadius: RadiusTokens.brPill,
+                  border: Border.all(color: colors.accent.withOpacity(0.4)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.add, size: 20, color: colors.accent),
+                    const SizedBox(width: SpacingTokens.sm),
+                    Text('Add songs',
+                        style: AppTextTheme.action
+                            .copyWith(color: colors.accent)),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
