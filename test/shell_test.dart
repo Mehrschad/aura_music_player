@@ -65,7 +65,8 @@ void main() {
     await tester.pumpAndSettle();
     semantics.dispose();
 
-    // The grouped album derived from the single test song.
-    expect(find.text('Test Album'), findsOneWidget);
+    // The grouped album derived from the single test song. The albums grid
+    // shows the name on the tile and again in its subtitle row.
+    expect(find.text('Test Album'), findsWidgets);
   });
 }

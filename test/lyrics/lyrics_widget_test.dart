@@ -51,11 +51,12 @@ void main() {
     // LyricsPage contains an infinite ambient animation so pumpAndSettle would
     // time out. Pump past SampleLyricsRepository's 150ms simulated latency so
     // the lyrics FutureProvider has resolved.
-    await tester.pump();
-    // Advancing past the delay resolves the future; the rebuild it schedules
-    // lands on the *next* frame, hence the second pump.
-    await tester.pump(const Duration(milliseconds: 300));
-    await tester.pump();
+    // The lookup is a chain: the playback stream yields the track, that
+    // rebuild starts the lyrics provider, the cache read fails through, then
+    // the repository's 150ms delay resolves — each stage needs its own frame.
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
 
     expect(find.text('Aurora skyline'), findsOneWidget);
     expect(find.text('Light spills over the line'), findsOneWidget);

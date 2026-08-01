@@ -93,9 +93,17 @@ void main() {
     await tester.pumpAndSettle();
 
     // The actions sheet is a lazy ListView, so the entry may not be built yet.
+    // Scope the scroll to the sheet's own list — the library's horizontal
+    // rails underneath are Scrollables too, and dragging one of those misses.
     final hide = find.text('Hide from library');
-    await tester.scrollUntilVisible(hide, 80,
-        scrollable: find.byType(Scrollable).last);
+    await tester.scrollUntilVisible(
+      hide,
+      80,
+      scrollable: find.descendant(
+        of: find.byType(ListView).last,
+        matching: find.byType(Scrollable),
+      ),
+    );
     await tester.pumpAndSettle();
     await tester.tap(hide);
     await tester.pumpAndSettle();

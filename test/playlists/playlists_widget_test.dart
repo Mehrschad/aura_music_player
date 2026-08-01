@@ -33,9 +33,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Switch to the Playlists tab.
-    await tester.tap(find.text('Playlists'));
+    // Switch to the Playlists tab. The nav bar is icon-only, so go by the
+    // semantics label — 'Playlists' as visible text matches a page heading
+    // that isn't hit-testable.
+    final semantics = tester.ensureSemantics();
+    await tester.tap(find.bySemanticsLabel('Playlists').first);
     await tester.pumpAndSettle();
+    semantics.dispose();
 
     // Auto playlists and the seeded user playlist are present.
     expect(find.text('Recently added'), findsOneWidget);

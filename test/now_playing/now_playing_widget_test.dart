@@ -37,8 +37,15 @@ void main() {
     // A small real-phone surface (360×690 logical) deliberately guards against
     // layout overflow: NowPlayingPage sizes its artwork from the remaining
     // height, so it must fit even compact screens. Overflow fails this test.
-    await tester.binding.setSurfaceSize(const Size(360, 690));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    //
+    // Set it on the view rather than via setSurfaceSize: the latter resizes the
+    // render surface but leaves MediaQuery reporting the default 800×600, so
+    // the page picked its *landscape* layout and laid controls out beyond the
+    // 360px-wide surface.
+    tester.view.physicalSize = const Size(360, 690);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
       ProviderScope(
