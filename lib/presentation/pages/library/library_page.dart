@@ -1112,6 +1112,7 @@ class _SongsSliver extends ConsumerWidget {
                   selected: selectedOf(songs[i]),
                   onTap: () => onTapAt(i),
                   onLongPress: () => onLongPress(songs[i]),
+                  onMore: () => showSongActions(context, songs[i]),
                 ),
               ),
             );
@@ -1133,6 +1134,7 @@ class _SongsSliver extends ConsumerWidget {
                   selected: selectedOf(songs[i]),
                   onTap: () => onTapAt(i),
                   onLongPress: () => onLongPress(songs[i]),
+                  onMore: () => showSongActions(context, songs[i]),
                 ),
               ),
             );

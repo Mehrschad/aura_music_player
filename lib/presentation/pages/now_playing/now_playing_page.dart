@@ -17,9 +17,7 @@ import '../../../core/theme/color_scheme.dart';
 import '../../../core/theme/glass_theme.dart';
 import '../../../core/theme/typography.dart';
 import '../../../core/utils/seed_color.dart';
-import '../../../domain/models/album.dart';
 import '../../../domain/models/app_settings.dart' show VisualizerStyle;
-import '../../../domain/models/artist.dart';
 import '../../../domain/models/bookmark.dart';
 import '../../../domain/models/lyrics.dart';
 import '../../../domain/models/playback.dart';
@@ -31,14 +29,11 @@ import '../../providers/cover_palette_provider.dart';
 import '../../providers/favorites_providers.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/lyrics_providers.dart';
-import '../../providers/media_actions_provider.dart';
 import '../../providers/playback_providers.dart';
 import '../../providers/settings_providers.dart';
 import '../../providers/waveform_provider.dart';
 import '../../providers/sleep_timer_provider.dart';
 import '../../providers/song_ratings_provider.dart';
-import '../albums/album_detail_page.dart';
-import '../artists/artist_detail_page.dart';
 import '../equalizer/equalizer_page.dart';
 import '../lyrics/lyrics_page.dart';
 import '../settings/settings_page.dart';
@@ -49,8 +44,10 @@ import '../../widgets/player/play_pause_button.dart';
 import '../../widgets/player/queue_drawer.dart';
 import '../../widgets/player/queue_sheet.dart';
 import '../../widgets/player/sleep_timer_chip.dart';
+import '../../widgets/library/song_actions_common.dart';
 import '../../widgets/library/star_rating.dart';
 import '../../widgets/player/song_actions_sheet.dart';
+import '../../widgets/player/song_share.dart';
 import '../../widgets/waveform/waveform_scrubber.dart';
 
 /// Whether the portrait Now Playing surface is in **Lyrics Mode** (artwork
@@ -2359,37 +2356,9 @@ void _cycleAbRepeat(WidgetRef ref, Song song, Duration position) {
 
 // ── Now Playing overflow menu + navigation + sheets ──────────────────────────
 
-/// Resolves the [Album] for [song] and pushes its detail page.
-void openAlbumForSong(BuildContext context, WidgetRef ref, Song song) {
-  final albums = ref.read(albumsProvider).valueOrNull ?? const <Album>[];
-  Album? match;
-  for (final a in albums) {
-    if (a.id == song.albumId) {
-      match = a;
-      break;
-    }
-  }
-  if (match == null) return;
-  Navigator.of(context).push(
-    MaterialPageRoute<void>(builder: (_) => AlbumDetailPage(album: match!)),
-  );
-}
-
-/// Resolves the [Artist] for [song] and pushes its detail page.
-void openArtistForSong(BuildContext context, WidgetRef ref, Song song) {
-  final artists = ref.read(artistsProvider).valueOrNull ?? const <Artist>[];
-  Artist? match;
-  for (final a in artists) {
-    if (a.id == song.artistId || a.name == song.artist) {
-      match = a;
-      break;
-    }
-  }
-  if (match == null) return;
-  Navigator.of(context).push(
-    MaterialPageRoute<void>(builder: (_) => ArtistDetailPage(artist: match!)),
-  );
-}
+// openAlbumForSong / openArtistForSong / showSongInfo / confirmAndDeleteSong now
+// live in widgets/library/song_actions_common.dart so every song surface can
+// offer them, not just this page.
 
 /// The three-dot overflow sheet for the playing track. Scroll-controlled so
 /// the full action list is reachable — it opens at up to ~82% of the screen
@@ -2460,6 +2429,14 @@ class _NowPlayingMenu extends ConsumerWidget {
                 onTap: () {
                   Navigator.of(context).pop();
                   showAddToPlaylist(context, song);
+                },
+              ),
+              _MenuItem(
+                icon: PhosphorIconsRegular.shareNetwork,
+                label: 'Share',
+                onTap: () {
+                  Navigator.of(context).pop();
+                  shareSong(context, song);
                 },
               ),
               _MenuItem(
@@ -2552,124 +2529,6 @@ class _MenuItem extends StatelessWidget {
       title: Text(label, style: AppTextTheme.body.copyWith(color: color)),
       onTap: onTap,
     );
-  }
-}
-
-/// A read-only metadata sheet for [song].
-Future<void> showSongInfo(BuildContext context, Song song) {
-  return showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: Colors.transparent,
-    builder: (_) => _SongInfoSheet(song: song),
-  );
-}
-
-class _SongInfoSheet extends StatelessWidget {
-  const _SongInfoSheet({required this.song});
-  final Song song;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final l10n = AppLocalizations.of(context);
-    final rows = <(String, String)>[
-      (l10n.tagTitle, song.title),
-      (l10n.tagArtist, song.artist),
-      (l10n.tagAlbum, song.album),
-      if (song.year != null) (l10n.tagYear, '${song.year}'),
-      if (song.genre != null && song.genre!.isNotEmpty)
-        (l10n.tagGenre, song.genre!),
-      (l10n.infoDuration, song.duration.clock),
-      if (song.bitrate != null) (l10n.infoBitrate, '${song.bitrate} kbps'),
-      (l10n.infoFilePath, song.filePath),
-    ];
-
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.all(SpacingTokens.md),
-        child: GlassSurface(
-          borderRadius: RadiusTokens.brLg,
-          intensity: GlassIntensity.strong,
-          padding: const EdgeInsets.all(SpacingTokens.lg),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(l10n.songInfo,
-                  style: AppTextTheme.title.copyWith(color: colors.onSurface)),
-              const SizedBox(height: SpacingTokens.md),
-              for (final (label, value) in rows)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                        width: 96,
-                        child: Text(label,
-                            style: AppTextTheme.caption
-                                .copyWith(color: colors.onSurfaceFaint)),
-                      ),
-                      Expanded(
-                        child: Text(value,
-                            style: AppTextTheme.body
-                                .copyWith(color: colors.onSurface)),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Confirms, then deletes [song] from the device through the OS delete flow.
-/// On success the library is rescanned and playback advances past the file.
-Future<void> confirmAndDeleteSong(
-    BuildContext context, WidgetRef ref, Song song) async {
-  final l10n = AppLocalizations.of(context);
-  final messenger = ScaffoldMessenger.of(context);
-
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (ctx) {
-      final colors = ctx.colors;
-      return AlertDialog(
-        backgroundColor: colors.surface,
-        title: Text(l10n.deleteSongTitle,
-            style: AppTextTheme.title.copyWith(color: colors.onSurface)),
-        content: Text(l10n.deleteSongBody,
-            style: AppTextTheme.body.copyWith(color: colors.onSurfaceMuted)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(l10n.cancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: TextButton.styleFrom(foregroundColor: colors.danger),
-            child: Text(l10n.delete),
-          ),
-        ],
-      );
-    },
-  );
-  if (confirmed != true) return;
-
-  HapticFeedback.mediumImpact(); // weighty confirm for a destructive commit
-  final deleted = await ref.read(mediaDeleteServiceProvider).deleteSong(song.id);
-  if (deleted) {
-    // Move off the now-missing file, then rescan the library.
-    final controller = ref.read(audioControllerProvider);
-    await controller.skipToNext();
-    await ref.read(rescanProvider)();
-    messenger.showSnackBar(SnackBar(content: Text(l10n.songDeleted)));
-  } else {
-    messenger.showSnackBar(SnackBar(content: Text(l10n.deleteFailed)));
   }
 }
 

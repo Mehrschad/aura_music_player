@@ -10,6 +10,7 @@ import '../../../core/theme/typography.dart';
 import '../../providers/playback_providers.dart';
 import '../artwork/aura_artwork.dart';
 import '../glass/glass_surface.dart';
+import 'song_actions_sheet.dart';
 
 /// Opens the queue panel: the current queue with the playing track highlighted.
 /// Tap a row to jump to it, drag the handle to reorder, swipe to remove.
@@ -104,14 +105,32 @@ class _QueueSheet extends ConsumerWidget {
                               overflow: TextOverflow.ellipsis,
                               style: AppTextTheme.caption
                                   .copyWith(color: colors.onSurfaceFaint)),
-                          trailing: isCurrent
-                              ? Icon(Icons.equalizer,
-                                  size: 18, color: colors.onSurface)
-                              : ReorderableDragStartListener(
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                visualDensity: VisualDensity.compact,
+                                icon: Icon(Icons.more_vert,
+                                    size: 20, color: colors.onSurfaceFaint),
+                                onPressed: () => showSongActions(
+                                  context,
+                                  song,
+                                  onRemove: () =>
+                                      controller.removeFromQueue(i),
+                                  removeLabel: 'Remove from queue',
+                                ),
+                              ),
+                              if (isCurrent)
+                                Icon(Icons.equalizer,
+                                    size: 18, color: colors.onSurface)
+                              else
+                                ReorderableDragStartListener(
                                   index: i,
                                   child: Icon(Icons.drag_handle,
                                       color: colors.onSurfaceFaint),
                                 ),
+                            ],
+                          ),
                           onTap: () {
                             controller.skipToIndex(i);
                             Navigator.of(context).pop();

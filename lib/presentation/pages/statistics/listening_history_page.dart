@@ -15,6 +15,7 @@ import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../providers/stats_providers.dart';
 import '../../widgets/artwork/aura_artwork.dart';
+import '../../widgets/player/song_actions_sheet.dart';
 import '../../widgets/player_bar_inset.dart';
 import '../../widgets/press_scale.dart';
 
@@ -158,6 +159,9 @@ class _HistoryRow extends ConsumerWidget {
       onTap: song == null
           ? null
           : () => ref.read(audioControllerProvider).playQueue([song!]),
+      // Long-press reaches the same actions a track has anywhere else.
+      onLongPress:
+          song == null ? null : () => showSongActions(context, song!),
       pressedScale: 0.97,
       child: Container(
         decoration: BoxDecoration(

@@ -20,6 +20,7 @@ import '../../providers/smart_playlist_providers.dart';
 import '../../widgets/async_state_view.dart';
 import '../../widgets/artwork/aura_artwork.dart';
 import '../../widgets/library/song_list_tile.dart';
+import '../../widgets/player/song_actions_sheet.dart';
 import '../../widgets/press_scale.dart';
 import '../../widgets/player_bar_inset.dart';
 import '../tag_editor/tag_editor_page.dart';
@@ -189,6 +190,7 @@ class PlaylistDetailPage extends ConsumerWidget {
                       itemBuilder: (_, i) => SongListTile(
                         song: songs[i],
                         onTap: () => _play(ref, songs, i),
+                        onMore: () => showSongActions(context, songs[i]),
                       ),
                     ),
             ),
@@ -381,9 +383,24 @@ class _ReorderableSongs extends ConsumerWidget {
                 overflow: TextOverflow.ellipsis,
                 style:
                     AppTextTheme.caption.copyWith(color: colors.onSurfaceMuted)),
-            trailing: ReorderableDragStartListener(
-              index: i,
-              child: Icon(Icons.drag_handle, color: colors.onSurfaceFaint),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  icon: Icon(Icons.more_vert,
+                      size: 20, color: colors.onSurfaceFaint),
+                  onPressed: () => showSongActions(
+                    context,
+                    song,
+                    onRemove: () => repo.removeSongAt(playlistId, i),
+                  ),
+                ),
+                ReorderableDragStartListener(
+                  index: i,
+                  child: Icon(Icons.drag_handle, color: colors.onSurfaceFaint),
+                ),
+              ],
             ),
             onTap: () => onPlay(i),
           ),
