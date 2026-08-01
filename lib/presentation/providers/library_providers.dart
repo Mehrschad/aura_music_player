@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../data/local/audio_query/device_library_repository.dart';
 import '../../data/local/tag_editor/audiotagger_tag_writer.dart';
@@ -6,6 +7,7 @@ import '../../domain/library/folder_logic.dart';
 import '../../domain/library/library_grouping.dart';
 import '../../domain/library/song_search.dart';
 import '../../domain/library/song_sorting.dart';
+import '../../domain/library/song_tree.dart';
 import '../../domain/models/album.dart';
 import '../../domain/models/artist.dart';
 import '../../domain/models/genre.dart';
@@ -97,9 +99,54 @@ Song _withRating(Song song, Map<String, int> ratings) {
 
 // ── Per-section UI state ───────────────────────────────────────────────────
 
-/// Sort selection for the Library (all-songs) section.
+/// Persisted sort selection for the Library (all-songs) section. Survives app
+/// restarts via SharedPreferences, so the list keeps the arrangement the user
+/// chose. Best-effort, matching the app's other persisted stores: load/save
+/// failures (e.g. no platform channel in widget tests) are swallowed so the
+/// in-memory value always works.
+class LibrarySortNotifier extends StateNotifier<LibrarySort> {
+  LibrarySortNotifier() : super(LibrarySort.defaultSort) {
+    _load();
+  }
+
+  static const String _fieldKey = 'library_sort_field_v1';
+  static const String _dirKey = 'library_sort_direction_v1';
+
+  Future<void> _load() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final field = prefs.getString(_fieldKey);
+      if (field == null) return;
+      final f = SortField.values
+          .firstWhere((e) => e.name == field, orElse: () => state.field);
+      final dirName = prefs.getString(_dirKey);
+      final d = SortDirection.values.firstWhere(
+        (e) => e.name == dirName,
+        orElse: () => LibrarySort.defaultDirectionFor(f),
+      );
+      if (mounted) state = LibrarySort(f, d);
+    } catch (_) {/* tests / first launch */}
+  }
+
+  Future<void> _save() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_fieldKey, state.field.name);
+      await prefs.setString(_dirKey, state.direction.name);
+    } catch (_) {/* tests */}
+  }
+
+  /// Applies a new sort and persists it.
+  void update(LibrarySort sort) {
+    state = sort;
+    _save();
+  }
+}
+
 final librarySortProvider =
-    StateProvider<LibrarySort>((ref) => LibrarySort.defaultSort);
+    StateNotifierProvider<LibrarySortNotifier, LibrarySort>(
+  (ref) => LibrarySortNotifier(),
+);
 
 /// Display mode for the Library section.
 final libraryDisplayModeProvider =
@@ -127,6 +174,30 @@ final sortedSongsProvider = Provider<AsyncValue<List<Song>>>((ref) {
   final songs = ref.watch(effectiveSongsProvider);
   final sort = ref.watch(librarySortProvider);
   return songs.whenData((list) => sortSongs(list, sort));
+});
+
+/// The folded tree for the Songs list, or null when the current sort doesn't
+/// fold (any non-ascending direction, or a field other than Title/Album/Artist,
+/// or a non-list display mode). Memoised by Riverpod so the O(n log n) grouping
+/// only reruns when the songs, sort field, or display mode actually change —
+/// never on a scroll-driven rebuild.
+final songTreeProvider = Provider<SongTreeData?>((ref) {
+  final sort = ref.watch(librarySortProvider);
+  final mode = ref.watch(libraryDisplayModeProvider);
+  if (mode != DisplayMode.list ||
+      sort.direction != SortDirection.ascending) {
+    return null;
+  }
+  final treeMode = switch (sort.field) {
+    SortField.title => SongTreeMode.title,
+    SortField.album => SongTreeMode.album,
+    SortField.artist => SongTreeMode.artist,
+    _ => null,
+  };
+  if (treeMode == null) return null;
+  final songs = ref.watch(sortedSongsProvider).valueOrNull;
+  if (songs == null || songs.isEmpty) return null;
+  return buildSongTree(songs, treeMode);
 });
 
 final albumsProvider = Provider<AsyncValue<List<Album>>>((ref) {

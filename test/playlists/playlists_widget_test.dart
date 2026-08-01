@@ -6,13 +6,16 @@ import 'package:aura_music_player/presentation/providers/library_providers.dart'
 import 'package:aura_music_player/presentation/providers/playback_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import '../helpers/reduced_motion.dart';
 
 void main() {
   testWidgets('Playlists tab shows the seeded playlist and opens its detail',
       (tester) async {
+    useReducedMotion(tester);
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          pastOnboarding(),
           libraryRepositoryProvider
               .overrideWithValue(const SampleLibraryRepository()),
           audioControllerProvider

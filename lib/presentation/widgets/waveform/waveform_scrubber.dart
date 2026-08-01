@@ -99,7 +99,8 @@ class _WaveformScrubberState extends ConsumerState<WaveformScrubber>
         _thumbController.reverse();
       }
     });
-    _syncWave();
+    // _syncWave() reads MediaQuery, which may not be touched before initState
+    // completes — didChangeDependencies runs right after and does the first sync.
   }
 
   @override

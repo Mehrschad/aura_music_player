@@ -82,5 +82,10 @@ abstract interface class AudioController {
   bool get skipSilence;
   Future<void> setSkipSilence(bool enabled);
 
+  /// Supplies the current library so the background media browser (Android Auto,
+  /// Wear OS, Assistant) can list Albums / Artists / all songs and resolve a
+  /// "play this" request. Pushed whenever the effective library changes.
+  void setBrowsableLibrary(List<Song> songs);
+
   Future<void> dispose();
 }

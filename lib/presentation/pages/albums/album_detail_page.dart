@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/radius_tokens.dart';
@@ -10,11 +11,12 @@ import '../../../core/theme/typography.dart';
 import '../../../core/utils/seed_color.dart';
 import '../../../domain/models/album.dart';
 import '../../../domain/models/song.dart';
+import '../../providers/album_favorites_providers.dart';
 import '../../providers/cover_palette_provider.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../widgets/artwork/aura_artwork.dart';
-import '../../widgets/library/song_list_tile.dart';
+import '../../widgets/library/now_playing_indicator.dart';
 import '../../widgets/player/song_actions_sheet.dart';
 import '../../widgets/player_bar_inset.dart';
 import '../../widgets/press_scale.dart';
@@ -46,15 +48,28 @@ class AlbumDetailPage extends ConsumerWidget {
     ))).valueOrNull;
     final accent = palette?.accent ?? SeedPalette.accent(album.artworkSeed);
     final wash = palette?.wash ?? SeedPalette.wash(album.artworkSeed);
+    final isFav = ref.watch(isAlbumFavoriteProvider(album.id));
+    // A stronger wash carried into the top of the scroll area, fading to pure
+    // black lower down, so the page picks up the cover's colour instead of
+    // dropping to a flat black sheet under the hero.
     final pageBackground =
-        Color.alphaBlend(wash.withOpacity(0.18), colors.background);
+        Color.alphaBlend(wash.withOpacity(0.38), colors.background);
 
     final heroHeight = MediaQuery.sizeOf(context).height * 0.44;
 
     return Scaffold(
-      backgroundColor: pageBackground,
-      body: CustomScrollView(
-        slivers: [
+      backgroundColor: colors.background,
+      body: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            stops: const [0.0, 0.4, 0.85],
+            colors: [pageBackground, pageBackground, colors.background],
+          ),
+        ),
+        child: CustomScrollView(
+          slivers: [
           SliverAppBar(
             backgroundColor: Colors.transparent,
             surfaceTintColor: Colors.transparent,
@@ -77,6 +92,19 @@ class AlbumDetailPage extends ConsumerWidget {
               ),
             ),
             actions: [
+              // Like the album — kept with the user's favourite albums.
+              IconButton(
+                tooltip:
+                    isFav ? l10n.removeFromFavorites : l10n.addToFavorites,
+                onPressed: () {
+                  HapticFeedback.mediumImpact();
+                  ref.read(albumFavoritesProvider.notifier).toggle(album.id);
+                },
+                icon: Icon(
+                  isFav ? Icons.favorite : Icons.favorite_border,
+                  color: isFav ? colors.favorite : Colors.white,
+                ),
+              ),
               // Edit the album's tags / artwork — applies to all its tracks.
               songsAsync.maybeWhen(
                 data: (songs) => songs.isEmpty
@@ -177,11 +205,18 @@ class AlbumDetailPage extends ConsumerWidget {
                     (context, i) {
                       final row = rows[i];
                       if (row.discHeader != null) {
-                        return _DiscHeader(disc: row.discHeader!);
+                        return _DiscHeader(
+                          disc: row.discHeader!,
+                          count: row.discCount,
+                          duration: row.discDuration,
+                          accent: accent,
+                        );
                       }
                       final song = row.song!;
-                      return SongListTile(
+                      return _AlbumTrackRow(
                         song: song,
+                        trackNumber: row.trackNumber,
+                        accent: accent,
                         onTap: () => ref
                             .read(audioControllerProvider)
                             .playQueue(songs, startIndex: row.queueIndex),
@@ -194,7 +229,8 @@ class AlbumDetailPage extends ConsumerWidget {
               );
             },
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -213,29 +249,67 @@ class AlbumDetailPage extends ConsumerWidget {
   }
 
   /// Flattens the album into list rows. When more than one disc number is
-  /// present, a disc header row precedes each disc's tracks; the queue (and
-  /// therefore [Song] start indices) stays the full album in original order.
+  /// present, a disc header row (with the disc's own track count + duration)
+  /// precedes each disc's tracks, and track numbers restart per disc — matching
+  /// how multi-CD albums read elsewhere. The queue (and therefore [Song] start
+  /// indices) stays the full album in original order. Each track carries its
+  /// display number: the file's real track number, or its running position when
+  /// the tag is missing.
   List<_Row> _buildRows(List<Song> songs) {
-    final discs = <int>{for (final s in songs) s.discNumber ?? 1};
+    final discs = <int>{for (final s in songs) _effectiveDisc(s)};
     if (discs.length < 2) {
       return [
         for (var i = 0; i < songs.length; i++)
-          _Row.song(songs[i], queueIndex: i),
+          _Row.song(songs[i],
+              queueIndex: i, trackNumber: _displayTrackNo(songs[i], i + 1)),
       ];
     }
 
     final rows = <_Row>[];
     final sortedDiscs = discs.toList()..sort();
     for (final disc in sortedDiscs) {
-      rows.add(_Row.header(disc));
-      for (var i = 0; i < songs.length; i++) {
-        if ((songs[i].discNumber ?? 1) == disc) {
-          rows.add(_Row.song(songs[i], queueIndex: i));
-        }
+      final discIndices = [
+        for (var i = 0; i < songs.length; i++)
+          if (_effectiveDisc(songs[i]) == disc) i,
+      ];
+      final discDuration = discIndices.fold<Duration>(
+          Duration.zero, (sum, i) => sum + songs[i].duration);
+      rows.add(_Row.header(disc,
+          count: discIndices.length, duration: discDuration));
+      for (var pos = 0; pos < discIndices.length; pos++) {
+        final i = discIndices[pos];
+        rows.add(_Row.song(songs[i],
+            queueIndex: i, trackNumber: _displayTrackNo(songs[i], pos + 1)));
       }
     }
     return rows;
   }
+}
+
+/// The album's real track number for [song], normalised for display. Some
+/// taggers encode the track as `disc * 1000 + track` (so disc 1 track 1 is
+/// 1001, disc 2 track 3 is 2003) — strip that offset so the list shows 1, 2, 3
+/// rather than 1001, 1002. Falls back to [fallback] (the running position) when
+/// the tag is missing or resolves to zero.
+int _displayTrackNo(Song song, int fallback) {
+  final tn = song.trackNumber;
+  if (tn == null || tn <= 0) return fallback;
+  if (tn >= 1000) {
+    final within = tn % 1000;
+    return within == 0 ? fallback : within;
+  }
+  return tn;
+}
+
+/// The disc a [song] belongs to: its disc tag when present, otherwise the disc
+/// encoded in a `disc * 1000 + track` style track number (1xxx → 1, 2xxx → 2),
+/// so those albums still split into discs even without an explicit disc tag.
+int _effectiveDisc(Song song) {
+  final dn = song.discNumber;
+  if (dn != null && dn > 0) return dn;
+  final tn = song.trackNumber;
+  if (tn != null && tn >= 1000) return tn ~/ 1000;
+  return 1;
 }
 
 /// The album hero: artwork fills the backdrop under a top→bottom scrim that
@@ -379,20 +453,43 @@ class _ActionButton extends StatelessWidget {
 }
 
 class _Row {
-  const _Row.song(Song this.song, {required this.queueIndex})
-      : discHeader = null;
-  const _Row.header(int this.discHeader)
+  const _Row.song(Song this.song,
+      {required this.queueIndex, required this.trackNumber})
+      : discHeader = null,
+        discCount = 0,
+        discDuration = Duration.zero;
+  const _Row.header(int this.discHeader,
+      {required int count, required Duration duration})
       : song = null,
-        queueIndex = -1;
+        queueIndex = -1,
+        trackNumber = 0,
+        discCount = count,
+        discDuration = duration;
 
   final Song? song;
   final int queueIndex;
+
+  /// Display number shown for a track row (real track number, else position).
+  final int trackNumber;
+
   final int? discHeader;
+  final int discCount;
+  final Duration discDuration;
 }
 
+/// A Samsung-style disc separator: an accent "Disc N" chip with the disc's own
+/// track count and duration, and a hairline rule filling the rest of the row.
 class _DiscHeader extends StatelessWidget {
-  const _DiscHeader({required this.disc});
+  const _DiscHeader({
+    required this.disc,
+    required this.count,
+    required this.duration,
+    required this.accent,
+  });
   final int disc;
+  final int count;
+  final Duration duration;
+  final Color accent;
 
   @override
   Widget build(BuildContext context) {
@@ -403,23 +500,126 @@ class _DiscHeader extends StatelessWidget {
         SpacingTokens.xl,
         SpacingTokens.lg,
         SpacingTokens.xl,
-        SpacingTokens.xs,
+        SpacingTokens.sm,
       ),
       child: Row(
         children: [
-          Icon(Icons.album_outlined, size: 16, color: colors.onSurfaceFaint),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.sm, vertical: 4),
+            decoration: BoxDecoration(
+              color: accent.withOpacity(0.16),
+              borderRadius: RadiusTokens.brSm,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.album, size: 14, color: accent),
+                const SizedBox(width: 6),
+                Text(
+                  l10n.discN(disc),
+                  style: AppTextTheme.caption.copyWith(
+                    color: accent,
+                    letterSpacing: 0.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(width: SpacingTokens.sm),
           Text(
-            l10n.discN(disc),
-            style: AppTextTheme.caption.copyWith(
-              color: colors.onSurfaceFaint,
-              letterSpacing: 0.8,
-              fontWeight: FontWeight.w600,
-            ),
+            '${l10n.songsCount(count)} · ${duration.humanized}',
+            style: AppTextTheme.caption.copyWith(color: colors.onSurfaceFaint),
           ),
           const SizedBox(width: SpacingTokens.md),
           Expanded(child: Divider(color: colors.divider, height: 1)),
         ],
+      ),
+    );
+  }
+}
+
+/// A numbered album track row: track number (or a now-playing indicator) ·
+/// title · duration · overflow. No per-row thumbnail or "artist · album"
+/// subtitle — in an album context those are identical on every row, so they're
+/// dropped for a cleaner, tracklist-style read. The current track is tinted and
+/// titled in the album's accent.
+class _AlbumTrackRow extends ConsumerWidget {
+  const _AlbumTrackRow({
+    required this.song,
+    required this.trackNumber,
+    required this.accent,
+    required this.onTap,
+    required this.onMore,
+  });
+
+  final Song song;
+  final int trackNumber;
+  final Color accent;
+  final VoidCallback onTap;
+  final VoidCallback onMore;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final isCurrent =
+        ref.watch(currentSongProvider.select((s) => s?.id == song.id));
+    final playing = isCurrent &&
+        ref.watch(playbackStateProvider
+            .select((st) => st.valueOrNull?.playing ?? false));
+
+    return PressScale(
+      onTap: onTap,
+      pressedScale: 0.98,
+      semanticLabel: song.title,
+      child: Container(
+        color: isCurrent ? accent.withOpacity(0.08) : Colors.transparent,
+        padding: const EdgeInsets.only(left: SpacingTokens.xl),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 34,
+              child: Center(
+                child: isCurrent
+                    ? NowPlayingIndicator(color: accent, animating: playing)
+                    : Text(
+                        '$trackNumber',
+                        textAlign: TextAlign.center,
+                        style: AppTextTheme.body.copyWith(
+                          color: colors.onSurfaceFaint,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+              ),
+            ),
+            const SizedBox(width: SpacingTokens.md),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: SpacingTokens.md),
+                child: Text(
+                  song.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextTheme.title.copyWith(
+                    color: isCurrent ? accent : colors.onSurface,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: SpacingTokens.sm),
+            Text(
+              song.duration.clock,
+              style:
+                  AppTextTheme.caption.copyWith(color: colors.onSurfaceFaint),
+            ),
+            IconButton(
+              onPressed: onMore,
+              visualDensity: VisualDensity.compact,
+              icon: Icon(Icons.more_vert, size: 20, color: colors.onSurfaceFaint),
+            ),
+          ],
+        ),
       ),
     );
   }

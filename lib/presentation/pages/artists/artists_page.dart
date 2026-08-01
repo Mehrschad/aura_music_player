@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/spacing_tokens.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/theme/color_scheme.dart';
 import '../../../domain/models/artist.dart';
 import 'artist_detail_page.dart';
+import '../../providers/artist_favorites_providers.dart';
 import '../../providers/async_value_x.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
@@ -19,7 +21,15 @@ class ArtistsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final artistsAsync = ref.watch(artistsProvider);
+    final colors = context.colors;
+    final favoritesOnly = ref.watch(artistsFavoritesOnlyProvider);
+    final favSet = ref.watch(artistFavoritesProvider);
+    // Filter to favourites when the toggle is on, keeping the async envelope so
+    // loading/error/empty still render through AsyncStateView.
+    final artistsAsync = ref.watch(artistsProvider).whenData((artists) =>
+        favoritesOnly
+            ? [for (final a in artists) if (favSet.contains(a.id)) a]
+            : artists);
     final count =
         artistsAsync.maybeWhen(data: (a) => a.length, orElse: () => 0);
 
@@ -31,13 +41,29 @@ class ArtistsPage extends ConsumerWidget {
           SectionHeader(
             title: l10n.tabArtists,
             subtitle: count > 0 ? l10n.artistsCount(count) : null,
+            actions: [
+              IconButton(
+                tooltip:
+                    favoritesOnly ? 'Show all artists' : 'Favourite artists',
+                icon: Icon(
+                  favoritesOnly ? Icons.favorite : Icons.favorite_border,
+                  color: favoritesOnly ? colors.favorite : null,
+                ),
+                onPressed: () => ref
+                    .read(artistsFavoritesOnlyProvider.notifier)
+                    .state = !favoritesOnly,
+              ),
+            ],
           ),
           Expanded(
             child: AsyncStateView<List<Artist>>(
               value: artistsAsync.like,
               isEmpty: (a) => a.isEmpty,
-              emptyMessage: l10n.libraryEmpty,
-              emptyIcon: Icons.person_outline,
+              emptyMessage: favoritesOnly
+                  ? 'No favourite artists yet'
+                  : l10n.libraryEmpty,
+              emptyIcon:
+                  favoritesOnly ? Icons.favorite_border : Icons.person_outline,
               onRetry: () => ref.invalidate(songsProvider),
               data: (artists) => ListView.builder(
                 padding: EdgeInsets.fromLTRB(

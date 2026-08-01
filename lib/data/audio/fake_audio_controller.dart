@@ -321,6 +321,11 @@ class FakeAudioController implements AudioController {
   }
 
   @override
+  void setBrowsableLibrary(List<Song> songs) {
+    // No media-browser surface in the fake controller.
+  }
+
+  @override
   Future<void> dispose() async {
     _timer?.cancel();
     await _stateController.close();

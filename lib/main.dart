@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,6 +21,18 @@ import 'presentation/providers/settings_providers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Opt into the display's highest refresh rate (e.g. 120 Hz) on Android so
+  // scrolling and animations run as smoothly as the panel allows. Best-effort:
+  // devices that only support 60 Hz, or that reject the request, simply keep
+  // their default rate.
+  if (Platform.isAndroid) {
+    try {
+      await FlutterDisplayMode.setHighRefreshRate();
+    } catch (e) {
+      debugPrint('[Aura] Could not raise display refresh rate: $e');
+    }
+  }
 
   // Request notification permission (Android 13+ requires this for media notifications).
   if (await Permission.notification.isDenied) {

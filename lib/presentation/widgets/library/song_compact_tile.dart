@@ -10,18 +10,22 @@ import '../../../domain/models/song.dart';
 /// Ultra-dense, text-only row. No artwork, tight vertical rhythm.
 ///
 /// When [selected] is non-null the row is in selection mode and shows a compact
-/// check dot; [onTap] toggles and [onLongPress] extends a range.
+/// check dot; [onTap] toggles and [onLongPress] extends a range. Outside
+/// selection mode [onMore] adds the overflow button, so a track carries the same
+/// actions here as in the standard row.
 class SongCompactTile extends StatelessWidget {
   const SongCompactTile({
     super.key,
     required this.song,
     required this.onTap,
+    this.onMore,
     this.onLongPress,
     this.selected,
   });
 
   final Song song;
   final VoidCallback onTap;
+  final VoidCallback? onMore;
   final VoidCallback? onLongPress;
   final bool? selected;
 
@@ -83,6 +87,16 @@ class SongCompactTile extends StatelessWidget {
                 song.duration.clock,
                 style: AppTextTheme.caption.copyWith(color: colors.onSurfaceFaint),
               ),
+              if (!selecting && onMore != null)
+                InkWell(
+                  onTap: onMore,
+                  borderRadius: RadiusTokens.brSm,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: SpacingTokens.xs),
+                    child: Icon(Icons.more_vert,
+                        size: 16, color: colors.onSurfaceFaint),
+                  ),
+                ),
             ],
           ),
         ),

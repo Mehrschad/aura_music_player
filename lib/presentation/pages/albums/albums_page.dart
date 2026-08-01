@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/spacing_tokens.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/theme/color_scheme.dart';
 import '../../../domain/models/album.dart';
+import '../../providers/album_favorites_providers.dart';
 import '../../providers/async_value_x.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
@@ -20,7 +22,15 @@ class AlbumsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final albumsAsync = ref.watch(albumsProvider);
+    final colors = context.colors;
+    final favoritesOnly = ref.watch(albumsFavoritesOnlyProvider);
+    final favSet = ref.watch(albumFavoritesProvider);
+    // Filter to favourites when the toggle is on, keeping the async envelope so
+    // loading/error/empty still render through AsyncStateView.
+    final albumsAsync = ref.watch(albumsProvider).whenData((albums) =>
+        favoritesOnly
+            ? [for (final a in albums) if (favSet.contains(a.id)) a]
+            : albums);
     final count = albumsAsync.maybeWhen(data: (a) => a.length, orElse: () => 0);
 
     return SafeArea(
@@ -32,6 +42,16 @@ class AlbumsPage extends ConsumerWidget {
             title: l10n.tabAlbums,
             subtitle: count > 0 ? l10n.albumsCount(count) : null,
             actions: [
+              IconButton(
+                tooltip: favoritesOnly ? 'Show all albums' : 'Favourite albums',
+                icon: Icon(
+                  favoritesOnly ? Icons.favorite : Icons.favorite_border,
+                  color: favoritesOnly ? colors.favorite : null,
+                ),
+                onPressed: () => ref
+                    .read(albumsFavoritesOnlyProvider.notifier)
+                    .state = !favoritesOnly,
+              ),
               IconButton(
                 tooltip: l10n.tabGenres,
                 icon: const Icon(Icons.category_outlined),
@@ -45,8 +65,10 @@ class AlbumsPage extends ConsumerWidget {
             child: AsyncStateView<List<Album>>(
               value: albumsAsync.like,
               isEmpty: (a) => a.isEmpty,
-              emptyMessage: l10n.libraryEmpty,
-              emptyIcon: Icons.album_outlined,
+              emptyMessage:
+                  favoritesOnly ? 'No favourite albums yet' : l10n.libraryEmpty,
+              emptyIcon:
+                  favoritesOnly ? Icons.favorite_border : Icons.album_outlined,
               onRetry: () => ref.invalidate(songsProvider),
               data: (albums) => GridView.builder(
                 padding: EdgeInsets.fromLTRB(

@@ -43,6 +43,21 @@
         android:allowBackup="false"
         android:hardwareAccelerated="true">
 
+        <!-- ── Android Auto ── -->
+        <!--
+          Declares Aura as an Android Auto media app. Without this meta-data the
+          app never appears in Android Auto's launcher even though the
+          MediaBrowserService below is present. It points at res/xml/
+          automotive_app_desc.xml, which lists <uses name="media"/>.
+        -->
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc"/>
+        <!-- Android Auto notification colour for the media card. -->
+        <meta-data
+            android:name="com.google.android.gms.car.notification.SmallIcon"
+            android:resource="@drawable/ic_notification"/>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

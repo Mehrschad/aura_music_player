@@ -28,7 +28,7 @@ class LibrarySort {
   final SortDirection direction;
 
   static const LibrarySort defaultSort =
-      LibrarySort(SortField.title, SortDirection.ascending);
+      LibrarySort(SortField.artist, SortDirection.ascending);
 
   /// The sensible default direction when a user first picks a field — e.g.
   /// "Recently Added" should lead with the newest, "Play Count" with the most

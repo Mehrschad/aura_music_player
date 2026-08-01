@@ -6,9 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/radius_tokens.dart';
 import '../../../core/constants/spacing_tokens.dart';
+import '../../../core/extensions/duration_format.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/color_scheme.dart';
+import '../../../core/theme/stat_palette.dart';
 import '../../../core/theme/typography.dart';
+import '../../../core/utils/seed_color.dart';
+import '../../../domain/library/song_tree.dart';
 import '../../../domain/models/album.dart';
 import '../../../domain/models/artist.dart';
 import '../../../domain/models/genre.dart';
@@ -35,6 +39,7 @@ import '../../widgets/library/collection_actions.dart';
 import '../../widgets/library/collection_cover.dart';
 import '../../widgets/library/genre_list_tile.dart';
 import '../../widgets/library/library_controls.dart';
+import '../../widgets/library/now_playing_indicator.dart';
 import '../../widgets/library/selection_bar.dart';
 import '../../widgets/library/song_compact_tile.dart';
 import '../../widgets/library/song_grid_tile.dart';
@@ -48,6 +53,7 @@ import '../artists/artist_detail_page.dart';
 import '../folders/folder_browser_page.dart';
 import '../genres/genre_detail_page.dart';
 import '../playlists/playlist_detail_page.dart';
+import '../statistics/statistics_page.dart';
 import '../settings/settings_page.dart';
 import 'collection_detail_page.dart';
 
@@ -72,6 +78,18 @@ const List<String> _kMonths = [
 String _dateLabel(DateTime d) =>
     '${_kWeekdays[d.weekday - 1]} · ${d.day} ${_kMonths[d.month - 1]}';
 
+/// Decoration for the home's boxed discovery panels (Your Week, Suggested
+/// Artists, the cold-start nudge). On the AMOLED theme the elevated surface is
+/// almost pure black and its divider-hairline vanishes, so we lift the fill a
+/// few percent and give it a clearly visible border — the card then reads as a
+/// distinct panel rather than a shape lost in the background.
+BoxDecoration _discoveryCardDecoration(AppColors colors) => BoxDecoration(
+      color:
+          Color.alphaBlend(Colors.white.withOpacity(0.03), colors.surfaceElevated),
+      borderRadius: RadiusTokens.brLg,
+      border: Border.all(color: colors.onSurface.withOpacity(0.08)),
+    );
+
 /// Fixed row heights for the flat library lists. Pinning these lets the list
 /// use a [SliverFixedExtentList] — so a scrubber jump (or a tab switch that
 /// preserves a deep offset) is O(1) instead of forcing Flutter to build every
@@ -79,6 +97,26 @@ String _dateLabel(DateTime d) =>
 /// the leading artwork/avatar, so they stay stable across text scales.
 const double _kSongRowExtent = 66; // 48 art + 8·2 pad + 1·2 margin
 const double _kArtistRowExtent = 72; // 56 avatar + 8·2 pad
+
+// Fixed heights for the tree (folded Songs) rows. Pinning them keeps the A–Z
+// scrubber's offset maths exact: a letter jump is `discovery + Σ heights of the
+// rows above its header`, so it never has to build intervening rows.
+const double _kLetterHeaderExtent = 44; // section letter divider
+const double _kArtistHeaderExtent = 62; // 46 avatar + 8·2 pad
+const double _kAlbumHeaderExtent = 60; // 44 artwork + 8·2 pad
+const double _kTreeSongExtent = 52; // 40 artwork/number, centred
+
+/// Row height for a folded-tree row of [kind].
+double _treeRowExtent(LibRowKind kind) => switch (kind) {
+      LibRowKind.letter => _kLetterHeaderExtent,
+      LibRowKind.artist => _kArtistHeaderExtent,
+      LibRowKind.album => _kAlbumHeaderExtent,
+      LibRowKind.song => _kTreeSongExtent,
+    };
+
+/// Left gutter and per-level indent for the tree's VS-Code-style guide lines.
+const double _kTreeGutter = SpacingTokens.md;
+const double _kIndentStep = 20;
 
 /// Shared monospace label style for the home's small-caps eyebrows/labels —
 /// the type system's "machine voice" for dates, counts and section tags.
@@ -111,11 +149,19 @@ class _CyclingTitleState extends State<_CyclingTitle> {
   bool _showAura = false;
 
   @override
-  void initState() {
-    super.initState();
-    _timer = Timer.periodic(_interval, (_) {
-      if (mounted) setState(() => _showAura = !_showAura);
-    });
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // build() renders a static title under reduce-motion, so the cycling timer
+    // is pure waste there — and a setState that fires forever, which means a
+    // test mounting the library can never pumpAndSettle.
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _timer?.cancel();
+      _timer = null;
+    } else {
+      _timer ??= Timer.periodic(_interval, (_) {
+        if (mounted) setState(() => _showAura = !_showAura);
+      });
+    }
   }
 
   @override
@@ -191,6 +237,11 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
   final GlobalKey _discoveryKey = GlobalKey();
   double _discoveryExtent = 0;
 
+  // Cumulative pixel offset of each folded-tree row from the top of the songs
+  // sliver, or null when the Songs list isn't folded. Recomputed in build from
+  // the fixed per-kind heights so an A–Z jump into the tree lands exactly.
+  List<double>? _songRowOffsets;
+
   @override
   void dispose() {
     _scrollController.dispose();
@@ -220,7 +271,13 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
     if (!_scrollController.hasClients) return;
     final max = _scrollController.position.maxScrollExtent;
     double target;
-    if (segment == LibrarySegment.albums) {
+    if (segment == LibrarySegment.songs && _songRowOffsets != null) {
+      // Folded Songs tree: [index] is a *row* index; jump to its exact offset.
+      final offsets = _songRowOffsets!;
+      final off =
+          (index >= 0 && index < offsets.length) ? offsets[index] : 0.0;
+      target = _discoveryExtent + off;
+    } else if (segment == LibrarySegment.albums) {
       final tileW =
           (viewportWidth - 2 * SpacingTokens.lg - SpacingTokens.lg) / 2;
       final rowExtent = tileW / 0.76 + SpacingTokens.xl;
@@ -257,13 +314,12 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
     final List<String> keys;
     switch (segment) {
       case LibrarySegment.songs:
-        // Only meaningful when the list is actually ordered A→Z by title.
-        if (sort.field != SortField.title ||
-            sort.direction != SortDirection.ascending ||
-            mode != DisplayMode.list) {
-          return null;
-        }
-        keys = [for (final s in allSongs) s.title];
+        // The Songs list only carries a scrubber when it's folded into a tree
+        // (Title/Album/Artist ascending, list mode). The scrubber then jumps to
+        // section *headers* rather than raw song indices.
+        final tree = ref.watch(songTreeProvider);
+        if (tree == null || tree.orderedSongs.length < threshold) return null;
+        return _Alphabet.fromLetterRows(tree.letterFirstRow);
       case LibrarySegment.albums:
         final albums = ref.watch(albumsProvider).valueOrNull ?? const <Album>[];
         keys = [for (final a in albums) a.name];
@@ -289,6 +345,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
     required LibrarySegment segment,
     required AsyncValue<List<Song>> songsAsync,
     required DisplayMode mode,
+    required SongTreeData? tree,
     required bool miniPlayerVisible,
   }) {
     switch (segment) {
@@ -296,6 +353,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
         return _SongsSliver(
           songsAsync: songsAsync,
           mode: mode,
+          tree: tree,
           miniPlayerVisible: miniPlayerVisible,
           onPlay: _play,
         );
@@ -329,13 +387,42 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
     final songsAsync = ref.watch(sortedSongsProvider);
     final sort = ref.watch(librarySortProvider);
     final mode = ref.watch(libraryDisplayModeProvider);
+    // The folded Songs tree (null unless the sort folds). Cache each row's pixel
+    // offset so the A–Z scrubber can jump into it without building rows.
+    final songTree = ref.watch(songTreeProvider);
+    if (songTree != null) {
+      final offsets = <double>[];
+      var acc = 0.0;
+      for (final r in songTree.rows) {
+        offsets.add(acc);
+        acc += _treeRowExtent(r.kind);
+      }
+      _songRowOffsets = offsets;
+    } else {
+      _songRowOffsets = null;
+    }
     final miniPlayerVisible = ref.watch(hasMediaProvider);
     final selecting = ref.watch(
         selectionProvider(LibraryPage._listId).select((s) => s.active));
     final allSongs = songsAsync.valueOrNull ?? const <Song>[];
 
-    // Keep the discovery height measured so scrubber jumps stay accurate.
-    if (!selecting) _scheduleDiscoveryMeasure();
+    // When the discovery rails are collapsed the browser sits directly under the
+    // header, so the tabs pin from the very top.
+    final discoveryCollapsed = ref.watch(discoveryCollapsedProvider);
+    final showDiscovery = !selecting && !discoveryCollapsed;
+    // With no discovery rails above them the tabs are pinned from the start, so
+    // the A–Z scrubber should be available immediately rather than waiting for
+    // the (absent) rails to scroll away.
+    final tabsPinned = _tabsPinned || !showDiscovery;
+
+    // Keep the discovery height measured so scrubber jumps stay accurate; when
+    // it isn't shown its extent is zero (the widget isn't in the tree to
+    // measure, so pin the value here).
+    if (showDiscovery) {
+      _scheduleDiscoveryMeasure();
+    } else {
+      _discoveryExtent = 0;
+    }
 
     // A-Z fast-scroll model for the active alphabetical segment (Songs sorted
     // A–Z in list mode, Artists, Albums). Null hides the scrubber.
@@ -428,8 +515,12 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                                 current: sort,
                                 onChanged: (s) => ref
                                     .read(librarySortProvider.notifier)
-                                    .state = s,
+                                    .update(s),
                               );
+                            } else if (v == 'discovery') {
+                              ref
+                                  .read(discoveryCollapsedProvider.notifier)
+                                  .toggle();
                             } else if (v == 'folders') {
                               openFolderBrowser(context);
                             } else if (v == 'settings') {
@@ -438,6 +529,15 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                           },
                           itemBuilder: (_) => [
                             _menuItem('sort', Icons.sort, l10n.sortLabel),
+                            _menuItem(
+                              'discovery',
+                              discoveryCollapsed
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                              discoveryCollapsed
+                                  ? 'Show discovery'
+                                  : 'Hide discovery',
+                            ),
                             _menuItem(
                                 'folders', Icons.folder_outlined, l10n.folders),
                             _menuItem('settings', Icons.settings_outlined,
@@ -481,7 +581,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                   CustomScrollView(
                     controller: _scrollController,
                     slivers: [
-                      if (!selecting)
+                      if (showDiscovery)
                         SliverToBoxAdapter(
                           child: KeyedSubtree(
                             key: _discoveryKey,
@@ -497,6 +597,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                         segment: segment,
                         songsAsync: songsAsync,
                         mode: mode,
+                        tree: songTree,
                         miniPlayerVisible: miniPlayerVisible,
                       ),
                     ],
@@ -511,10 +612,10 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                       child: IgnorePointer(
                         // Hidden (and inert) until the rails scroll away, so it
                         // never floats over the discovery cards at the top.
-                        ignoring: !_tabsPinned,
+                        ignoring: !tabsPinned,
                         child: AnimatedOpacity(
                           duration: const Duration(milliseconds: 180),
-                          opacity: _tabsPinned ? 1 : 0,
+                          opacity: tabsPinned ? 1 : 0,
                           child: _AlphaScrubber(
                             alphabet: alphabet,
                             onJump: (index) => _jumpToItem(
@@ -719,6 +820,31 @@ class _Alphabet {
     }
     return _Alphabet(labels, target, present);
   }
+
+  /// Builds the index from a folded tree's `letter → first header row` map. The
+  /// resulting [target] values are **row** indices (not song indices), which
+  /// [_jumpToItem] resolves to a pixel offset for the Songs segment.
+  factory _Alphabet.fromLetterRows(Map<String, int> firstRowByLetter) {
+    final present = firstRowByLetter.keys.toSet();
+    final labels = <String>[
+      if (present.contains('#')) '#',
+      for (var c = 65; c <= 90; c++) String.fromCharCode(c),
+    ];
+    final target = <String, int>{};
+    int? next;
+    for (var j = labels.length - 1; j >= 0; j--) {
+      final lab = labels[j];
+      if (firstRowByLetter.containsKey(lab)) next = firstRowByLetter[lab];
+      if (next != null) target[lab] = next;
+    }
+    int? prev;
+    for (var j = 0; j < labels.length; j++) {
+      final lab = labels[j];
+      if (firstRowByLetter.containsKey(lab)) prev = firstRowByLetter[lab];
+      target.putIfAbsent(lab, () => prev ?? 0);
+    }
+    return _Alphabet(labels, target, present);
+  }
 }
 
 /// The right-edge A–Z fast-scroll rail. Dragging a finger along it jumps the
@@ -892,12 +1018,16 @@ class _SongsSliver extends ConsumerWidget {
   const _SongsSliver({
     required this.songsAsync,
     required this.mode,
+    required this.tree,
     required this.miniPlayerVisible,
     required this.onPlay,
   });
 
   final AsyncValue<List<Song>> songsAsync;
   final DisplayMode mode;
+
+  /// The folded hierarchy for list mode, or null when the sort doesn't fold.
+  final SongTreeData? tree;
   final bool miniPlayerVisible;
   final void Function(List<Song> queue, int index) onPlay;
 
@@ -906,6 +1036,13 @@ class _SongsSliver extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final bottom =
         playerBarInset(context, miniPlayerVisible: miniPlayerVisible);
+
+    // Folded tree (Title/Album/Artist ascending, list mode): render the
+    // hierarchy. A non-null tree already implies loaded, non-empty data.
+    final tree = this.tree;
+    if (mode == DisplayMode.list && tree != null) {
+      return _buildTreeSliver(context, ref, tree, bottom);
+    }
 
     SliverFillRemaining statusOf(AsyncValueLike<List<Song>> v) =>
         SliverFillRemaining(
@@ -983,6 +1120,7 @@ class _SongsSliver extends ConsumerWidget {
                   selected: selectedOf(songs[i]),
                   onTap: () => onTapAt(i),
                   onLongPress: () => onLongPress(songs[i]),
+                  onMore: () => showSongActions(context, songs[i]),
                 ),
               ),
             );
@@ -1004,11 +1142,500 @@ class _SongsSliver extends ConsumerWidget {
                   selected: selectedOf(songs[i]),
                   onTap: () => onTapAt(i),
                   onLongPress: () => onLongPress(songs[i]),
+                  onMore: () => showSongActions(context, songs[i]),
                 ),
               ),
             );
         }
       },
+    );
+  }
+
+  /// Renders the folded hierarchy as one lazy [SliverList]. Every row is boxed
+  /// to a fixed height (see `_treeRowExtent`) so it stays cheap to build and the
+  /// scrubber's offset table stays exact. Tapping a track plays the tree's
+  /// [SongTreeData.orderedSongs] from that point; selection mirrors the flat
+  /// list, ranging over the same visual order.
+  Widget _buildTreeSliver(
+    BuildContext context,
+    WidgetRef ref,
+    SongTreeData tree,
+    double bottom,
+  ) {
+    final rows = tree.rows;
+    final ordered = tree.orderedSongs;
+    final selection = ref.watch(selectionProvider(LibraryPage._listId));
+    final notifier =
+        ref.read(selectionProvider(LibraryPage._listId).notifier);
+    final selecting = selection.active;
+    final orderedIds = [for (final s in ordered) s.id];
+
+    void onLongPressAt(int songIndex) {
+      HapticFeedback.mediumImpact();
+      final id = ordered[songIndex].id;
+      if (selecting) {
+        notifier.selectRange(orderedIds, id);
+      } else {
+        notifier.enter(id);
+      }
+    }
+
+    void onTapAt(int songIndex) {
+      if (selecting) {
+        HapticFeedback.selectionClick();
+        notifier.toggle(ordered[songIndex].id);
+      } else {
+        onPlay(ordered, songIndex);
+      }
+    }
+
+    return SliverPadding(
+      padding: EdgeInsets.fromLTRB(
+          SpacingTokens.sm, 0, SpacingTokens.sm, bottom),
+      // Varied *but fixed-per-row* extents: the layout geometry is exact (like a
+      // fixed-extent list), so the A–Z scrubber's `discovery + Σ extents` jump
+      // lands precisely and never has to build the rows in between.
+      sliver: SliverVariedExtentList.builder(
+        itemCount: rows.length,
+        itemExtentBuilder: (index, _) => _treeRowExtent(rows[index].kind),
+        itemBuilder: (context, i) {
+          final row = rows[i];
+          switch (row.kind) {
+            case LibRowKind.letter:
+              return _LetterHeaderRow(label: row.label!);
+            case LibRowKind.artist:
+              final artist = row.artist!;
+              return _ArtistHeaderRow(
+                artist: artist,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ArtistDetailPage(artist: artist),
+                  ),
+                ),
+              );
+            case LibRowKind.album:
+              final album = row.album!;
+              return _AlbumHeaderRow(
+                album: album,
+                depth: row.depth,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => AlbumDetailPage(album: album),
+                  ),
+                ),
+                onPlay: () {
+                  final q = [
+                    for (final s in ordered)
+                      if (s.albumId == album.id) s
+                  ];
+                  if (q.isNotEmpty) onPlay(q, 0);
+                },
+              );
+            case LibRowKind.song:
+              final song = row.song!;
+              return _TreeSongRow(
+                song: song,
+                depth: row.depth,
+                trackNumber: row.trackNumber,
+                isLastInGroup: row.isLastInGroup,
+                selected: selecting ? selection.contains(song.id) : null,
+                onTap: () => onTapAt(row.songIndex),
+                onLongPress: () => onLongPressAt(row.songIndex),
+                onMore: () => showSongActions(context, song),
+              );
+          }
+        },
+      ),
+    );
+  }
+}
+
+/// Wraps a fixed-height tree row's content with a left gutter and one vertical
+/// guide line per nesting level — the VS-Code "indent guide" look. Guides are
+/// drawn as left borders on full-height cells so they read as continuous rails.
+class _TreeRowFrame extends StatelessWidget {
+  const _TreeRowFrame({
+    required this.depth,
+    required this.height,
+    required this.child,
+  });
+
+  final int depth;
+  final double height;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final guide = context.colors.divider;
+    return SizedBox(
+      height: height,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(width: _kTreeGutter),
+          for (var i = 0; i < depth; i++)
+            Container(
+              width: _kIndentStep,
+              decoration: BoxDecoration(
+                border: Border(left: BorderSide(color: guide, width: 1.2)),
+              ),
+            ),
+          Expanded(child: child),
+        ],
+      ),
+    );
+  }
+}
+
+/// A big letter divider ("A") heading a title-sorted section, with a hairline
+/// rule trailing off to the right.
+class _LetterHeaderRow extends StatelessWidget {
+  const _LetterHeaderRow({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return _TreeRowFrame(
+      depth: 0,
+      height: _kLetterHeaderExtent,
+      child: Padding(
+        padding: const EdgeInsets.only(
+            right: SpacingTokens.lg, top: SpacingTokens.md),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text(
+              label,
+              style: AppTextTheme.display.copyWith(
+                color: colors.accent,
+                fontSize: 22,
+                height: 1,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
+              ),
+            ),
+            const SizedBox(width: SpacingTokens.md),
+            Expanded(child: Divider(color: colors.divider, height: 1)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// An artist section header (avatar · name · albums/songs count) that opens the
+/// artist page. Top level of the by-artist tree.
+class _ArtistHeaderRow extends StatelessWidget {
+  const _ArtistHeaderRow({required this.artist, required this.onTap});
+  final Artist artist;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final l10n = AppLocalizations.of(context);
+    return PressScale(
+      onTap: onTap,
+      pressedScale: 0.98,
+      semanticLabel: artist.name,
+      child: _TreeRowFrame(
+        depth: 0,
+        height: _kArtistHeaderExtent,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+              horizontal: SpacingTokens.sm, vertical: SpacingTokens.sm),
+          child: Row(
+            children: [
+              ClipOval(
+                child: AuraArtwork(
+                  seed: artist.artworkSeed,
+                  size: 46,
+                  borderRadius: BorderRadius.circular(23),
+                  hasArtwork: artist.hasArtwork,
+                  artworkId: artist.firstSongId,
+                ),
+              ),
+              const SizedBox(width: SpacingTokens.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      artist.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextTheme.title.copyWith(
+                        color: colors.onSurface,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      '${l10n.albumsCount(artist.albumCount)} · ${l10n.songsCount(artist.songCount)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextTheme.caption
+                          .copyWith(color: colors.onSurfaceMuted),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right,
+                  size: 20, color: colors.onSurfaceFaint),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// An album section header (cover · name · year) with a play button. Opens the
+/// album page on tap. Sits at depth 0 (by-album tree) or depth 1 (nested under
+/// an artist).
+class _AlbumHeaderRow extends StatelessWidget {
+  const _AlbumHeaderRow({
+    required this.album,
+    required this.depth,
+    required this.onTap,
+    required this.onPlay,
+  });
+
+  final Album album;
+  final int depth;
+  final VoidCallback onTap;
+  final VoidCallback onPlay;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final l10n = AppLocalizations.of(context);
+    final accent = SeedPalette.accent(album.artworkSeed);
+    final subtitle = album.year?.toString() ?? l10n.songsCount(album.songCount);
+    return PressScale(
+      onTap: onTap,
+      pressedScale: 0.98,
+      semanticLabel: album.name,
+      child: _TreeRowFrame(
+        depth: depth,
+        height: _kAlbumHeaderExtent,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+              horizontal: SpacingTokens.sm, vertical: SpacingTokens.sm),
+          child: Row(
+            children: [
+              AuraArtwork(
+                seed: album.artworkSeed,
+                size: 44,
+                borderRadius: RadiusTokens.brSm,
+                hasArtwork: album.hasArtwork,
+                artworkId: album.firstSongId,
+              ),
+              const SizedBox(width: SpacingTokens.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      album.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextTheme.title.copyWith(
+                        color: colors.onSurface,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextTheme.caption
+                          .copyWith(color: colors.onSurfaceMuted),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: l10n.play,
+                onPressed: onPlay,
+                visualDensity: VisualDensity.compact,
+                icon: Icon(Icons.play_circle_fill, size: 30, color: accent),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A track row inside the tree. In the title tree it shows a thumbnail + artist;
+/// in the album/artist trees it shows a track number (or a now-playing
+/// indicator) and no thumbnail, since the album header already carries the art.
+/// A hairline under each track (dropped on the last of a group) separates rows.
+class _TreeSongRow extends ConsumerWidget {
+  const _TreeSongRow({
+    required this.song,
+    required this.depth,
+    required this.trackNumber,
+    required this.isLastInGroup,
+    required this.selected,
+    required this.onTap,
+    required this.onLongPress,
+    required this.onMore,
+  });
+
+  final Song song;
+  final int depth;
+  final int? trackNumber;
+  final bool isLastInGroup;
+  final bool? selected;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+  final VoidCallback onMore;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final selecting = selected != null;
+    final isSelected = selected ?? false;
+    final isCurrent = !selecting &&
+        ref.watch(currentSongProvider.select((s) => s?.id == song.id));
+    final playing = isCurrent &&
+        ref.watch(playbackStateProvider
+            .select((st) => st.valueOrNull?.playing ?? false));
+    final accent = SeedPalette.accent(song.artworkSeed);
+    final highlight = isSelected || isCurrent;
+
+    // Leading slot: a check in selection mode, otherwise the now-playing bars,
+    // the track number (album/artist trees) or a thumbnail (title tree).
+    final Widget leading;
+    if (selecting) {
+      leading = SizedBox(
+        width: 40,
+        child: Center(child: _TreeSelectCheck(selected: isSelected)),
+      );
+    } else if (trackNumber != null) {
+      leading = SizedBox(
+        width: 34,
+        child: Center(
+          child: isCurrent
+              ? NowPlayingIndicator(color: accent, animating: playing)
+              : Text(
+                  '$trackNumber',
+                  style: AppTextTheme.body.copyWith(
+                    color: colors.onSurfaceFaint,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+        ),
+      );
+    } else {
+      leading = AuraArtwork(
+        seed: song.artworkSeed,
+        size: 40,
+        hasArtwork: song.hasArtwork,
+        artworkId: int.tryParse(song.id),
+      );
+    }
+
+    return PressScale(
+      onTap: onTap,
+      onLongPress: onLongPress,
+      pressedScale: 0.98,
+      semanticLabel: '${song.title}, ${song.artist}',
+      child: _TreeRowFrame(
+        depth: depth,
+        height: _kTreeSongExtent,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: highlight ? accent.withOpacity(0.07) : Colors.transparent,
+            border: isLastInGroup
+                ? null
+                : Border(bottom: BorderSide(color: colors.divider, width: 0.5)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.only(right: SpacingTokens.xs),
+            child: Row(
+              children: [
+                leading,
+                const SizedBox(width: SpacingTokens.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        song.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextTheme.body.copyWith(
+                          color: isCurrent ? accent : colors.onSurface,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      if (trackNumber == null) ...[
+                        const SizedBox(height: 1),
+                        Text(
+                          song.artist,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextTheme.caption
+                              .copyWith(color: colors.onSurfaceMuted),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: SpacingTokens.sm),
+                Text(
+                  song.duration.clock,
+                  style: AppTextTheme.caption
+                      .copyWith(color: colors.onSurfaceFaint),
+                ),
+                if (!selecting)
+                  IconButton(
+                    onPressed: onMore,
+                    visualDensity: VisualDensity.compact,
+                    icon: Icon(Icons.more_vert,
+                        size: 20, color: colors.onSurfaceFaint),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The leading check circle shown on a tree track row in selection mode.
+class _TreeSelectCheck extends StatelessWidget {
+  const _TreeSelectCheck({required this.selected});
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: selected ? colors.accent : Colors.transparent,
+        border: Border.all(
+          color: selected ? colors.accent : colors.onSurfaceFaint,
+          width: 2,
+        ),
+      ),
+      child: selected
+          ? Icon(Icons.check, size: 14, color: colors.background)
+          : null,
     );
   }
 }
@@ -1020,22 +1647,21 @@ class _DiscoveryHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Direction: one hero (For You) with everything else compact. Quick-launch
+    // shortcuts collapse into a single horizontal rail; the secondary insights
+    // (this week, suggested artists, top tracks, on this day) fold into one
+    // swipeable card; and the Top Artists/Albums shelves are dropped here since
+    // they already have dedicated bottom-nav tabs.
     return const Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _ColdStartCard(),
         _PinnedRail(),
-        _TopPicksGrid(),
+        _ShortcutsRail(),
         _ForYouSection(),
-        _OnThisDayShelf(),
         _YourPlaylistsRail(),
-        _QuickPlaylistsRail(),
-        _WeeklyRecapCard(),
-        _SuggestedArtistsBox(),
-        _TopArtistsShelf(),
-        _TopTracksShelf(),
-        _TopAlbumsShelf(),
+        _InsightsCard(),
         SizedBox(height: SpacingTokens.sm),
       ],
     );
@@ -1065,11 +1691,7 @@ class _ColdStartCard extends ConsumerWidget {
           SpacingTokens.lg, SpacingTokens.md, SpacingTokens.lg, 0),
       child: Container(
         padding: const EdgeInsets.all(SpacingTokens.lg),
-        decoration: BoxDecoration(
-          color: colors.surfaceElevated,
-          borderRadius: RadiusTokens.brLg,
-          border: Border.all(color: colors.divider),
-        ),
+        decoration: _discoveryCardDecoration(colors),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -1078,11 +1700,17 @@ class _ColdStartCard extends ConsumerWidget {
               children: [
                 Icon(Icons.auto_awesome, size: 18, color: colors.accent),
                 const SizedBox(width: 8),
-                Text(
-                  'Unlock your For You',
-                  style: AppTextTheme.title.copyWith(
-                    color: colors.onSurface,
-                    fontWeight: FontWeight.w700,
+                // Flexible + ellipsis: the heading overflowed the card on
+                // narrow viewports and at large text scales.
+                Flexible(
+                  child: Text(
+                    'Unlock your For You',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextTheme.title.copyWith(
+                      color: colors.onSurface,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ],
@@ -1116,90 +1744,37 @@ class _ColdStartCard extends ConsumerWidget {
   }
 }
 
-/// "Top Picks" — a compact 2-column grid of quick-access shortcuts right under
-/// the header (recent, your mix, a time-aware mood, heavy rotation, favourites,
-/// on this day). Tiles fade + rise in on a gentle stagger the first time the
-/// home appears. Tapping a tile plays its list straight away.
-class _TopPicksGrid extends ConsumerStatefulWidget {
-  const _TopPicksGrid();
+/// A single horizontal strip of quick-launch shortcuts (Your Mix, a mood, a top
+/// artist, Favourites…). Replaces the old two-column grid so lone tiles never
+/// leave dead space, and the whole thing costs one compact row of height.
+class _ShortcutsRail extends ConsumerWidget {
+  const _ShortcutsRail();
 
   @override
-  ConsumerState<_TopPicksGrid> createState() => _TopPicksGridState();
-}
-
-class _TopPicksGridState extends ConsumerState<_TopPicksGrid>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 660),
-  );
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && !MediaQuery.disableAnimationsOf(context)) _ctrl.forward();
-    });
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final picks = ref.watch(topPicksProvider);
     if (picks.isEmpty) return const SizedBox.shrink();
-    if (MediaQuery.disableAnimationsOf(context)) _ctrl.value = 1.0;
-
-    final rows = <Widget>[];
-    for (var i = 0; i < picks.length; i += 2) {
-      final hasRight = i + 1 < picks.length;
-      rows.add(Padding(
-        padding: const EdgeInsets.only(bottom: SpacingTokens.sm),
-        child: Row(
-          children: [
-            Expanded(child: _animated(picks[i], i)),
-            const SizedBox(width: SpacingTokens.sm),
-            Expanded(
-              child:
-                  hasRight ? _animated(picks[i + 1], i + 1) : const SizedBox(),
-            ),
-          ],
-        ),
-      ));
-    }
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-          SpacingTokens.lg, SpacingTokens.md, SpacingTokens.lg, 0),
-      child: Column(mainAxisSize: MainAxisSize.min, children: rows),
-    );
-  }
-
-  Widget _animated(TopPick pick, int i) {
-    final start = (i * 0.09).clamp(0.0, 0.55);
-    final anim = CurvedAnimation(
-      parent: _ctrl,
-      curve: Interval(start, (start + 0.45).clamp(0.0, 1.0),
-          curve: Curves.easeOutCubic),
-    );
-    return FadeTransition(
-      opacity: anim,
-      child: SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(0, 0.20),
-          end: Offset.zero,
-        ).animate(anim),
-        child: _PickTile(
-          pick: pick,
-          onTap: () {
-            HapticFeedback.selectionClick();
-            ref
-                .read(audioControllerProvider)
-                .playQueue(pick.songs, startIndex: 0);
-          },
+      padding: const EdgeInsets.only(top: SpacingTokens.md),
+      child: SizedBox(
+        height: 58,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.lg),
+          itemCount: picks.length,
+          separatorBuilder: (_, __) => const SizedBox(width: SpacingTokens.sm),
+          itemBuilder: (_, i) => SizedBox(
+            width: 168,
+            child: _PickTile(
+              pick: picks[i],
+              onTap: () {
+                HapticFeedback.selectionClick();
+                ref
+                    .read(audioControllerProvider)
+                    .playQueue(picks[i].songs, startIndex: 0);
+              },
+            ),
+          ),
         ),
       ),
     );
@@ -1291,224 +1866,6 @@ class _ShelfHeader extends StatelessWidget {
           fontWeight: FontWeight.w700,
         ),
       ),
-    );
-  }
-}
-
-/// Top Artists rail — circular avatars from the user's most-played artists.
-class _TopArtistsShelf extends ConsumerWidget {
-  const _TopArtistsShelf();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final artists = ref.watch(topArtistsProvider);
-    if (artists.isEmpty) return const SizedBox.shrink();
-    final colors = context.colors;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _ShelfHeader('Top Artists'),
-        SizedBox(
-          height: 130,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(
-                SpacingTokens.lg, SpacingTokens.sm, SpacingTokens.lg, 0),
-            itemCount: artists.length,
-            separatorBuilder: (_, __) => const SizedBox(width: SpacingTokens.md),
-            itemBuilder: (_, i) {
-              final a = artists[i];
-              return PressScale(
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => ArtistDetailPage(artist: a),
-                  ),
-                ),
-                pressedScale: 0.96,
-                semanticLabel: a.name,
-                child: SizedBox(
-                  width: 92,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      ClipOval(
-                        child: AuraArtwork(
-                          seed: a.artworkSeed,
-                          size: 88,
-                          borderRadius: BorderRadius.circular(44),
-                          hasArtwork: a.hasArtwork,
-                          artworkId: a.firstSongId,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        a.name,
-                        maxLines: 1,
-                        textAlign: TextAlign.center,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTextTheme.caption.copyWith(
-                          color: colors.onSurface,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Top Tracks rail — most-played songs; tapping plays from that track.
-class _TopTracksShelf extends ConsumerWidget {
-  const _TopTracksShelf();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final tracks = ref.watch(topTracksProvider);
-    if (tracks.isEmpty) return const SizedBox.shrink();
-    final colors = context.colors;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _ShelfHeader('Top Tracks'),
-        SizedBox(
-          height: 178,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(
-                SpacingTokens.lg, SpacingTokens.sm, SpacingTokens.lg, 0),
-            itemCount: tracks.length,
-            separatorBuilder: (_, __) => const SizedBox(width: SpacingTokens.md),
-            itemBuilder: (_, i) {
-              final s = tracks[i];
-              return PressScale(
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  ref
-                      .read(audioControllerProvider)
-                      .playQueue(tracks, startIndex: i);
-                },
-                pressedScale: 0.97,
-                semanticLabel: s.title,
-                child: SizedBox(
-                  width: 124,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      AuraArtwork(
-                        seed: s.artworkSeed,
-                        size: 124,
-                        borderRadius: RadiusTokens.brMd,
-                        hasArtwork: s.hasArtwork,
-                        artworkId: int.tryParse(s.id),
-                      ),
-                      const SizedBox(height: SpacingTokens.sm),
-                      Text(
-                        s.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTextTheme.body.copyWith(
-                          color: colors.onSurface,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      Text(
-                        s.artist,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTextTheme.caption
-                            .copyWith(color: colors.onSurfaceMuted),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Top Albums rail — most-played albums; tapping opens the album.
-class _TopAlbumsShelf extends ConsumerWidget {
-  const _TopAlbumsShelf();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final albums = ref.watch(topAlbumsProvider);
-    if (albums.isEmpty) return const SizedBox.shrink();
-    final colors = context.colors;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _ShelfHeader('Top Albums'),
-        SizedBox(
-          height: 178,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(
-                SpacingTokens.lg, SpacingTokens.sm, SpacingTokens.lg, 0),
-            itemCount: albums.length,
-            separatorBuilder: (_, __) => const SizedBox(width: SpacingTokens.md),
-            itemBuilder: (_, i) {
-              final a = albums[i];
-              return PressScale(
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => AlbumDetailPage(album: a),
-                  ),
-                ),
-                pressedScale: 0.97,
-                semanticLabel: a.name,
-                child: SizedBox(
-                  width: 124,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      AuraArtwork(
-                        seed: a.artworkSeed,
-                        size: 124,
-                        borderRadius: RadiusTokens.brMd,
-                        hasArtwork: a.hasArtwork,
-                        artworkId: a.firstSongId,
-                      ),
-                      const SizedBox(height: SpacingTokens.sm),
-                      Text(
-                        a.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTextTheme.body.copyWith(
-                          color: colors.onSurface,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      Text(
-                        a.artist,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTextTheme.caption
-                            .copyWith(color: colors.onSurfaceMuted),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
     );
   }
 }
@@ -1744,11 +2101,16 @@ class _ForYouSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final all = ref.watch(smartCollectionsProvider);
-    // Pinned collections live in their own rail above — drop them here.
+    // Drop anything already surfaced elsewhere so the home never shows the same
+    // mix twice: pinned collections have their own rail above, and a collection
+    // promoted into the Top Picks grid (e.g. the contextual "Chill" mood)
+    // shouldn't reappear here.
     final pinned = ref.watch(pinnedCollectionsProvider);
-    final collections = pinned.isEmpty
-        ? all
-        : [for (final c in all) if (!pinned.contains(c.id)) c];
+    final pickIds = {for (final p in ref.watch(topPicksProvider)) p.id};
+    final collections = [
+      for (final c in all)
+        if (!pinned.contains(c.id) && !pickIds.contains(c.id)) c,
+    ];
     if (collections.isEmpty) return const SizedBox(width: double.infinity);
     final colors = context.colors;
 
@@ -1797,82 +2159,6 @@ class _ForYouSection extends ConsumerWidget {
             itemCount: collections.length,
             separatorBuilder: (_, __) => const SizedBox(width: SpacingTokens.md),
             itemBuilder: (_, i) => _CollectionCard(collection: collections[i]),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// "On this day" — a nostalgic rail of tracks the user played around this date
-/// in past years. Hidden when there isn't enough history.
-class _OnThisDayShelf extends ConsumerWidget {
-  const _OnThisDayShelf();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final songs = ref.watch(onThisDayProvider);
-    if (songs.isEmpty) return const SizedBox.shrink();
-    final colors = context.colors;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _ShelfHeader('On this day'),
-        SizedBox(
-          height: 178,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(
-                SpacingTokens.lg, SpacingTokens.sm, SpacingTokens.lg, 0),
-            itemCount: songs.length,
-            separatorBuilder: (_, __) => const SizedBox(width: SpacingTokens.md),
-            itemBuilder: (_, i) {
-              final s = songs[i];
-              return PressScale(
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  ref
-                      .read(audioControllerProvider)
-                      .playQueue(songs, startIndex: i);
-                },
-                pressedScale: 0.97,
-                semanticLabel: s.title,
-                child: SizedBox(
-                  width: 124,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      AuraArtwork(
-                        seed: s.artworkSeed,
-                        size: 124,
-                        borderRadius: RadiusTokens.brMd,
-                        hasArtwork: s.hasArtwork,
-                        artworkId: int.tryParse(s.id),
-                      ),
-                      const SizedBox(height: SpacingTokens.sm),
-                      Text(
-                        s.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTextTheme.body.copyWith(
-                          color: colors.onSurface,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      Text(
-                        s.artist,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTextTheme.caption
-                            .copyWith(color: colors.onSurfaceMuted),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
           ),
         ),
       ],
@@ -1944,53 +2230,100 @@ class _CollectionCard extends ConsumerWidget {
   }
 }
 
-/// "Your week in music" — a mini wrapped: a boxed recap of the last 7 days.
-class _WeeklyRecapCard extends ConsumerWidget {
-  const _WeeklyRecapCard();
+/// One compact, swipeable card that folds the home's secondary discovery
+/// content — this week's recap, suggested artists, top tracks and "on this day"
+/// — into a single card height instead of four stacked sections. Only pages
+/// that have data are shown; page dots appear when there is more than one.
+class _InsightsCard extends ConsumerStatefulWidget {
+  const _InsightsCard();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final recap = ref.watch(weeklyRecapProvider);
-    if (!recap.hasData) return const SizedBox.shrink();
+  ConsumerState<_InsightsCard> createState() => _InsightsCardState();
+}
+
+class _InsightsCardState extends ConsumerState<_InsightsCard> {
+  final PageController _controller = PageController();
+  int _page = 0;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final colors = context.colors;
+    final pages = <Widget>[];
+
+    final recap = ref.watch(weeklyRecapProvider);
+    if (recap.hasData) pages.add(_WeekPage(recap: recap));
+
+    // Suggested, minus artists already surfaced in the Top Artists shelf/tab.
+    final topIds = {for (final a in ref.watch(topArtistsProvider)) a.id};
+    final suggested = [
+      for (final a in ref.watch(suggestedArtistsProvider))
+        if (!topIds.contains(a.id)) a,
+    ];
+    if (suggested.isNotEmpty) pages.add(_ArtistsPage(artists: suggested));
+
+    final topTracks = ref.watch(topTracksProvider);
+    if (topTracks.length >= 5) {
+      pages.add(_TrackRailPage(
+        title: 'Top Tracks',
+        icon: Icons.local_fire_department_rounded,
+        songs: topTracks,
+      ));
+    }
+
+    final onThisDay = ref.watch(onThisDayProvider);
+    if (onThisDay.length >= 5) {
+      pages.add(_TrackRailPage(
+        title: 'On this day',
+        icon: Icons.calendar_today_rounded,
+        songs: onThisDay,
+      ));
+    }
+
+    if (pages.isEmpty) return const SizedBox.shrink();
+    final current = _page.clamp(0, pages.length - 1);
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(
           SpacingTokens.lg, SpacingTokens.md, SpacingTokens.lg, 0),
       child: Container(
-        padding: const EdgeInsets.all(SpacingTokens.lg),
-        decoration: BoxDecoration(
-          color: colors.surfaceElevated,
-          borderRadius: RadiusTokens.brLg,
-          border: Border.all(color: colors.divider),
-        ),
+        decoration: _discoveryCardDecoration(colors),
+        padding: const EdgeInsets.symmetric(vertical: SpacingTokens.md),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(Icons.insights_rounded, size: 16, color: colors.accent),
-                const SizedBox(width: 8),
-                Text('YOUR WEEK',
-                    style: _monoLabel(colors.onSurfaceMuted, spacing: 1.8)),
-              ],
+            SizedBox(
+              height: 150,
+              child: PageView(
+                controller: _controller,
+                onPageChanged: (i) => setState(() => _page = i),
+                children: pages,
+              ),
             ),
-            const SizedBox(height: SpacingTokens.md),
-            Row(
-              children: [
-                _RecapStat(value: '${recap.plays}', label: 'PLAYS'),
-                _RecapStat(value: '${recap.minutes}', label: 'MINUTES'),
-                _RecapStat(
-                    value: '${recap.distinctArtists}', label: 'ARTISTS'),
-              ],
-            ),
-            if (recap.topArtist != null) ...[
-              const SizedBox(height: SpacingTokens.md),
-              Text(
-                'Most played · ${recap.topArtist}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTextTheme.body.copyWith(color: colors.onSurfaceMuted),
+            if (pages.length > 1) ...[
+              const SizedBox(height: SpacingTokens.sm),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  for (var i = 0; i < pages.length; i++)
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      width: i == current ? 18 : 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: i == current
+                            ? colors.accent
+                            : colors.onSurfaceFaint.withOpacity(0.4),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                ],
               ),
             ],
           ],
@@ -2000,12 +2333,274 @@ class _WeeklyRecapCard extends ConsumerWidget {
   }
 }
 
-/// One big-number stat inside the weekly recap card.
-class _RecapStat extends StatelessWidget {
-  const _RecapStat({required this.value, required this.label});
+/// The "Your Week" page of the insights card: three colour-coded, count-up
+/// stats over a most-played line. Tapping opens the full animated stats page.
+class _WeekPage extends StatelessWidget {
+  const _WeekPage({required this.recap});
+  final WeeklyRecap recap;
 
-  final String value;
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    const teal = StatHues.teal;
+    const violet = StatHues.violet;
+    const amber = StatHues.amber;
+    return PressScale(
+      onTap: () => openStatistics(context),
+      pressedScale: 0.99,
+      semanticLabel: 'Your week in music, tap for details',
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.insights_rounded, size: 16, color: teal),
+                const SizedBox(width: 8),
+                Text('YOUR WEEK',
+                    style: _monoLabel(colors.onSurfaceMuted, spacing: 1.8)),
+                const Spacer(),
+                Text('Details',
+                    style: AppTextTheme.caption.copyWith(
+                      color: colors.accent,
+                      fontWeight: FontWeight.w600,
+                    )),
+                Icon(Icons.chevron_right, size: 16, color: colors.accent),
+              ],
+            ),
+            const SizedBox(height: SpacingTokens.md),
+            Row(
+              children: [
+                _RecapStat(value: recap.plays, label: 'PLAYS', color: teal),
+                _RecapStat(
+                    value: recap.minutes, label: 'MINUTES', color: violet),
+                _RecapStat(
+                    value: recap.distinctArtists,
+                    label: 'ARTISTS',
+                    color: amber),
+              ],
+            ),
+            if (recap.topArtist != null) ...[
+              const SizedBox(height: SpacingTokens.md),
+              Row(
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration:
+                        const BoxDecoration(color: teal, shape: BoxShape.circle),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Most played · ${recap.topArtist}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style:
+                          AppTextTheme.body.copyWith(color: colors.onSurfaceMuted),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The "Suggested Artists" page of the insights card: a rail of avatars.
+class _ArtistsPage extends StatelessWidget {
+  const _ArtistsPage({required this.artists});
+  final List<Artist> artists;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.lg),
+          child: Row(
+            children: [
+              Icon(Icons.auto_awesome, size: 16, color: colors.accent),
+              const SizedBox(width: 8),
+              Text(
+                'Suggested Artists',
+                style: AppTextTheme.title.copyWith(
+                  color: colors.onSurface,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.2,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: SpacingTokens.sm),
+        SizedBox(
+          height: 112,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.lg),
+            itemCount: artists.length,
+            separatorBuilder: (_, __) => const SizedBox(width: SpacingTokens.md),
+            itemBuilder: (context, i) {
+              final a = artists[i];
+              return PressScale(
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ArtistDetailPage(artist: a),
+                  ),
+                ),
+                pressedScale: 0.96,
+                semanticLabel: a.name,
+                child: SizedBox(
+                  width: 80,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ClipOval(
+                        child: AuraArtwork(
+                          seed: a.artworkSeed,
+                          size: 72,
+                          borderRadius: BorderRadius.circular(36),
+                          hasArtwork: a.hasArtwork,
+                          artworkId: a.firstSongId,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        a.name,
+                        maxLines: 1,
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextTheme.caption.copyWith(
+                          color: colors.onSurface,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A horizontal track rail page (Top Tracks / On this day) for the insights card.
+class _TrackRailPage extends ConsumerWidget {
+  const _TrackRailPage({
+    required this.title,
+    required this.icon,
+    required this.songs,
+  });
+
+  final String title;
+  final IconData icon;
+  final List<Song> songs;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.lg),
+          child: Row(
+            children: [
+              Icon(icon, size: 16, color: colors.accent),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: AppTextTheme.title.copyWith(
+                  color: colors.onSurface,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.2,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: SpacingTokens.sm),
+        SizedBox(
+          height: 118,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: SpacingTokens.lg),
+            itemCount: songs.length,
+            separatorBuilder: (_, __) => const SizedBox(width: SpacingTokens.md),
+            itemBuilder: (context, i) {
+              final s = songs[i];
+              return PressScale(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  ref
+                      .read(audioControllerProvider)
+                      .playQueue(songs, startIndex: i);
+                },
+                pressedScale: 0.97,
+                semanticLabel: s.title,
+                child: SizedBox(
+                  width: 92,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      AuraArtwork(
+                        seed: s.artworkSeed,
+                        size: 92,
+                        borderRadius: RadiusTokens.brMd,
+                        hasArtwork: s.hasArtwork,
+                        artworkId: int.tryParse(s.id),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        s.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextTheme.body.copyWith(
+                          color: colors.onSurface,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// One big-number stat inside the weekly recap card: a colour-coded number that
+/// counts up on first appearance, over a short accent underline.
+class _RecapStat extends StatelessWidget {
+  const _RecapStat({
+    required this.value,
+    required this.label,
+    required this.color,
+  });
+
+  final int value;
   final String label;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
@@ -2015,17 +2610,31 @@ class _RecapStat extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            value,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: colors.onSurface,
-              fontSize: 26,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.5,
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: value.toDouble()),
+            duration: const Duration(milliseconds: 900),
+            curve: Curves.easeOutCubic,
+            builder: (context, v, _) => Text(
+              '${v.round()}',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: color,
+                fontSize: 26,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.5,
+              ),
             ),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 3),
+          Container(
+            width: 20,
+            height: 3,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.55),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 5),
           Text(label, style: _monoLabel(colors.onSurfaceFaint, size: 9)),
         ],
       ),
@@ -2080,180 +2689,6 @@ class _YourPlaylistsRail extends ConsumerWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// "Quick Playlists" — the built-in auto playlists. Only the ones that actually
-/// have tracks are shown (so no empty cards), each with its real count, and any
-/// two that resolve to the same tracks are de-duplicated.
-class _QuickPlaylistsRail extends ConsumerWidget {
-  const _QuickPlaylistsRail();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-    final specs = <(AutoPlaylist, String, IconData)>[
-      (AutoPlaylist.mostPlayed, l10n.autoMostPlayed,
-          Icons.local_fire_department_rounded),
-      (AutoPlaylist.recentlyAdded, l10n.autoRecentlyAdded,
-          Icons.fiber_new_rounded),
-      (AutoPlaylist.recentlyPlayed, l10n.autoRecentlyPlayed,
-          Icons.history_rounded),
-      (AutoPlaylist.favorites, l10n.autoFavorites, Icons.favorite_rounded),
-      (AutoPlaylist.topRated, l10n.autoTopRated, Icons.star_rounded),
-    ];
-
-    final tiles = <(AutoPlaylist, String, IconData, int, List<Song>)>[];
-    final seen = <String>{};
-    for (final (type, label, icon) in specs) {
-      final songs =
-          ref.watch(autoPlaylistSongsProvider(type)).valueOrNull ??
-              const <Song>[];
-      if (songs.isEmpty) continue;
-      // De-dupe: skip any auto playlist that resolves to the same track set as
-      // one already shown.
-      final sig =
-          '${songs.length}:${songs.take(20).map((s) => s.id).join('|')}';
-      if (!seen.add(sig)) continue;
-      tiles.add((type, label, icon, songs.length, songs));
-    }
-    if (tiles.isEmpty) return const SizedBox.shrink();
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _ShelfHeader('Quick Playlists'),
-        SizedBox(
-          height: 188,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(
-                SpacingTokens.lg, SpacingTokens.sm, SpacingTokens.lg, 0),
-            itemCount: tiles.length,
-            separatorBuilder: (_, __) => const SizedBox(width: SpacingTokens.md),
-            itemBuilder: (_, i) {
-              final (type, label, icon, count, plSongs) = tiles[i];
-              return PressScale(
-                onTap: () => openAutoPlaylist(context, type),
-                pressedScale: 0.97,
-                semanticLabel: label,
-                child: CollectionCover.label(
-                  title: label,
-                  count: count,
-                  icon: icon,
-                  colorSeed: 'auto_${type.name}',
-                  songs: plSongs,
-                  size: 172,
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// "Suggested Artists" — a visually distinct boxed rail of artists the taste
-/// engine recommends (discovery, not the user's already-top artists). Hidden
-/// until recommendations exist.
-class _SuggestedArtistsBox extends ConsumerWidget {
-  const _SuggestedArtistsBox();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final artists = ref.watch(suggestedArtistsProvider);
-    if (artists.isEmpty) return const SizedBox.shrink();
-    final colors = context.colors;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-          SpacingTokens.lg, SpacingTokens.md, SpacingTokens.lg, 0),
-      child: Container(
-        decoration: BoxDecoration(
-          color: colors.surfaceElevated,
-          borderRadius: RadiusTokens.brLg,
-          border: Border.all(color: colors.divider),
-        ),
-        padding: const EdgeInsets.symmetric(vertical: SpacingTokens.md),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: SpacingTokens.lg),
-              child: Row(
-                children: [
-                  Icon(Icons.auto_awesome, size: 16, color: colors.accent),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Suggested Artists',
-                    style: AppTextTheme.title.copyWith(
-                      color: colors.onSurface,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.2,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: SpacingTokens.sm),
-            SizedBox(
-              height: 116,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: SpacingTokens.lg),
-                itemCount: artists.length,
-                separatorBuilder: (_, __) =>
-                    const SizedBox(width: SpacingTokens.md),
-                itemBuilder: (_, i) {
-                  final a = artists[i];
-                  return PressScale(
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => ArtistDetailPage(artist: a),
-                      ),
-                    ),
-                    pressedScale: 0.96,
-                    semanticLabel: a.name,
-                    child: SizedBox(
-                      width: 80,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          ClipOval(
-                            child: AuraArtwork(
-                              seed: a.artworkSeed,
-                              size: 72,
-                              borderRadius: BorderRadius.circular(36),
-                              hasArtwork: a.hasArtwork,
-                              artworkId: a.firstSongId,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            a.name,
-                            maxLines: 1,
-                            textAlign: TextAlign.center,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTextTheme.caption.copyWith(
-                              color: colors.onSurface,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

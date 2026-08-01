@@ -12,17 +12,21 @@ import '../press_scale.dart';
 ///
 /// When [selected] is non-null the tile is in selection mode: a check badge
 /// overlays the artwork, [onTap] toggles, and [onLongPress] extends a range.
+/// Outside selection mode [onMore] puts the overflow button on the artwork, so a
+/// track offers the same actions in grid mode as in a list.
 class SongGridTile extends StatelessWidget {
   const SongGridTile({
     super.key,
     required this.song,
     required this.onTap,
+    this.onMore,
     this.onLongPress,
     this.selected,
   });
 
   final Song song;
   final VoidCallback onTap;
+  final VoidCallback? onMore;
   final VoidCallback? onLongPress;
   final bool? selected;
 
@@ -73,6 +77,29 @@ class SongGridTile extends StatelessWidget {
                             : Icons.radio_button_unchecked,
                         color: isSelected ? colors.accent : Colors.white,
                         size: 22,
+                      ),
+                    )
+                  else if (onMore != null)
+                    Positioned(
+                      top: 0,
+                      right: 0,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: onMore,
+                          customBorder: const CircleBorder(),
+                          child: Container(
+                            margin: const EdgeInsets.all(SpacingTokens.xs),
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              // Scrim keeps the glyph legible over any artwork.
+                              color: Colors.black.withOpacity(0.35),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.more_vert,
+                                size: 16, color: Colors.white),
+                          ),
+                        ),
                       ),
                     ),
                 ],

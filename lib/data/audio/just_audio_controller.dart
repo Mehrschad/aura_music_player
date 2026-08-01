@@ -11,6 +11,7 @@ import '../../domain/audio/equalizer_presets.dart' show eqGainAt;
 import '../../domain/models/equalizer.dart';
 import '../../domain/models/playback.dart';
 import '../../domain/models/song.dart';
+import '../../domain/widgets/media_browser_tree.dart';
 
 /// The real, on-device [AudioController], backed by `just_audio` for decoding
 /// and `audio_service` for the system media session (notification, lock-screen
@@ -54,6 +55,10 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
 
   List<Song> _queue = const [];
   final List<StreamSubscription<dynamic>> _subs = [];
+
+  /// The full library exposed to the media browser (Android Auto etc.). Kept in
+  /// sync from the app via [setBrowsableLibrary].
+  List<Song> _library = const [];
 
   // Pitch and skip-silence backing fields.
   double _pitch = 0.0;
@@ -545,6 +550,106 @@ class JustAudioController extends bg.BaseAudioHandler implements AudioController
     _skipSilence = enabled;
     await _player.setSkipSilenceEnabled(enabled);
     if (!_skipSilenceController.isClosed) _skipSilenceController.add(_skipSilence);
+  }
+
+  // ── Media browser (Android Auto / Wear OS / Assistant) ───────────────────
+
+  @override
+  void setBrowsableLibrary(List<Song> songs) {
+    _library = songs;
+  }
+
+  Song? _songById(String id) {
+    for (final s in _library) {
+      if (s.id == id) return s;
+    }
+    return null;
+  }
+
+  /// Converts a browse-tree [MediaNode] to an audio_service [bg.MediaItem],
+  /// attaching cover art for playable song leaves.
+  bg.MediaItem _nodeToMediaItem(MediaNode node) {
+    final songId = songIdFromNode(node.id);
+    final song = songId != null ? _songById(songId) : null;
+    return bg.MediaItem(
+      id: node.id,
+      title: node.title,
+      artist: node.subtitle,
+      album: song?.album,
+      playable: node.playable,
+      artUri: (song != null && song.hasArtwork)
+          ? Uri.parse('content://media/external/audio/albumart/${song.albumId}')
+          : null,
+    );
+  }
+
+  /// Serves the browse hierarchy: root → Library / Albums / Artists, each
+  /// drilling into songs. Called by the system when Android Auto expands a node.
+  @override
+  Future<List<bg.MediaItem>> getChildren(
+    String parentMediaId, [
+    Map<String, dynamic>? options,
+  ]) async {
+    return [
+      for (final node in mediaChildren(parentMediaId, _library))
+        _nodeToMediaItem(node),
+    ];
+  }
+
+  @override
+  Future<bg.MediaItem?> getMediaItem(String mediaId) async {
+    final songId = songIdFromNode(mediaId);
+    if (songId == null) return null;
+    final song = _songById(songId);
+    return song == null ? null : _toMediaItem(song);
+  }
+
+  /// Plays a browsed item. When a track is chosen, its whole album becomes the
+  /// queue (starting on that track) so skip-next/previous flow naturally in the
+  /// car — matching how tapping a track inside an album behaves in-app.
+  @override
+  Future<void> playFromMediaId(
+    String mediaId, [
+    Map<String, dynamic>? extras,
+  ]) async {
+    final songId = songIdFromNode(mediaId);
+    if (songId == null) return;
+    final song = _songById(songId);
+    if (song == null) return;
+
+    final albumTracks = [
+      for (final s in _library)
+        if (s.albumId == song.albumId) s,
+    ]..sort((a, b) {
+        final discCmp = (a.discNumber ?? 1).compareTo(b.discNumber ?? 1);
+        if (discCmp != 0) return discCmp;
+        return (a.trackNumber ?? 0).compareTo(b.trackNumber ?? 0);
+      });
+    final queue = albumTracks.isEmpty ? [song] : albumTracks;
+    final start = queue.indexWhere((s) => s.id == song.id);
+    await playQueue(queue, startIndex: start < 0 ? 0 : start);
+  }
+
+  /// Voice search ("Hey Google, play … on Aura"). Matches title / artist /
+  /// album and plays the results; an empty query shuffles the whole library.
+  @override
+  Future<void> playFromSearch(
+    String query, [
+    Map<String, dynamic>? extras,
+  ]) async {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) {
+      if (_library.isNotEmpty) await playQueue(_library);
+      return;
+    }
+    final matches = [
+      for (final s in _library)
+        if (s.title.toLowerCase().contains(q) ||
+            s.artist.toLowerCase().contains(q) ||
+            s.album.toLowerCase().contains(q))
+          s,
+    ];
+    if (matches.isNotEmpty) await playQueue(matches);
   }
 
   @override

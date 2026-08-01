@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import '../helpers/reduced_motion.dart';
 
 class _InstantRepo implements LibraryRepository {
   const _InstantRepo();
@@ -32,6 +33,7 @@ class _InstantRepo implements LibraryRepository {
 void main() {
   testWidgets('mini player expands to Now Playing; favourite and repeat work',
       (tester) async {
+    useReducedMotion(tester);
     // A small real-phone surface (360×690 logical) deliberately guards against
     // layout overflow: NowPlayingPage sizes its artwork from the remaining
     // height, so it must fit even compact screens. Overflow fails this test.
@@ -41,6 +43,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          pastOnboarding(),
           libraryRepositoryProvider.overrideWithValue(const _InstantRepo()),
           audioControllerProvider
               .overrideWith((ref) => FakeAudioController(autoTick: false)),

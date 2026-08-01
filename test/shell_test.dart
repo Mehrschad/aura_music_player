@@ -6,6 +6,7 @@ import 'package:aura_music_player/presentation/providers/library_providers.dart'
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'helpers/reduced_motion.dart';
 
 /// Instant, deterministic repository so tests don't depend on the sample
 /// repository's simulated scan latency.
@@ -29,6 +30,7 @@ class _InstantRepo implements LibraryRepository {
 
 Widget _app() => ProviderScope(
       overrides: [
+        pastOnboarding(),
         libraryRepositoryProvider.overrideWithValue(const _InstantRepo()),
       ],
       child: const AuraApp(),
@@ -37,6 +39,7 @@ Widget _app() => ProviderScope(
 void main() {
   testWidgets('Boots into Library, shows nav bar and a scanned song',
       (tester) async {
+    useReducedMotion(tester);
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
@@ -51,6 +54,7 @@ void main() {
   });
 
   testWidgets('Tapping a nav tab switches the active section', (tester) async {
+    useReducedMotion(tester);
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 

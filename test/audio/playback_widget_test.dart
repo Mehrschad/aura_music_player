@@ -8,6 +8,7 @@ import 'package:aura_music_player/presentation/widgets/player/mini_player.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import '../helpers/reduced_motion.dart';
 
 class _InstantRepo implements LibraryRepository {
   const _InstantRepo();
@@ -30,9 +31,11 @@ class _InstantRepo implements LibraryRepository {
 void main() {
   testWidgets('mini player is hidden until a song is played, then appears',
       (tester) async {
+    useReducedMotion(tester);
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          pastOnboarding(),
           libraryRepositoryProvider.overrideWithValue(const _InstantRepo()),
           audioControllerProvider
               .overrideWith((ref) => FakeAudioController(autoTick: false)),

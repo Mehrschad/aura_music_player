@@ -79,8 +79,14 @@ final currentLyricsProvider = FutureProvider<Lyrics?>((ref) async {
 
   // 2. Persistent cache — works offline. Empty entries (poisoned by older
   //    builds that cached header-only payloads) are ignored so the network
-  //    lookup below gets a chance to repair them.
-  final cached = await cache.read(song.id);
+  //    lookup below gets a chance to repair them. Reading is best-effort like
+  //    writing: if the store is unavailable (no platform channel under test,
+  //    corrupt prefs) we fall through to the repository rather than failing
+  //    the whole lookup and showing the track as having no lyrics at all.
+  Lyrics? cached;
+  try {
+    cached = await cache.read(song.id);
+  } catch (_) {/* cache unavailable — fall through */}
   if (cached != null && !cached.isEmpty) return cached;
 
   // 3. Remote repository — fetch and cache the result (never cache empties).

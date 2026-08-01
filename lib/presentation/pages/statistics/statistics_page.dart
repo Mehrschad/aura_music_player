@@ -9,6 +9,7 @@ import '../../../core/constants/spacing_tokens.dart';
 import '../../../core/extensions/duration_format.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/color_scheme.dart';
+import '../../../core/theme/stat_palette.dart';
 import '../../../core/theme/typography.dart';
 import '../../../domain/models/play_event.dart';
 import '../../../domain/models/song.dart';
@@ -38,98 +39,137 @@ class StatisticsPage extends ConsumerWidget {
     final history = ref.watch(playHistoryProvider);
     final now = DateTime.now();
 
-    final songs = ref.watch(effectiveSongsProvider).valueOrNull ?? const <Song>[];
+    final songs =
+        ref.watch(effectiveSongsProvider).valueOrNull ?? const <Song>[];
     final titleById = {for (final s in songs) s.id: s.title};
 
     final overview = StatsLogic.overview(plays);
 
     return Scaffold(
       backgroundColor: colors.background,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SectionHeader(
-              title: l10n.listeningStats,
-              actions: [
-                IconButton(
-                  icon: Icon(Icons.history, color: colors.onSurface),
-                  tooltip: l10n.listeningHistory,
-                  onPressed: () => openListeningHistory(context),
+      body: Stack(
+        children: [
+          // Soft top glow so the page reads warm and alive rather than a flat
+          // black sheet — the colour bleeds down from behind the header.
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 320,
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      StatHues.teal.withOpacity(0.16),
+                      StatHues.violet.withOpacity(0.05),
+                      Colors.transparent,
+                    ],
+                    stops: const [0.0, 0.5, 1.0],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          SafeArea(
+            bottom: false,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SectionHeader(
+                  title: l10n.listeningStats,
+                  actions: [
+                    IconButton(
+                      icon: Icon(Icons.history, color: colors.onSurface),
+                      tooltip: l10n.listeningHistory,
+                      onPressed: () => openListeningHistory(context),
+                    ),
+                  ],
+                ),
+                _PeriodBar(
+                  current: period,
+                  onChanged: (p) =>
+                      ref.read(statsPeriodProvider.notifier).state = p,
+                ),
+                Expanded(
+                  child: plays.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.bar_chart_rounded,
+                                  size: IconSizes.huge,
+                                  color: colors.onSurfaceFaint),
+                              const SizedBox(height: SpacingTokens.md),
+                              Text(l10n.noStatsYet,
+                                  textAlign: TextAlign.center,
+                                  style: AppTextTheme.body
+                                      .copyWith(color: colors.onSurfaceMuted)),
+                            ],
+                          ),
+                        )
+                      : ListView(
+                          padding: EdgeInsets.fromLTRB(
+                            SpacingTokens.lg,
+                            SpacingTokens.sm,
+                            SpacingTokens.lg,
+                            playerBarInset(context,
+                                miniPlayerVisible: ref.watch(hasMediaProvider)),
+                          ),
+                          children: [
+                            _Overview(overview: overview),
+                            const SizedBox(height: SpacingTokens.md),
+                            _StreakCard(
+                                streak:
+                                    StatsLogic.currentStreak(history, now)),
+                            const SizedBox(height: SpacingTokens.xl),
+                            _Heading(l10n.listeningHeatmap, hue: StatHues.teal),
+                            _Heatmap(
+                                data: StatsLogic.heatmap(history, now: now)),
+                            const SizedBox(height: SpacingTokens.xl),
+                            _Heading(l10n.timeOfDay, hue: StatHues.teal),
+                            _BarChart(
+                                values: StatsLogic.timeOfDay(plays),
+                                hue: StatHues.teal),
+                            const SizedBox(height: SpacingTokens.xl),
+                            _Heading(l10n.dayOfWeek, hue: StatHues.violet),
+                            _BarChart(
+                                values: StatsLogic.dayOfWeek(plays),
+                                hue: StatHues.violet),
+                            const SizedBox(height: SpacingTokens.xl),
+                            _TopList(
+                              title: l10n.topSongs,
+                              hue: StatHues.teal,
+                              entries: StatsLogic.topSongs(plays,
+                                  labelFor: (id) => titleById[id] ?? id),
+                            ),
+                            _TopList(
+                                title: l10n.topArtists,
+                                hue: StatHues.violet,
+                                entries: StatsLogic.topArtists(plays)),
+                            _TopList(
+                                title: l10n.topAlbums,
+                                hue: StatHues.amber,
+                                entries: StatsLogic.topAlbums(plays)),
+                            _TopList(
+                                title: l10n.topGenres,
+                                hue: StatHues.coral,
+                                entries: StatsLogic.topGenres(plays)),
+                            const SizedBox(height: SpacingTokens.sm),
+                            _ForgottenGems(
+                              gems: StatsLogic.forgottenGems(songs, now: now)
+                                  .take(10)
+                                  .toList(),
+                            ),
+                          ],
+                        ),
                 ),
               ],
             ),
-            _PeriodBar(
-              current: period,
-              onChanged: (p) =>
-                  ref.read(statsPeriodProvider.notifier).state = p,
-            ),
-            Expanded(
-              child: plays.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.bar_chart_rounded,
-                              size: IconSizes.huge,
-                              color: colors.onSurfaceFaint),
-                          const SizedBox(height: SpacingTokens.md),
-                          Text(l10n.noStatsYet,
-                              textAlign: TextAlign.center,
-                              style: AppTextTheme.body
-                                  .copyWith(color: colors.onSurfaceMuted)),
-                        ],
-                      ))
-                  : ListView(
-                      padding: EdgeInsets.fromLTRB(
-                          SpacingTokens.lg,
-                          0,
-                          SpacingTokens.lg,
-                          playerBarInset(context,
-                              miniPlayerVisible:
-                                  ref.watch(hasMediaProvider))),
-                      children: [
-                        _Overview(overview: overview),
-                        const SizedBox(height: SpacingTokens.md),
-                        _StreakCard(
-                            streak: StatsLogic.currentStreak(history, now)),
-                        const SizedBox(height: SpacingTokens.lg),
-                        _Heading(l10n.listeningHeatmap),
-                        _Heatmap(
-                            data: StatsLogic.heatmap(history, now: now)),
-                        const SizedBox(height: SpacingTokens.lg),
-                        _Heading(l10n.timeOfDay),
-                        _BarChart(values: StatsLogic.timeOfDay(plays)),
-                        const SizedBox(height: SpacingTokens.lg),
-                        _TopList(
-                          title: l10n.topSongs,
-                          entries: StatsLogic.topSongs(plays,
-                              labelFor: (id) => titleById[id] ?? id),
-                        ),
-                        _TopList(
-                            title: l10n.topArtists,
-                            entries: StatsLogic.topArtists(plays)),
-                        _TopList(
-                            title: l10n.topAlbums,
-                            entries: StatsLogic.topAlbums(plays)),
-                        _TopList(
-                            title: l10n.topGenres,
-                            entries: StatsLogic.topGenres(plays)),
-                        const SizedBox(height: SpacingTokens.lg),
-                        _Heading(l10n.dayOfWeek),
-                        _BarChart(values: StatsLogic.dayOfWeek(plays)),
-                        const SizedBox(height: SpacingTokens.lg),
-                        _ForgottenGems(
-                          gems: StatsLogic.forgottenGems(songs, now: now)
-                              .take(10)
-                              .toList(),
-                        ),
-                      ],
-                    ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -168,12 +208,16 @@ class _PeriodBar extends StatelessWidget {
                 onSelected: (_) => onChanged(p),
                 showCheckmark: false,
                 backgroundColor: colors.surfaceElevated,
-                selectedColor: colors.accent.withOpacity(0.18),
+                selectedColor: StatHues.teal.withOpacity(0.20),
                 labelStyle: AppTextTheme.caption.copyWith(
-                  color: p == current ? colors.accent : colors.onSurfaceMuted,
+                  color: p == current ? StatHues.teal : colors.onSurfaceMuted,
                   fontWeight: p == current ? FontWeight.w700 : FontWeight.w400,
                 ),
-                side: BorderSide.none,
+                side: BorderSide(
+                  color: p == current
+                      ? StatHues.teal.withOpacity(0.4)
+                      : Colors.transparent,
+                ),
               ),
             ),
         ],
@@ -195,46 +239,89 @@ class _Overview extends StatelessWidget {
       spacing: SpacingTokens.sm,
       runSpacing: SpacingTokens.sm,
       children: [
-        _StatTile(value: '${overview.totalPlays}', label: l10n.statPlays),
+        _StatTile(
+            count: overview.totalPlays,
+            label: l10n.statPlays,
+            color: StatHues.teal),
         _StatTile(
             value: overview.totalListening.humanized,
-            label: l10n.statListening),
-        _StatTile(value: '${overview.uniqueTracks}', label: l10n.statTracks),
-        _StatTile(value: '${overview.uniqueArtists}', label: l10n.statArtists),
-        _StatTile(value: '${overview.uniqueAlbums}', label: l10n.statAlbums),
+            label: l10n.statListening,
+            color: StatHues.violet),
+        _StatTile(
+            count: overview.uniqueTracks,
+            label: l10n.statTracks,
+            color: StatHues.amber),
+        _StatTile(
+            count: overview.uniqueArtists,
+            label: l10n.statArtists,
+            color: StatHues.coral),
+        _StatTile(
+            count: overview.uniqueAlbums,
+            label: l10n.statAlbums,
+            color: StatHues.blue),
       ],
     );
   }
 }
 
+/// A single overview tile: a colour-tinted panel whose number counts up on
+/// first paint, with a matching accent glyph bar. Pass [count] for an animated
+/// integer, or [value] for a pre-formatted string (e.g. a duration).
 class _StatTile extends StatelessWidget {
-  const _StatTile({required this.value, required this.label});
-  final String value;
+  const _StatTile({
+    required this.label,
+    required this.color,
+    this.count,
+    this.value,
+  });
+
   final String label;
+  final Color color;
+  final int? count;
+  final String? value;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     return Container(
-      width: 104,
+      width: 106,
       padding: const EdgeInsets.symmetric(
-          vertical: SpacingTokens.md, horizontal: SpacingTokens.sm),
+          vertical: SpacingTokens.md, horizontal: SpacingTokens.md),
       decoration: BoxDecoration(
-        color: colors.surface,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [color.withOpacity(0.20), color.withOpacity(0.06)],
+        ),
         borderRadius: RadiusTokens.brMd,
+        border: Border.all(color: color.withOpacity(0.28)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextTheme.title.copyWith(
-                  color: colors.onSurface, fontWeight: FontWeight.w700)),
+          if (count != null)
+            TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: count!.toDouble()),
+              duration: const Duration(milliseconds: 900),
+              curve: Curves.easeOutCubic,
+              builder: (context, v, _) => Text(
+                '${v.round()}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextTheme.title.copyWith(
+                    color: color, fontWeight: FontWeight.w800),
+              ),
+            )
+          else
+            Text(value ?? '',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextTheme.title
+                    .copyWith(color: color, fontWeight: FontWeight.w800)),
           const SizedBox(height: 2),
           Text(label,
-              style: AppTextTheme.caption
-                  .copyWith(color: colors.onSurfaceFaint)),
+              style:
+                  AppTextTheme.caption.copyWith(color: colors.onSurfaceMuted)),
         ],
       ),
     );
@@ -252,13 +339,19 @@ class _StreakCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(SpacingTokens.md),
       decoration: BoxDecoration(
-        color: colors.surface,
+        gradient: LinearGradient(
+          colors: [
+            StatHues.coral.withOpacity(0.22),
+            StatHues.amber.withOpacity(0.10),
+          ],
+        ),
         borderRadius: RadiusTokens.brMd,
+        border: Border.all(color: StatHues.coral.withOpacity(0.28)),
       ),
       child: Row(
         children: [
           Icon(Icons.local_fire_department_rounded,
-              color: colors.accent, size: 28),
+              color: StatHues.coral, size: 28),
           const SizedBox(width: SpacingTokens.sm),
           Text(l10n.streakDays(streak),
               style: AppTextTheme.body.copyWith(
@@ -270,17 +363,31 @@ class _StreakCard extends StatelessWidget {
 }
 
 class _Heading extends StatelessWidget {
-  const _Heading(this.text);
+  const _Heading(this.text, {required this.hue});
   final String text;
+  final Color hue;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     return Padding(
       padding: const EdgeInsets.only(bottom: SpacingTokens.sm),
-      child: Text(text,
-          style: AppTextTheme.title.copyWith(
-              color: colors.onSurface, fontWeight: FontWeight.w700)),
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 16,
+            margin: const EdgeInsets.only(right: SpacingTokens.sm),
+            decoration: BoxDecoration(
+              color: hue,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          Text(text,
+              style: AppTextTheme.title.copyWith(
+                  color: colors.onSurface, fontWeight: FontWeight.w700)),
+        ],
+      ),
     );
   }
 }
@@ -297,12 +404,19 @@ class _Heatmap extends StatelessWidget {
     return SizedBox(
       height: 7 * 13.0,
       child: LayoutBuilder(builder: (context, c) {
-        return CustomPaint(
-          size: Size(c.maxWidth, 7 * 13.0),
-          painter: _HeatmapPainter(
-            data: data,
-            base: colors.surfaceElevated,
-            accent: colors.accent,
+        // Grow the fill in as the page settles.
+        return TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0, end: 1),
+          duration: const Duration(milliseconds: 700),
+          curve: Curves.easeOut,
+          builder: (context, t, _) => CustomPaint(
+            size: Size(c.maxWidth, 7 * 13.0),
+            painter: _HeatmapPainter(
+              data: data,
+              base: colors.surfaceElevated,
+              accent: StatHues.teal,
+              progress: t,
+            ),
           ),
         );
       }),
@@ -311,11 +425,16 @@ class _Heatmap extends StatelessWidget {
 }
 
 class _HeatmapPainter extends CustomPainter {
-  _HeatmapPainter(
-      {required this.data, required this.base, required this.accent});
+  _HeatmapPainter({
+    required this.data,
+    required this.base,
+    required this.accent,
+    required this.progress,
+  });
   final Map<DateTime, int> data;
   final Color base;
   final Color accent;
+  final double progress;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -325,16 +444,20 @@ class _HeatmapPainter extends CustomPainter {
 
     const cell = 11.0;
     const gap = 2.0;
-    // Column 0 = oldest week. Align so the last day sits bottom-right.
     final today = days.last;
     final paint = Paint();
     for (final day in days) {
       final daysAgo = today.difference(day).inDays;
       final col = (days.length - 1 - daysAgo) ~/ 7;
-      final row = (day.weekday - 1); // Mon=0 … Sun=6
+      final row = day.weekday - 1; // Mon=0 … Sun=6
       final mins = data[day] ?? 0;
-      final t = mins == 0 ? 0.0 : (0.18 + 0.82 * (mins / maxMin)).clamp(0.0, 1.0);
-      paint.color = mins == 0 ? base : Color.lerp(base, accent, t)!;
+      final t =
+          mins == 0 ? 0.0 : (0.18 + 0.82 * (mins / maxMin)).clamp(0.0, 1.0);
+      // Warm the busiest cells toward amber so intensity reads as heat.
+      final full = mins == 0
+          ? base
+          : Color.lerp(Color.lerp(base, accent, t)!, StatHues.amber, t * 0.35)!;
+      paint.color = mins == 0 ? base : Color.lerp(base, full, progress)!;
       final x = col * (cell + gap);
       final y = row * (cell + gap);
       if (x > size.width) continue;
@@ -347,40 +470,54 @@ class _HeatmapPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_HeatmapPainter o) => o.data != data || o.accent != accent;
+  bool shouldRepaint(_HeatmapPainter o) =>
+      o.data != data || o.accent != accent || o.progress != progress;
 }
 
-// ── Bar chart (time of day) ──────────────────────────────────────────────────
+// ── Bar chart (time of day / day of week) ────────────────────────────────────
 
 class _BarChart extends StatelessWidget {
-  const _BarChart({required this.values});
+  const _BarChart({required this.values, required this.hue});
   final List<int> values;
+  final Color hue;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final maxV = values.fold<int>(1, math.max);
-    return SizedBox(
-      height: 80,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          for (final v in values)
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 1),
-                child: Container(
-                  height: 4 + 72 * (v / maxV),
-                  decoration: BoxDecoration(
-                    color: v == 0
-                        ? colors.surfaceElevated
-                        : colors.accent.withOpacity(0.7),
-                    borderRadius: RadiusTokens.brXs,
+    // A single grow-in animation drives every bar from the baseline.
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 750),
+      curve: Curves.easeOutCubic,
+      builder: (context, t, _) => SizedBox(
+        height: 84,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            for (final v in values)
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 1.5),
+                  child: Container(
+                    height: 4 + 76 * (v / maxV) * t,
+                    decoration: BoxDecoration(
+                      gradient: v == 0
+                          ? null
+                          : LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [hue, hue.withOpacity(0.55)],
+                            ),
+                      color: v == 0 ? colors.surfaceElevated : null,
+                      borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(4)),
+                    ),
                   ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -389,37 +526,73 @@ class _BarChart extends StatelessWidget {
 // ── Top lists ────────────────────────────────────────────────────────────────
 
 class _TopList extends StatelessWidget {
-  const _TopList({required this.title, required this.entries});
+  const _TopList({required this.title, required this.entries, required this.hue});
   final String title;
   final List<StatEntry> entries;
+  final Color hue;
 
   @override
   Widget build(BuildContext context) {
     if (entries.isEmpty) return const SizedBox.shrink();
     final colors = context.colors;
     final l10n = AppLocalizations.of(context);
+    final maxPlays = entries.fold<int>(1, (m, e) => math.max(m, e.plays));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _Heading(title),
+        _Heading(title, hue: hue),
         for (var i = 0; i < entries.length; i++)
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
+            padding: const EdgeInsets.symmetric(vertical: 5),
             child: Row(
               children: [
-                SizedBox(
-                  width: 22,
+                // Colour-tinted rank badge.
+                Container(
+                  width: 24,
+                  height: 24,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: hue.withOpacity(i == 0 ? 0.30 : 0.14),
+                    borderRadius: RadiusTokens.brSm,
+                  ),
                   child: Text('${i + 1}',
-                      style: AppTextTheme.caption
-                          .copyWith(color: colors.onSurfaceFaint)),
+                      style: AppTextTheme.caption.copyWith(
+                        color: hue,
+                        fontWeight: FontWeight.w700,
+                      )),
                 ),
+                const SizedBox(width: SpacingTokens.sm),
                 Expanded(
-                  child: Text(entries[i].label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTextTheme.body
-                          .copyWith(color: colors.onSurface)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(entries[i].label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextTheme.body
+                              .copyWith(color: colors.onSurface)),
+                      const SizedBox(height: 5),
+                      // A proportion bar (share of the leader) grows in.
+                      TweenAnimationBuilder<double>(
+                        tween: Tween(
+                            begin: 0, end: entries[i].plays / maxPlays),
+                        duration: const Duration(milliseconds: 700),
+                        curve: Curves.easeOutCubic,
+                        builder: (context, frac, _) => ClipRRect(
+                          borderRadius: BorderRadius.circular(3),
+                          child: LinearProgressIndicator(
+                            value: frac,
+                            minHeight: 4,
+                            backgroundColor: colors.surfaceElevated,
+                            valueColor: AlwaysStoppedAnimation<Color>(hue),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+                const SizedBox(width: SpacingTokens.sm),
                 Text(l10n.playsCount(entries[i].plays),
                     style: AppTextTheme.caption
                         .copyWith(color: colors.onSurfaceMuted)),
@@ -444,14 +617,15 @@ class _ForgottenGems extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _Heading(l10n.forgottenGems),
+        _Heading(l10n.forgottenGems, hue: StatHues.blue),
         for (final s in gems)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: Text('${s.title} · ${s.artist}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: AppTextTheme.body.copyWith(color: colors.onSurfaceMuted)),
+                style:
+                    AppTextTheme.body.copyWith(color: colors.onSurfaceMuted)),
           ),
       ],
     );

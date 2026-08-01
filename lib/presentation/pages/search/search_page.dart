@@ -1012,7 +1012,20 @@ class _ResultsSkeletonState extends State<_ResultsSkeleton>
   late final AnimationController _ctrl = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1100),
-  )..repeat(reverse: true);
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Honour reduce-motion like every other looping animation in the app. It
+    // also matters off-device: an unconditional repeat() never quiesces, so
+    // any widget test that mounts the shell could not pumpAndSettle.
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _ctrl.stop();
+    } else if (!_ctrl.isAnimating) {
+      _ctrl.repeat(reverse: true);
+    }
+  }
 
   @override
   void dispose() {

@@ -1,16 +1,17 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// The set of favourited artist ids, persisted to SharedPreferences.
+/// The set of favourited album ids, persisted to SharedPreferences.
 ///
-/// Persistence is best-effort: load/save failures (e.g. no platform channel
-/// in widget tests) are swallowed so the in-memory toggle always works.
-class ArtistFavoritesNotifier extends StateNotifier<Set<String>> {
-  ArtistFavoritesNotifier() : super(const {}) {
+/// Persistence is best-effort: load/save failures (e.g. no platform channel in
+/// widget tests) are swallowed so the in-memory toggle always works. Mirrors
+/// [ArtistFavoritesNotifier].
+class AlbumFavoritesNotifier extends StateNotifier<Set<String>> {
+  AlbumFavoritesNotifier() : super(const {}) {
     _load();
   }
 
-  static const String _key = 'favorite_artists_v1';
+  static const String _key = 'favorite_albums_v1';
 
   Future<void> _load() async {
     try {
@@ -27,9 +28,9 @@ class ArtistFavoritesNotifier extends StateNotifier<Set<String>> {
     } catch (_) {/* tests */}
   }
 
-  void toggle(String artistId) {
+  void toggle(String albumId) {
     final next = Set<String>.of(state);
-    if (!next.remove(artistId)) next.add(artistId);
+    if (!next.remove(albumId)) next.add(albumId);
     state = next;
     _save();
   }
@@ -45,17 +46,17 @@ class ArtistFavoritesNotifier extends StateNotifier<Set<String>> {
   }
 }
 
-final artistFavoritesProvider =
-    StateNotifierProvider<ArtistFavoritesNotifier, Set<String>>(
-  (ref) => ArtistFavoritesNotifier(),
+final albumFavoritesProvider =
+    StateNotifierProvider<AlbumFavoritesNotifier, Set<String>>(
+  (ref) => AlbumFavoritesNotifier(),
 );
 
-/// Whether a specific artist is favourited (rebuilds only when *its*
-/// membership changes).
-final isArtistFavoriteProvider = Provider.family<bool, String>((ref, id) {
-  return ref.watch(artistFavoritesProvider).contains(id);
+/// Whether a specific album is favourited (rebuilds only when *its* membership
+/// changes).
+final isAlbumFavoriteProvider = Provider.family<bool, String>((ref, id) {
+  return ref.watch(albumFavoritesProvider).contains(id);
 });
 
-/// When true, the Artists list is filtered to favourited artists only. Session
+/// When true, the Albums list is filtered to favourited albums only. Session
 /// scoped — a filter shouldn't outlive the app the way the favourites do.
-final artistsFavoritesOnlyProvider = StateProvider<bool>((ref) => false);
+final albumsFavoritesOnlyProvider = StateProvider<bool>((ref) => false);
