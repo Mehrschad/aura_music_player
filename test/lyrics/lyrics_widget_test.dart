@@ -8,6 +8,7 @@ import 'package:aura_music_player/presentation/providers/playback_providers.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:aura_music_player/core/l10n/app_localizations.dart';
 
 Song _s1() => Song(
@@ -26,6 +27,11 @@ Song _s1() => Song(
 void main() {
   testWidgets('lyrics view shows bundled lines for the current track',
       (tester) async {
+    // The lookup consults the SharedPreferences-backed cache before the
+    // repository. Give it a real (empty) store so that step resolves normally
+    // instead of failing through.
+    SharedPreferences.setMockInitialValues({});
+
     final fake = FakeAudioController(autoTick: false);
     addTearDown(fake.dispose);
     await fake.playQueue([_s1()]);

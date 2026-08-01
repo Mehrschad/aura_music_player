@@ -108,8 +108,9 @@ void main() {
     await tester.tap(hide);
     await tester.pumpAndSettle();
 
-    // All three hidden → the library shows its empty state.
+    // All three hidden → the library shows its empty state. The shell builds
+    // every tab, so Artists and Albums show it too.
     expect(find.text('Song A'), findsNothing);
-    expect(find.text('No music found'), findsOneWidget);
+    expect(find.text('No music found'), findsWidgets);
   });
 }

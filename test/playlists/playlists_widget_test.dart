@@ -41,12 +41,14 @@ void main() {
     await tester.pumpAndSettle();
     semantics.dispose();
 
-    // Auto playlists and the seeded user playlist are present.
-    expect(find.text('Recently added'), findsOneWidget);
-    expect(find.text('Evening Wind-down'), findsOneWidget);
+    // Auto playlists and the seeded user playlist are present. The playlist
+    // shows up in more than one section (the row and the grid), so match
+    // loosely and open the first.
+    expect(find.text('Recently added'), findsWidgets);
+    expect(find.text('Evening Wind-down'), findsWidgets);
 
     // Open the seeded playlist; its detail lists a known sample track.
-    await tester.tap(find.text('Evening Wind-down'));
+    await tester.tap(find.text('Evening Wind-down').first);
     await tester.pumpAndSettle();
 
     expect(find.byType(PlaylistDetailPage), findsOneWidget);
