@@ -1692,11 +1692,17 @@ class _ColdStartCard extends ConsumerWidget {
               children: [
                 Icon(Icons.auto_awesome, size: 18, color: colors.accent),
                 const SizedBox(width: 8),
-                Text(
-                  'Unlock your For You',
-                  style: AppTextTheme.title.copyWith(
-                    color: colors.onSurface,
-                    fontWeight: FontWeight.w700,
+                // Flexible + ellipsis: the heading overflowed the card on
+                // narrow viewports and at large text scales.
+                Flexible(
+                  child: Text(
+                    'Unlock your For You',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextTheme.title.copyWith(
+                      color: colors.onSurface,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ],

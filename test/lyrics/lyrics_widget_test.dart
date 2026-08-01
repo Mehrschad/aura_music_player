@@ -1,7 +1,9 @@
 import 'package:aura_music_player/core/theme/app_theme.dart';
 import 'package:aura_music_player/data/audio/fake_audio_controller.dart';
+import 'package:aura_music_player/data/repositories/sample_lyrics_repository.dart';
 import 'package:aura_music_player/domain/models/song.dart';
 import 'package:aura_music_player/presentation/pages/lyrics/lyrics_page.dart';
+import 'package:aura_music_player/presentation/providers/lyrics_providers.dart';
 import 'package:aura_music_player/presentation/providers/playback_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -31,7 +33,13 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [audioControllerProvider.overrideWithValue(fake)],
+        overrides: [
+          audioControllerProvider.overrideWithValue(fake),
+          // Auto-fetch is on by default, which resolves lyrics over the
+          // network. Pin the bundled source so this stays offline.
+          lyricsRepositoryProvider
+              .overrideWithValue(const SampleLyricsRepository()),
+        ],
         child: MaterialApp(
           theme: AppTheme.dark(flavor: DarkFlavor.amoled),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -41,9 +49,10 @@ void main() {
       ),
     );
     // LyricsPage contains an infinite ambient animation so pumpAndSettle would
-    // time out. Pump enough for the async lyrics FutureProvider to resolve.
+    // time out. Pump past SampleLyricsRepository's 150ms simulated latency so
+    // the lyrics FutureProvider has resolved.
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('Aurora skyline'), findsOneWidget);
     expect(find.text('Light spills over the line'), findsOneWidget);

@@ -8,6 +8,7 @@ import 'package:aura_music_player/presentation/providers/playback_providers.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import '../helpers/reduced_motion.dart';
 
 class _ThreeSongRepo implements LibraryRepository {
   const _ThreeSongRepo();
@@ -48,6 +49,7 @@ Widget _app() {
 void main() {
   testWidgets('long-press enters selection; select-all then favorite all',
       (tester) async {
+    useReducedMotion(tester);
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
@@ -77,6 +79,7 @@ void main() {
   });
 
   testWidgets('bulk hide removes tracks from the library', (tester) async {
+    useReducedMotion(tester);
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
