@@ -27,7 +27,6 @@ import '../../providers/ab_repeat_provider.dart';
 import '../../providers/bookmarks_provider.dart';
 import '../../providers/cover_palette_provider.dart';
 import '../../providers/favorites_providers.dart';
-import '../../providers/library_providers.dart';
 import '../../providers/lyrics_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../providers/settings_providers.dart';
