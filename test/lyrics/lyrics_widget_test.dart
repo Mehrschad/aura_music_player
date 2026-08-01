@@ -52,7 +52,10 @@ void main() {
     // time out. Pump past SampleLyricsRepository's 150ms simulated latency so
     // the lyrics FutureProvider has resolved.
     await tester.pump();
+    // Advancing past the delay resolves the future; the rebuild it schedules
+    // lands on the *next* frame, hence the second pump.
     await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
 
     expect(find.text('Aurora skyline'), findsOneWidget);
     expect(find.text('Light spills over the line'), findsOneWidget);

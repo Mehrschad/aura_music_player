@@ -91,7 +91,13 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Hide from library'));
+
+    // The actions sheet is a lazy ListView, so the entry may not be built yet.
+    final hide = find.text('Hide from library');
+    await tester.scrollUntilVisible(hide, 80,
+        scrollable: find.byType(Scrollable).last);
+    await tester.pumpAndSettle();
+    await tester.tap(hide);
     await tester.pumpAndSettle();
 
     // All three hidden → the library shows its empty state.

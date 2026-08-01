@@ -46,20 +46,24 @@ void main() {
     expect(find.byType(LibraryPage), findsOneWidget);
     expect(find.text('Test Song'), findsOneWidget);
 
-    expect(find.text('Library'), findsWidgets);
-    expect(find.text('Artists'), findsOneWidget);
-    expect(find.text('Albums'), findsOneWidget);
-    expect(find.text('Playlists'), findsOneWidget);
-    expect(find.text('Search'), findsWidgets);
+    // The nav bar is icon-only — each tab carries its name as a semantics
+    // label rather than a visible Text, so assert on that.
+    final semantics = tester.ensureSemantics();
+    for (final tab in ['Library', 'Artists', 'Albums', 'Playlists', 'Search']) {
+      expect(find.bySemanticsLabel(tab), findsWidgets, reason: 'nav tab $tab');
+    }
+    semantics.dispose();
   });
 
   testWidgets('Tapping a nav tab switches the active section', (tester) async {
     useReducedMotion(tester);
+    final semantics = tester.ensureSemantics();
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Albums'));
+    await tester.tap(find.bySemanticsLabel('Albums').first);
     await tester.pumpAndSettle();
+    semantics.dispose();
 
     // The grouped album derived from the single test song.
     expect(find.text('Test Album'), findsOneWidget);
