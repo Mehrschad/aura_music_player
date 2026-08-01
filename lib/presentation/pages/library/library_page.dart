@@ -149,11 +149,19 @@ class _CyclingTitleState extends State<_CyclingTitle> {
   bool _showAura = false;
 
   @override
-  void initState() {
-    super.initState();
-    _timer = Timer.periodic(_interval, (_) {
-      if (mounted) setState(() => _showAura = !_showAura);
-    });
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // build() renders a static title under reduce-motion, so the cycling timer
+    // is pure waste there — and a setState that fires forever, which means a
+    // test mounting the library can never pumpAndSettle.
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _timer?.cancel();
+      _timer = null;
+    } else {
+      _timer ??= Timer.periodic(_interval, (_) {
+        if (mounted) setState(() => _showAura = !_showAura);
+      });
+    }
   }
 
   @override

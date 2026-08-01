@@ -38,12 +38,27 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage>
   late final AnimationController _bgCtrl = AnimationController(
     vsync: this,
     duration: const Duration(seconds: 14),
-  )..repeat();
+  );
 
   late final AnimationController _rippleCtrl = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 2800),
-  )..repeat();
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Looping backdrop + ripple, held still for reduce-motion like every other
+    // continuous animation in the app.
+    final reduce = MediaQuery.disableAnimationsOf(context);
+    for (final c in [_bgCtrl, _rippleCtrl]) {
+      if (reduce) {
+        c.stop();
+      } else if (!c.isAnimating) {
+        c.repeat();
+      }
+    }
+  }
 
   @override
   void dispose() {

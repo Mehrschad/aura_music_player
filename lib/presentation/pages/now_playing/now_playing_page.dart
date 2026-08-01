@@ -130,7 +130,10 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
   @override
   void initState() {
     super.initState();
-    _beatTicker = createTicker(_onBeatTick)..start();
+    // Started in didChangeDependencies once reduce-motion is known: an active
+    // Ticker requests a frame forever, and _onBeatTick does nothing under
+    // reduce-motion anyway.
+    _beatTicker = createTicker(_onBeatTick);
     // Always open in Artwork Mode; the shared flag persists across opens.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) ref.read(nowPlayingLyricsModeProvider.notifier).state = false;
@@ -141,6 +144,11 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage>
   void didChangeDependencies() {
     super.didChangeDependencies();
     _reduceMotion = MediaQuery.disableAnimationsOf(context);
+    if (_reduceMotion) {
+      _beatTicker?.stop();
+    } else if (_beatTicker?.isActive == false) {
+      _beatTicker!.start();
+    }
     _syncAmbient();
     final isPlaying = ref.read(playbackStateProvider).valueOrNull?.playing ?? true;
     _playing = isPlaying;

@@ -10,8 +10,9 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   testWidgets('waveform scrubber exposes a seek slider to screen readers',
       (tester) async {
+    // Disposed at the end of the body, not via addTearDown: Flutter verifies
+    // semantics handles inside the test body, before tear-downs run.
     final semanticsHandle = tester.ensureSemantics();
-    addTearDown(semanticsHandle.dispose);
 
     final fake = FakeAudioController(autoTick: false);
     addTearDown(fake.dispose);
@@ -37,5 +38,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.bySemanticsLabel('Seek bar'), findsOneWidget);
+    semanticsHandle.dispose();
   });
 }

@@ -34,6 +34,7 @@ ProviderContainer? _container;
 Widget _app() {
   return ProviderScope(
     overrides: [
+      pastOnboarding(),
       libraryRepositoryProvider.overrideWithValue(const _ThreeSongRepo()),
       audioControllerProvider
           .overrideWith((ref) => FakeAudioController(autoTick: false)),

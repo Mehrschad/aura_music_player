@@ -15,6 +15,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          pastOnboarding(),
           libraryRepositoryProvider
               .overrideWithValue(const SampleLibraryRepository()),
           audioControllerProvider

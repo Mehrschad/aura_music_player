@@ -43,6 +43,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          pastOnboarding(),
           libraryRepositoryProvider.overrideWithValue(const _InstantRepo()),
           audioControllerProvider
               .overrideWith((ref) => FakeAudioController(autoTick: false)),

@@ -30,6 +30,7 @@ class _InstantRepo implements LibraryRepository {
 
 Widget _app() => ProviderScope(
       overrides: [
+        pastOnboarding(),
         libraryRepositoryProvider.overrideWithValue(const _InstantRepo()),
       ],
       child: const AuraApp(),
