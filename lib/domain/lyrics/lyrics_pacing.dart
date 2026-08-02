@@ -30,7 +30,7 @@ int estimatedLineIndex(int lineCount, Duration position, Duration duration) {
   if (lineCount == 1) return 0;
 
   final progress = (position.inMilliseconds / totalMs).clamp(0.0, 1.0);
-  final span = kLyricsTailOut - kLyricsLeadIn;
+  const span = kLyricsTailOut - kLyricsLeadIn;
   final within = ((progress - kLyricsLeadIn) / span).clamp(0.0, 1.0);
   final index = (within * (lineCount - 1)).round();
   return index.clamp(0, lineCount - 1);
