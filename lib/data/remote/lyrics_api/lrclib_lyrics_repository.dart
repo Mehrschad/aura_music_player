@@ -70,14 +70,16 @@ class LrcLibLyricsRepository implements LyricsRepository {
     return _searchBest(song, {'q': q});
   }
 
-  /// One `/api/get` attempt; null on any miss or error.
+  /// One `/api/get` attempt; null on any miss or error. `/api/get` keys on
+  /// artist + track (+ duration), so a hit is an identity match — full
+  /// confidence.
   Future<Lyrics?> _get(Map<String, dynamic> params) async {
     try {
       final res = await _dio.get<Map<String, dynamic>>(
         '/api/get',
         queryParameters: params,
       );
-      return _fromPayload(res.data);
+      return (await _fromPayload(res.data))?.withConfidence(1.0);
     } on DioException {
       return null;
     }
@@ -113,7 +115,10 @@ class LrcLibLyricsRepository implements LyricsRepository {
           best = item;
         }
       }
-      return _fromPayload(best);
+      if (best == null) return null;
+      // Carry the blended score so the resolver can weigh this fuzzy hit
+      // against other sources' results.
+      return (await _fromPayload(best))?.withConfidence(bestScore);
     } on DioException {
       return null;
     }

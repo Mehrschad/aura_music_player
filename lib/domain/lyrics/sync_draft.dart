@@ -118,7 +118,36 @@ class SyncDraft {
     return _with(next, cursor);
   }
 
-  /// Shifts one line's time by [delta] (used for the ±0.5s fine-tune).
+  /// How many lines carry a timestamp.
+  int get stampedCount => entries.where((e) => e.time != null).length;
+
+  /// Clears one line's timestamp without moving the cursor, so a mis-stamped
+  /// line can be dropped and redone without unwinding everything after it.
+  SyncDraft clearTime(int index) {
+    if (index < 0 || index >= entries.length) return this;
+    final next = List<SyncEntry>.of(entries);
+    next[index] = next[index].copyWith(time: null);
+    return _with(next, cursor);
+  }
+
+  /// The stamped line playing at [position] — the last one stamped at or
+  /// before it, or -1 before the first stamp. Drives the tune list's highlight
+  /// and follow-scroll.
+  int activeIndexAt(Duration position) {
+    var best = -1;
+    Duration? bestTime;
+    for (var i = 0; i < entries.length; i++) {
+      final t = entries[i].time;
+      if (t == null || t > position) continue;
+      if (bestTime == null || t >= bestTime) {
+        bestTime = t;
+        best = i;
+      }
+    }
+    return best;
+  }
+
+  /// Shifts one line's time by [delta] (used for the fine-tune nudges).
   SyncDraft shiftLine(int index, Duration delta) {
     final entry = (index >= 0 && index < entries.length) ? entries[index] : null;
     if (entry?.time == null) return this;

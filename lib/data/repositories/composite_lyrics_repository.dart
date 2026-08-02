@@ -81,11 +81,16 @@ class CompositeLyricsRepository implements LyricsRepository {
       if (!anyError) break;
     }
 
-    // 3. Fallback tier — one pass, only reached when the primary is dry.
+    // 3. Fallback tier — only reached when the primary is dry, and retried on
+    //    the same terms: a timeout here is the difference between "this track
+    //    has no lyrics anywhere" and "the network blinked".
     if (_fallback.isNotEmpty) {
-      final (fb, fbError) = await _race(_fallback, song);
-      if (fb != null) return (lyrics: fb, hadErrors: false);
-      hadErrors = hadErrors || fbError;
+      for (var attempt = 0; attempt < maxAttempts; attempt++) {
+        final (fb, fbError) = await _race(_fallback, song);
+        if (fb != null) return (lyrics: fb, hadErrors: false);
+        hadErrors = hadErrors || fbError;
+        if (!fbError) break;
+      }
     }
 
     // 4. Plain sidecar as the final safety net.
@@ -95,10 +100,11 @@ class CompositeLyricsRepository implements LyricsRepository {
     return (lyrics: null, hadErrors: hadErrors);
   }
 
-  /// Races [sources] in parallel. Completes with the **first synced result**
-  /// as soon as one lands (latency = fastest hit, not slowest source); if no
-  /// synced result arrives, completes when all sources finish with the richest
-  /// surviving result. Also reports whether any source failed transiently.
+  /// Races [sources] in parallel. Completes as soon as a result lands that is
+  /// both synced and confidently matched (latency = fastest good hit, not
+  /// slowest source); otherwise completes when all sources finish, with the
+  /// best-[_rank]ed survivor. Also reports whether any source failed
+  /// transiently.
   Future<(Lyrics?, bool)> _race(
       List<LyricsRepository> sources, Song song) {
     if (sources.isEmpty) return Future.value((null, false));
@@ -106,7 +112,7 @@ class CompositeLyricsRepository implements LyricsRepository {
     var pending = sources.length;
     var anyError = false;
     Lyrics? best;
-    var bestRank = -1;
+    var bestRank = -1.0;
 
     for (final r in sources) {
       r
@@ -119,9 +125,13 @@ class CompositeLyricsRepository implements LyricsRepository {
               bestRank = rank;
               best = l;
             }
-            // Early exit: a synced result is what the player needs — ship it
-            // now rather than waiting out slower racers for marginal extras.
-            if (l.synced && !completer.isCompleted) {
+            // Early exit only for a result we'd not improve on: synced *and*
+            // confidently this song. A synced-but-shaky hit keeps racing, so a
+            // better-matched source still gets to win — showing the wrong
+            // song's lyrics is worse than waiting out the remaining racers.
+            if (l.synced &&
+                l.confidence >= kEarlyExitConfidence &&
+                !completer.isCompleted) {
               completer.complete((l, anyError));
             }
           })
@@ -138,11 +148,21 @@ class CompositeLyricsRepository implements LyricsRepository {
     return completer.future;
   }
 
-  static int _rank(Lyrics l) {
-    var r = 0;
-    if (l.synced) r += 4;
-    if (l.hasWordTimings) r += 2;
-    if (l.hasTranslations) r += 1;
+  /// Ranks a candidate. Confidence dominates — being the *right* song's lyrics
+  /// matters more than being timed — with syncing as a strong secondary.
+  ///
+  /// The 6:2 weighting puts the crossover near confidence 0.67: a synced result
+  /// has to be a reasonably sure match to beat a perfectly-matched plain one,
+  /// so a barely-above-threshold synced hit (which is where wrong-song lyrics
+  /// come from) never displaces lyrics we know belong to this track.
+  static double _rank(Lyrics l) {
+    var r = l.confidence * 6.0;
+    if (l.synced) r += 2.0;
+    if (l.hasWordTimings) r += 0.5;
+    if (l.hasTranslations) r += 0.25;
     return r;
   }
 }
+
+/// A synced result at or above this confidence ends the race immediately.
+const double kEarlyExitConfidence = 0.8;

@@ -13,6 +13,7 @@ import '../../../core/theme/color_scheme.dart';
 import '../../../core/theme/typography.dart';
 import '../../../core/utils/motion.dart';
 import '../../../core/utils/seed_color.dart';
+import '../../../domain/lyrics/lyrics_pacing.dart';
 import '../../../domain/models/lyrics.dart';
 import '../../providers/cover_palette_provider.dart';
 import '../../providers/lyrics_providers.dart';
@@ -133,12 +134,12 @@ class _LyricsPageState extends ConsumerState<LyricsPage> {
     final wash = palette?.wash ?? SeedPalette.wash(seed);
 
     // Auto-scroll on line change.
-    ref.listen<int>(currentLyricLineProvider, (_, next) => _scrollTo(next));
+    ref.listen<int>(activeLyricLineProvider, (_, next) => _scrollTo(next));
 
     // On open, jump straight to the line that's playing right now so the user
     // lands exactly where the song is — no scroll-from-top animation.
     if (!_didInitialJump) {
-      final line = ref.read(currentLyricLineProvider);
+      final line = ref.read(activeLyricLineProvider);
       if (line >= 0) {
         _didInitialJump = true;
         _scrollTo(line, instant: true);
@@ -469,8 +470,11 @@ class _LyricsBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final current = lyrics.synced ? ref.watch(currentLyricLineProvider) : -1;
+    // Untimed lyrics follow an estimated pace so they get the same focus, dim
+    // and blur as a synced sheet instead of sitting there as a static block.
+    final current = ref.watch(activeLyricLineProvider);
     final controllerRef = ref.read(audioControllerProvider);
+    final trackDuration = ref.watch(currentSongProvider)?.duration;
 
     return ListView.builder(
       controller: controller,
@@ -481,8 +485,8 @@ class _LyricsBody extends ConsumerWidget {
       itemCount: lyrics.lines.length,
       itemBuilder: (context, i) {
         final line = lyrics.lines[i];
-        // No active line yet (position before the first timestamp): render the
-        // whole column plainly. Otherwise, distance drives size, dim and blur.
+        // No active line yet (position before the first timestamp, or no
+        // duration to pace against): render the whole column plainly.
         final hasCurrent = current >= 0;
         final distance = hasCurrent ? i - current : 0;
         final lineEnd = i + 1 < lyrics.lines.length
@@ -494,13 +498,22 @@ class _LyricsBody extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(vertical: SpacingTokens.md),
           child: _LyricRow(
             line: line,
-            synced: lyrics.synced && hasCurrent,
+            focused: hasCurrent,
+            // Only real timestamps drive the karaoke / line-fill sweep; the
+            // estimated pace gets the focus styling without pretending to
+            // know where inside the line we are.
+            timed: lyrics.synced,
             distance: distance,
             fontSize: fontSize,
             dual: dual,
             lineEnd: lineEnd,
             direction: directionFor(line.text),
-            onTap: lyrics.synced ? () => controllerRef.seek(line.time) : null,
+            onTap: lyrics.synced
+                ? () => controllerRef.seek(line.time)
+                : trackDuration == null
+                    ? null
+                    : () => controllerRef.seek(estimatedLineStart(
+                        i, lyrics.lines.length, trackDuration)),
           ),
         );
       },
@@ -511,7 +524,8 @@ class _LyricsBody extends ConsumerWidget {
 class _LyricRow extends StatelessWidget {
   const _LyricRow({
     required this.line,
-    required this.synced,
+    required this.focused,
+    required this.timed,
     required this.distance,
     required this.fontSize,
     required this.dual,
@@ -521,7 +535,15 @@ class _LyricRow extends StatelessWidget {
   });
 
   final LyricsLine line;
-  final bool synced;
+
+  /// Whether a line is currently in focus at all — true for synced lyrics once
+  /// playback passes the first stamp, and for untimed lyrics being paced.
+  final bool focused;
+
+  /// Whether real timestamps back the focus. Only then does the current line
+  /// sweep (karaoke fill / line fill); an estimated pace styles the line but
+  /// never animates a position inside it.
+  final bool timed;
 
   /// Signed offset from the current line (0 = current, ±1 neighbour, …).
   final int distance;
@@ -534,15 +556,16 @@ class _LyricRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final isCurrent = synced && distance == 0;
+    final isCurrent = focused && distance == 0;
     final abs = distance.abs();
     final size = (isCurrent
         ? _LyricMetrics.current
         : _LyricMetrics.secondary)[fontSize]!;
 
-    // Neighbour lines dim with distance and vanish beyond ±2; an unsynced
-    // block reads at full primary colour.
-    final double opacity = !synced
+    // Neighbour lines dim with distance and vanish beyond ±2. A block with no
+    // focus at all (no timings and nothing to pace against) reads at full
+    // primary colour.
+    final double opacity = !focused
         ? 1
         : isCurrent
             ? 1
@@ -560,7 +583,7 @@ class _LyricRow extends StatelessWidget {
     );
 
     final Widget primary;
-    if (isCurrent && line.hasWordTimings) {
+    if (isCurrent && timed && line.hasWordTimings) {
       // Word-timed: aurora karaoke fill over a dimmed base copy.
       primary = _CurrentKaraoke(
         words: line.words,
@@ -569,7 +592,7 @@ class _LyricRow extends StatelessWidget {
         base: colors.onSurface.withOpacity(0.3),
         direction: direction,
       );
-    } else if (isCurrent) {
+    } else if (isCurrent && timed) {
       // Plain synced line: aurora-fill the whole line by its time fraction.
       primary = _CurrentLineFill(
         text: line.text,
@@ -577,6 +600,15 @@ class _LyricRow extends StatelessWidget {
         lineEnd: lineEnd,
         style: style,
         base: colors.onSurface.withOpacity(0.3),
+        direction: direction,
+      );
+    } else if (isCurrent) {
+      // Paced (untimed) line: the same lift as a synced current line, minus a
+      // sweep we have no timings to drive. It settles in as focus arrives so
+      // the estimate reads as a gentle hand-off, not a hard cut.
+      primary = _PacedCurrentLine(
+        text: line.text,
+        style: style,
         direction: direction,
       );
     } else {
@@ -756,6 +788,72 @@ class _CurrentKaraoke extends ConsumerWidget {
 
 /// Aurora fill for a synced line without word timings: the whole line fills
 /// left→right by its elapsed fraction (start → next line) over a dimmed base.
+/// The focused line of an *untimed* lyric sheet.
+///
+/// Untimed lyrics are paced by estimate, so there is no honest position to
+/// sweep within the line. Instead the line arrives: it fades and lifts into
+/// focus each time it becomes current, which gives the plain view the same
+/// sense of motion as the synced one without implying a precision we don't
+/// have.
+class _PacedCurrentLine extends StatefulWidget {
+  const _PacedCurrentLine({
+    required this.text,
+    required this.style,
+    required this.direction,
+  });
+
+  final String text;
+  final TextStyle style;
+  final TextDirection direction;
+
+  @override
+  State<_PacedCurrentLine> createState() => _PacedCurrentLineState();
+}
+
+class _PacedCurrentLineState extends State<_PacedCurrentLine>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _in = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 420),
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _in.value = 1;
+    } else if (!_in.isAnimating && _in.value == 0) {
+      _in.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _in.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final eased = CurvedAnimation(parent: _in, curve: Curves.easeOutCubic);
+    return AnimatedBuilder(
+      animation: eased,
+      builder: (context, _) => Opacity(
+        opacity: 0.55 + 0.45 * eased.value,
+        child: Transform.translate(
+          offset: Offset(0, (1 - eased.value) * 6),
+          child: Text(
+            widget.text,
+            textDirection: widget.direction,
+            textAlign: TextAlign.center,
+            style: widget.style,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _CurrentLineFill extends ConsumerWidget {
   const _CurrentLineFill({
     required this.text,
