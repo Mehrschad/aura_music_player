@@ -28,3 +28,7 @@ lib/core/l10n/app_localizations*.dart
 # via Play App Signing and keep THAT keystore out of version control.
 !android/key.properties
 !android/app/aura_release.keystore
+
+# Python bytecode from tool/ scripts
+__pycache__/
+*.pyc
