@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -10,6 +9,7 @@ import '../../../core/theme/color_scheme.dart';
 import '../../../core/theme/typography.dart';
 import '../../providers/settings_providers.dart';
 import '../../widgets/press_scale.dart';
+import 'onboarding_scenes.dart';
 
 void openOnboarding(BuildContext context) {
   Navigator.of(context).push(
@@ -23,6 +23,58 @@ void openOnboarding(BuildContext context) {
   );
 }
 
+/// What each slide is for, and the scene that demonstrates it.
+enum _Scene { pulse, glass, lyrics, equaliser }
+
+class _Slide {
+  const _Slide({
+    required this.scene,
+    required this.title,
+    required this.body,
+    required this.cta,
+  });
+
+  final _Scene scene;
+  final String title;
+  final String body;
+  final String cta;
+}
+
+const _kSlides = [
+  _Slide(
+    scene: _Scene.pulse,
+    title: 'Welcome to Aura',
+    body:
+        'A local-first player for the music you actually own. No ads, no cloud, '
+        'no tracking — just your library, beautifully.',
+    cta: 'Get started',
+  ),
+  _Slide(
+    scene: _Scene.glass,
+    title: 'Liquid Glass, on true black',
+    body:
+        'Surfaces blur and float over your artwork, and one calm accent is '
+        'pulled from every album cover.',
+    cta: 'Next',
+  ),
+  _Slide(
+    scene: _Scene.lyrics,
+    title: 'Lyrics that keep time',
+    body:
+        'Synced word by word, and paced across the track even when a song only '
+        'ships plain text.',
+    cta: 'Next',
+  ),
+  _Slide(
+    scene: _Scene.equaliser,
+    title: 'Sound you can shape',
+    body:
+        'A ten-band equaliser and a waveform you can scrub — tuned for the way '
+        'you actually listen.',
+    cta: 'Start listening',
+  ),
+];
+
 class OnboardingPage extends ConsumerStatefulWidget {
   const OnboardingPage({super.key});
 
@@ -32,27 +84,28 @@ class OnboardingPage extends ConsumerStatefulWidget {
 
 class _OnboardingPageState extends ConsumerState<OnboardingPage>
     with TickerProviderStateMixin {
+  final _pages = PageController();
   int _slide = 0;
-  bool _visible = true;
 
-  late final AnimationController _bgCtrl = AnimationController(
+  // One slow drift for the backdrop, one faster loop the scenes read from, so
+  // every demonstration stays in step with the others.
+  late final AnimationController _backdrop = AnimationController(
     vsync: this,
-    duration: const Duration(seconds: 14),
+    duration: const Duration(seconds: 24),
+  );
+  late final AnimationController _scene = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 4200),
   );
 
-  late final AnimationController _rippleCtrl = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 2800),
-  );
+  bool _reduceMotion = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Looping backdrop + ripple, held still for reduce-motion like every other
-    // continuous animation in the app.
-    final reduce = MediaQuery.disableAnimationsOf(context);
-    for (final c in [_bgCtrl, _rippleCtrl]) {
-      if (reduce) {
+    _reduceMotion = MediaQuery.disableAnimationsOf(context);
+    for (final c in [_backdrop, _scene]) {
+      if (_reduceMotion) {
         c.stop();
       } else if (!c.isAnimating) {
         c.repeat();
@@ -62,114 +115,75 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage>
 
   @override
   void dispose() {
-    _bgCtrl.dispose();
-    _rippleCtrl.dispose();
+    _pages.dispose();
+    _backdrop.dispose();
+    _scene.dispose();
     super.dispose();
   }
 
-  Future<void> _next() async {
-    if (_slide < _kSlides.length - 1) {
-      setState(() => _visible = false);
-      await Future<void>.delayed(const Duration(milliseconds: 200));
-      if (!mounted) return;
-      setState(() {
-        _slide++;
-        _visible = true;
-      });
-    } else {
-      await ref.read(settingsProvider.notifier).setOnboardingSeen();
-      if (!mounted) return;
-      Navigator.of(context).pop();
+  Future<void> _finish() async {
+    await ref.read(settingsProvider.notifier).setOnboardingSeen();
+    if (!mounted) return;
+    Navigator.of(context).pop();
+  }
+
+  void _next() {
+    if (_slide >= _kSlides.length - 1) {
+      _finish();
+      return;
+    }
+    _pages.nextPage(
+      duration: MotionTokens.screen,
+      curve: MotionTokens.emphasized,
+    );
+  }
+
+  Widget _sceneFor(_Scene scene) {
+    switch (scene) {
+      case _Scene.pulse:
+        return AuraPulseScene(progress: _scene, reduceMotion: _reduceMotion);
+      case _Scene.glass:
+        return DynamicColourScene(
+            progress: _scene, reduceMotion: _reduceMotion);
+      case _Scene.lyrics:
+        return SyncedLyricsScene(
+            progress: _scene, reduceMotion: _reduceMotion);
+      case _Scene.equaliser:
+        return EqualiserScene(progress: _scene, reduceMotion: _reduceMotion);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    final slide = _kSlides[_slide];
+    final isLast = _slide == _kSlides.length - 1;
 
     return Scaffold(
       backgroundColor: colors.background,
       body: Stack(
         children: [
           Positioned.fill(
-            child: AnimatedBuilder(
-              animation: _bgCtrl,
-              builder: (_, __) => Transform.rotate(
-                angle: reduceMotion ? 0 : _bgCtrl.value * 2 * math.pi * 0.25,
-                child: Transform.scale(
-                  scale: 1.4,
-                  child: Container(
-                    decoration: const BoxDecoration(
-                      gradient: AuroraColors.gradient,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: const Alignment(0, -0.7),
-                  radius: 1.2,
-                  colors: [Colors.transparent, colors.background],
-                  stops: const [0.3, 0.9],
-                ),
-              ),
+            child: AuroraBackdrop(
+              progress: _backdrop,
+              reduceMotion: _reduceMotion,
             ),
           ),
           SafeArea(
             child: Column(
               children: [
-                const Spacer(),
-                AnimatedOpacity(
-                  opacity: _visible ? 1.0 : 0.0,
-                  duration: const Duration(milliseconds: 200),
-                  child: AnimatedSlide(
-                    offset: _visible ? Offset.zero : const Offset(0, 0.08),
-                    duration: const Duration(milliseconds: 320),
-                    curve: MotionTokens.spring,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: SpacingTokens.xxxl),
-                      child: Column(
-                        children: [
-                          if (_slide == 0)
-                            _RippleMark(
-                                ctrl: _rippleCtrl,
-                                reduceMotion: reduceMotion)
-                          else
-                            _GlassIcon(icon: slide.icon!),
-                          const SizedBox(height: SpacingTokens.xxl),
-                          Text(
-                            slide.title,
-                            textAlign: TextAlign.center,
-                            style: AppTextTheme.display.copyWith(
-                              color: colors.onSurface,
-                              fontSize: 30,
-                              letterSpacing: -0.5,
-                              height: 1.12,
-                            ),
-                          ),
-                          const SizedBox(height: SpacingTokens.md),
-                          Text(
-                            slide.body,
-                            textAlign: TextAlign.center,
-                            style: AppTextTheme.body.copyWith(
-                              color: colors.onSurfaceMuted,
-                              fontSize: 16,
-                              height: 1.5,
-                            ),
-                          ),
-                        ],
-                      ),
+                // Swipeable, so the slides can be browsed both ways rather
+                // than only pushed forward.
+                Expanded(
+                  child: PageView.builder(
+                    controller: _pages,
+                    onPageChanged: (i) => setState(() => _slide = i),
+                    itemCount: _kSlides.length,
+                    itemBuilder: (context, i) => _SlideView(
+                      slide: _kSlides[i],
+                      scene: _sceneFor(_kSlides[i].scene),
                     ),
                   ),
                 ),
-                const SizedBox(height: SpacingTokens.huge),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -189,10 +203,9 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage>
                       ),
                   ],
                 ),
-                const Spacer(),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(SpacingTokens.xxl, 0,
-                      SpacingTokens.xxl, SpacingTokens.huge),
+                  padding: const EdgeInsets.fromLTRB(SpacingTokens.xxl,
+                      SpacingTokens.lg, SpacingTokens.xxl, SpacingTokens.xl),
                   child: Column(
                     children: [
                       SizedBox(
@@ -215,33 +228,29 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage>
                             pressedScale: 0.96,
                             child: Center(
                               child: Text(
-                                slide.cta,
-                                style: AppTextTheme.action.copyWith(
-                                  color: AuroraColors.onAurora,
-                                ),
+                                _kSlides[_slide].cta,
+                                style: AppTextTheme.action
+                                    .copyWith(color: AuroraColors.onAurora),
                               ),
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(height: SpacingTokens.sm),
+                      const SizedBox(height: SpacingTokens.xs),
+                      // Kept in the layout when hidden so the button above
+                      // doesn't jump on the last slide.
                       AnimatedOpacity(
-                        opacity: _slide < _kSlides.length - 1 ? 1.0 : 0.0,
+                        opacity: isLast ? 0.0 : 1.0,
                         duration: MotionTokens.micro,
-                        child: TextButton(
-                          onPressed: _slide < _kSlides.length - 1
-                              ? () async {
-                                  await ref
-                                      .read(settingsProvider.notifier)
-                                      .setOnboardingSeen();
-                                  if (!mounted) return;
-                                  Navigator.of(context).pop();
-                                }
-                              : null,
-                          child: Text(
-                            'Skip',
-                            style: AppTextTheme.body
-                                .copyWith(color: colors.onSurfaceMuted),
+                        child: IgnorePointer(
+                          ignoring: isLast,
+                          child: TextButton(
+                            onPressed: _finish,
+                            child: Text(
+                              'Skip',
+                              style: AppTextTheme.body
+                                  .copyWith(color: colors.onSurfaceMuted),
+                            ),
                           ),
                         ),
                       ),
@@ -257,127 +266,56 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage>
   }
 }
 
-class _RippleMark extends StatelessWidget {
-  const _RippleMark({required this.ctrl, required this.reduceMotion});
-  final AnimationController ctrl;
-  final bool reduceMotion;
+/// One slide: the demonstration, then the words for it.
+///
+/// Scrollable so a long body at a large text scale can never overflow — the
+/// old fixed Column with two Spacers had no give on short screens.
+class _SlideView extends StatelessWidget {
+  const _SlideView({required this.slide, required this.scene});
 
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 120,
-      height: 120,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          if (!reduceMotion)
-            for (var i = 0; i < 3; i++)
-              AnimatedBuilder(
-                animation: ctrl,
-                builder: (_, __) {
-                  final phase = ((ctrl.value + i * 0.33) % 1.0);
-                  return Opacity(
-                    opacity: (1 - phase).clamp(0.0, 0.55),
-                    child: Transform.scale(
-                      scale: 0.6 + phase * 1.2,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: AuroraColors.c2,
-                            width: 2,
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-          ShaderMask(
-            shaderCallback: (b) => AuroraColors.gradient.createShader(b),
-            blendMode: BlendMode.srcIn,
-            child: CustomPaint(
-              size: const Size(120, 120),
-              painter: _MarkPainter120(),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MarkPainter120 extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final fill = Paint()..color = Colors.white;
-    final ring = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3.5;
-    canvas.drawCircle(Offset(cx, cy), 6, fill);
-    canvas.drawCircle(
-        Offset(cx, cy), 17, ring..color = Colors.white.withOpacity(0.92));
-    canvas.drawCircle(
-        Offset(cx, cy), 29, ring..color = Colors.white.withOpacity(0.55));
-    canvas.drawCircle(
-        Offset(cx, cy), 41, ring..color = Colors.white.withOpacity(0.24));
-  }
-
-  @override
-  bool shouldRepaint(_) => false;
-}
-
-class _GlassIcon extends StatelessWidget {
-  const _GlassIcon({required this.icon});
-  final IconData icon;
+  final _Slide slide;
+  final Widget scene;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return Container(
-      width: 96,
-      height: 96,
-      decoration: BoxDecoration(
-        color: colors.glassTint,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: colors.glassBorder),
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+                horizontal: SpacingTokens.xxl, vertical: SpacingTokens.lg),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                scene,
+                const SizedBox(height: SpacingTokens.xxl),
+                Text(
+                  slide.title,
+                  textAlign: TextAlign.center,
+                  style: AppTextTheme.display.copyWith(
+                    color: colors.onSurface,
+                    fontSize: 29,
+                    letterSpacing: -0.5,
+                    height: 1.14,
+                  ),
+                ),
+                const SizedBox(height: SpacingTokens.md),
+                Text(
+                  slide.body,
+                  textAlign: TextAlign.center,
+                  style: AppTextTheme.body.copyWith(
+                    color: colors.onSurfaceMuted,
+                    fontSize: 16,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
-      child: Icon(icon, size: 44, color: colors.onSurface),
     );
   }
-}
-
-const _kSlides = [
-  _Slide(
-    title: 'Welcome to Aura',
-    body:
-        'A local-first player for the music you actually own. No ads, no cloud, no tracking — just your library, beautifully.',
-    cta: 'Get started',
-  ),
-  _Slide(
-    icon: Icons.blur_on,
-    title: 'Liquid Glass, on true black',
-    body: 'Surfaces blur and float over your artwork. Dynamic colour pulls one calm accent from every album cover.',
-    cta: 'Next',
-  ),
-  _Slide(
-    icon: Icons.lyrics,
-    title: 'Sing along, in sync',
-    body: 'Word-by-word synced lyrics, a waveform you can scrub, and a 10-band EQ — all tuned for the way you listen.',
-    cta: 'Start listening',
-  ),
-];
-
-class _Slide {
-  const _Slide(
-      {required this.title,
-      required this.body,
-      required this.cta,
-      this.icon});
-  final String title;
-  final String body;
-  final String cta;
-  final IconData? icon;
 }
