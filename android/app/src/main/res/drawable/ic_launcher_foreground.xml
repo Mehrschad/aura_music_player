@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Adaptive icon foreground: the Aura brand mark - a point of sound with three
+  rings radiating out of it - filled with the AuroraColors ribbon
+  (teal-mint -> sky blue -> violet -> soft magenta at 115 degrees). The same
+  drawing as AuraMark in lib/presentation/widgets/aurora_mark.dart.
+
+  Geometry: on the 108x108 canvas the mark has radius 31, so its outer edge
+  lands at 28.0 - comfortably inside the 33 radius Android asks key content to
+  stay within, and clear of every mask shape with room to breathe.
+
+  Ring alphas descend (1.0 / 0.80 / 0.56) so the mark reads as radiating rather
+  than as a target. Those are lifted from AuraMark's in-app values, which were
+  tuned for a raised surface and disappeared against a near-black tile.
+
+  Generated geometry - see tool/generate_launcher_icons.py for the same mark
+  rasterised for the legacy mipmaps.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Aura: a soft bloom under the rings so the mark glows. -->
+    <path android:pathData="M23,54a31,31 0 1,0 62,0a31,31 0 1,0 -62,0">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="54"
+                android:centerY="54"
+                android:gradientRadius="31">
+                <item android:offset="0.0" android:color="#4D4AA8FF" />
+                <item android:offset="0.6" android:color="#1F6E92FF" />
+                <item android:offset="1.0" android:color="#00000000" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Centre dot: the point the sound comes from. -->
+    <path android:pathData="M50.125,54a3.875,3.875 0 1,0 7.75,0a3.875,3.875 0 1,0 -7.75,0">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="26.1" android:startY="32.3"
+                android:endX="81.9" android:endY="75.7"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FF5EE7C8" />
+                <item android:offset="0.38" android:color="#FF4AA8FF" />
+                <item android:offset="0.72" android:color="#FF9A7BFF" />
+                <item android:offset="1.0" android:color="#FFFF8FD0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Ring 1 -->
+    <path
+        android:pathData="M43.344,54a10.656,10.656 0 1,0 21.312,0a10.656,10.656 0 1,0 -21.312,0"
+        android:strokeWidth="3.681"
+        android:strokeAlpha="1.0">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:startX="26.1" android:startY="32.3"
+                android:endX="81.9" android:endY="75.7"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FF5EE7C8" />
+                <item android:offset="0.38" android:color="#FF4AA8FF" />
+                <item android:offset="0.72" android:color="#FF9A7BFF" />
+                <item android:offset="1.0" android:color="#FFFF8FD0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Ring 2 -->
+    <path
+        android:pathData="M35.594,54a18.406,18.406 0 1,0 36.812,0a18.406,18.406 0 1,0 -36.812,0"
+        android:strokeWidth="3.681"
+        android:strokeAlpha="0.80">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:startX="26.1" android:startY="32.3"
+                android:endX="81.9" android:endY="75.7"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FF5EE7C8" />
+                <item android:offset="0.38" android:color="#FF4AA8FF" />
+                <item android:offset="0.72" android:color="#FF9A7BFF" />
+                <item android:offset="1.0" android:color="#FFFF8FD0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Ring 3 -->
+    <path
+        android:pathData="M27.844,54a26.156,26.156 0 1,0 52.312,0a26.156,26.156 0 1,0 -52.312,0"
+        android:strokeWidth="3.681"
+        android:strokeAlpha="0.56">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:startX="26.1" android:startY="32.3"
+                android:endX="81.9" android:endY="75.7"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FF5EE7C8" />
+                <item android:offset="0.38" android:color="#FF4AA8FF" />
+                <item android:offset="0.72" android:color="#FF9A7BFF" />
+                <item android:offset="1.0" android:color="#FFFF8FD0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>
