@@ -27,15 +27,38 @@ class LyricsOvhLyricsRepository implements LyricsRepository {
 
   final Dio _dio;
 
+  /// Confidence ceiling for this source. The endpoint echoes no track metadata,
+  /// so a result can never be verified the way LRCLIB/NetEase/QQ hits are — it
+  /// is trusted enough to show when nothing else answered, but must never
+  /// outrank a source that proved its match.
+  static const double _exactQueryConfidence = 0.62;
+  static const double _loosenedQueryConfidence = 0.5;
+
   @override
   Future<Lyrics?> lyricsFor(Song song) async {
-    // The endpoint is path-based (/v1/{artist}/{title}) and fairly literal, so
-    // feed it cleaned artist/title — "(Remastered)" / "feat. X" tails otherwise
-    // sink the match.
-    final artist = cleanForQuery(song.artist);
-    final title = cleanForQuery(song.title);
-    if (artist.isEmpty || title.isEmpty) return null;
+    // The endpoint is path-based (/v1/{artist}/{title}) and matches fairly
+    // literally, so walk the same loosening ladder the other sources use rather
+    // than giving up after one shot: raw tags, then cleaned, then the
+    // bracket/dash-stripped title, then the lead artist alone.
+    final variants = queryVariants(song.title, song.artist)
+        .where((v) => v.$1.isNotEmpty && v.$2.isNotEmpty)
+        .take(4)
+        .toList();
 
+    for (var i = 0; i < variants.length; i++) {
+      final (title, artist) = variants[i];
+      final lyrics = await _fetch(artist, title);
+      if (lyrics != null) {
+        // Only the first rung used the track's own tags verbatim; the looser
+        // rungs traded precision for a hit, so they're rated lower.
+        return lyrics.withConfidence(
+            i == 0 ? _exactQueryConfidence : _loosenedQueryConfidence);
+      }
+    }
+    return null;
+  }
+
+  Future<Lyrics?> _fetch(String artist, String title) async {
     try {
       final res = await _dio.get<String>(
         '/v1/${Uri.encodeComponent(artist)}/${Uri.encodeComponent(title)}',
@@ -54,9 +77,25 @@ class LyricsOvhLyricsRepository implements LyricsRepository {
       // lyrics.ovh sometimes prefixes a "Paroles de la chanson … par …" header
       // and uses \r\n — parsePlainLyrics tolerates both; it's never timed.
       final lyrics = parsePlainLyrics(raw);
-      return lyrics.isEmpty ? null : lyrics;
+      if (lyrics.isEmpty || !_looksLikeLyrics(lyrics)) return null;
+      return lyrics;
     } on DioException {
       return null;
     }
+  }
+
+  /// Rejects the junk this endpoint occasionally returns in place of a 404 —
+  /// an error sentence, or a one-liner that is really a "not found" notice
+  /// rather than a song.
+  static bool _looksLikeLyrics(Lyrics lyrics) {
+    if (lyrics.lines.length < 2) return false;
+    final head = lyrics.lines.first.text.toLowerCase();
+    const rejects = [
+      'no lyrics found',
+      'not found',
+      'error',
+      'instrumental',
+    ];
+    return !rejects.any((r) => head.contains(r));
   }
 }

@@ -8,6 +8,7 @@ import '../../data/remote/lyrics_api/qq_lyrics_repository.dart';
 import '../../data/repositories/composite_lyrics_repository.dart';
 import '../../data/repositories/sample_lyrics_repository.dart';
 import '../../domain/lyrics/lrc_parser.dart';
+import '../../domain/lyrics/lyrics_pacing.dart';
 import '../../domain/models/lyrics.dart';
 import '../../domain/repositories/lyrics_repository.dart';
 import 'playback_providers.dart';
@@ -116,4 +117,21 @@ final currentLyricLineProvider = Provider<int>((ref) {
   if (lyrics == null || !lyrics.synced) return -1;
   final position = ref.watch(positionProvider).valueOrNull ?? Duration.zero;
   return currentLineIndex(lyrics.lines, position);
+});
+
+/// The line to focus right now, whether or not the lyrics carry timestamps.
+///
+/// For synced lyrics this is [currentLyricLineProvider]. For plain lyrics it is
+/// an estimate walked at the track's pace, so the untimed view gets the same
+/// living focus treatment instead of sitting as a static block. -1 means
+/// "nothing to focus" (no lyrics, or an unknown duration).
+final activeLyricLineProvider = Provider<int>((ref) {
+  final lyrics = ref.watch(currentLyricsProvider).unwrapPrevious().valueOrNull;
+  if (lyrics == null || lyrics.isEmpty) return -1;
+  if (lyrics.synced) return ref.watch(currentLyricLineProvider);
+
+  final song = ref.watch(currentSongProvider);
+  if (song == null) return -1;
+  final position = ref.watch(positionProvider).valueOrNull ?? Duration.zero;
+  return estimatedLineIndex(lyrics.lines.length, position, song.duration);
 });

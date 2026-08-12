@@ -1,9 +1,11 @@
 import 'package:aura_music_player/app.dart';
 import 'package:aura_music_player/data/audio/fake_audio_controller.dart';
+import 'package:aura_music_player/data/repositories/in_memory_playlist_repository.dart';
 import 'package:aura_music_player/data/repositories/sample_library_repository.dart';
 import 'package:aura_music_player/presentation/pages/playlists/playlist_detail_page.dart';
 import 'package:aura_music_player/presentation/providers/library_providers.dart';
 import 'package:aura_music_player/presentation/providers/playback_providers.dart';
+import 'package:aura_music_player/presentation/providers/playlist_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import '../helpers/reduced_motion.dart';
@@ -18,6 +20,11 @@ void main() {
           pastOnboarding(),
           libraryRepositoryProvider
               .overrideWithValue(const SampleLibraryRepository()),
+          // The app persists playlists to SharedPreferences, which is empty
+          // under test. This test is about the seeded playlist, so pin the
+          // in-memory repository that carries it.
+          playlistRepositoryProvider
+              .overrideWith((ref) => InMemoryPlaylistRepository()),
           audioControllerProvider
               .overrideWith((ref) => FakeAudioController(autoTick: false)),
         ],
@@ -26,16 +33,22 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Switch to the Playlists tab.
-    await tester.tap(find.text('Playlists'));
+    // Switch to the Playlists tab. The nav bar is icon-only, so go by the
+    // semantics label — 'Playlists' as visible text matches a page heading
+    // that isn't hit-testable.
+    final semantics = tester.ensureSemantics();
+    await tester.tap(find.bySemanticsLabel('Playlists').first);
     await tester.pumpAndSettle();
+    semantics.dispose();
 
-    // Auto playlists and the seeded user playlist are present.
-    expect(find.text('Recently added'), findsOneWidget);
-    expect(find.text('Evening Wind-down'), findsOneWidget);
+    // Auto playlists and the seeded user playlist are present. The playlist
+    // shows up in more than one section (the row and the grid), so match
+    // loosely and open the first.
+    expect(find.text('Recently added'), findsWidgets);
+    expect(find.text('Evening Wind-down'), findsWidgets);
 
     // Open the seeded playlist; its detail lists a known sample track.
-    await tester.tap(find.text('Evening Wind-down'));
+    await tester.tap(find.text('Evening Wind-down').first);
     await tester.pumpAndSettle();
 
     expect(find.byType(PlaylistDetailPage), findsOneWidget);

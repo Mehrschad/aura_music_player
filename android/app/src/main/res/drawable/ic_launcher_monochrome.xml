@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Themed-icon variant (Android 13+). The system paints this with the user's
+  wallpaper tint, so it carries no colour of its own - only the silhouette.
+
+  A flat tint loses the gradient that separated the rings, so the alphas are
+  lifted and the strokes thickened against the colour foreground; otherwise the
+  outer rings dissolve into the tint.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <path
+        android:pathData="M50.125,54a3.875,3.875 0 1,0 7.75,0a3.875,3.875 0 1,0 -7.75,0"
+        android:fillColor="#FFFFFF" />
+
+    <path
+        android:pathData="M43.344,54a10.656,10.656 0 1,0 21.312,0a10.656,10.656 0 1,0 -21.312,0"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4.13"
+        android:strokeAlpha="1.0" />
+
+    <path
+        android:pathData="M35.594,54a18.406,18.406 0 1,0 36.812,0a18.406,18.406 0 1,0 -36.812,0"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4.13"
+        android:strokeAlpha="0.88" />
+
+    <path
+        android:pathData="M27.844,54a26.156,26.156 0 1,0 52.312,0a26.156,26.156 0 1,0 -52.312,0"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4.13"
+        android:strokeAlpha="0.72" />
+</vector>

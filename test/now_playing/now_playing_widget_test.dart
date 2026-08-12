@@ -37,8 +37,15 @@ void main() {
     // A small real-phone surface (360×690 logical) deliberately guards against
     // layout overflow: NowPlayingPage sizes its artwork from the remaining
     // height, so it must fit even compact screens. Overflow fails this test.
-    await tester.binding.setSurfaceSize(const Size(360, 690));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    //
+    // Set it on the view rather than via setSurfaceSize: the latter resizes the
+    // render surface but leaves MediaQuery reporting the default 800×600, so
+    // the page picked its *landscape* layout and laid controls out beyond the
+    // 360px-wide surface.
+    tester.view.physicalSize = const Size(360, 690);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
       ProviderScope(
@@ -71,17 +78,25 @@ void main() {
     expect(find.byType(NowPlayingPage), findsOneWidget);
     expect(find.text('Test Song'), findsWidgets);
 
+    // The shell (and its library rows) stays mounted under the pushed route,
+    // so scope every control lookup to the Now Playing page itself — an
+    // unscoped byIcon can match a heart on the page underneath.
+    Finder onPage(Finder matching) => find.descendant(
+          of: find.byType(NowPlayingPage),
+          matching: matching,
+        );
+
     // Favourite toggles from outline to filled.
-    expect(find.byIcon(PhosphorIconsRegular.heart), findsOneWidget);
-    await tester.tap(find.byIcon(PhosphorIconsRegular.heart));
+    expect(onPage(find.byIcon(PhosphorIconsRegular.heart)), findsOneWidget);
+    await tester.tap(onPage(find.byIcon(PhosphorIconsRegular.heart)));
     await tester.pump();
-    expect(find.byIcon(PhosphorIconsFill.heart), findsOneWidget);
+    expect(onPage(find.byIcon(PhosphorIconsFill.heart)), findsOneWidget);
 
     // Cycling repeat twice reaches "repeat one".
-    await tester.tap(find.byIcon(PhosphorIconsRegular.repeat));
+    await tester.tap(onPage(find.byIcon(PhosphorIconsRegular.repeat)));
     await tester.pump();
-    await tester.tap(find.byIcon(PhosphorIconsRegular.repeat));
+    await tester.tap(onPage(find.byIcon(PhosphorIconsRegular.repeat)));
     await tester.pump();
-    expect(find.byIcon(PhosphorIconsRegular.repeatOnce), findsOneWidget);
+    expect(onPage(find.byIcon(PhosphorIconsRegular.repeatOnce)), findsOneWidget);
   });
 }

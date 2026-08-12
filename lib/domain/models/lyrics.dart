@@ -41,6 +41,7 @@ class Lyrics {
     required this.lines,
     required this.synced,
     this.offset = Duration.zero,
+    this.confidence = 1.0,
   });
 
   static const Lyrics empty = Lyrics(lines: [], synced: false);
@@ -49,7 +50,24 @@ class Lyrics {
   final bool synced;
   final Duration offset;
 
+  /// How sure we are these lyrics belong to *this* track, in [0,1].
+  ///
+  /// A source that matched on an exact identifier (the sidecar file, LRCLIB's
+  /// artist+track+duration lookup) reports 1.0; a fuzzy search reports its
+  /// blended [matchScore]; a source that returns no metadata to verify against
+  /// reports a deliberately modest value. The resolver prefers a well-matched
+  /// result over a merely-synced one, so a confident plain lyric beats a synced
+  /// lyric for the wrong song.
+  final double confidence;
+
   bool get isEmpty => lines.isEmpty;
   bool get hasTranslations => lines.any((l) => l.translation != null);
   bool get hasWordTimings => lines.any((l) => l.hasWordTimings);
+
+  Lyrics withConfidence(double value) => Lyrics(
+        lines: lines,
+        synced: synced,
+        offset: offset,
+        confidence: value.clamp(0.0, 1.0),
+      );
 }

@@ -45,9 +45,11 @@ class NeteaseLyricsRepository implements LyricsRepository {
 
   @override
   Future<Lyrics?> lyricsFor(Song song) async {
-    final id = await _findSongId(song);
-    if (id == null) return null;
-    return _fetchLyric(id);
+    final hit = await _findSongId(song);
+    if (hit == null) return null;
+    // Carry the search's blended match score through as confidence so the
+    // resolver can prefer a well-matched result over a merely synced one.
+    return (await _fetchLyric(hit.id))?.withConfidence(hit.score);
   }
 
   /// Decodes a body that may be a raw JSON string (the usual case here, since
@@ -68,7 +70,7 @@ class NeteaseLyricsRepository implements LyricsRepository {
   /// "title artist" query first, then title alone — the artist tag is the
   /// field most often romanized/aliased differently on NetEase, so dropping
   /// it rescues many real matches (the score check still guards identity).
-  Future<int?> _findSongId(Song song) async {
+  Future<({int id, double score})?> _findSongId(Song song) async {
     final title = cleanForQuery(song.title);
     final artist = cleanForQuery(song.artist);
     final keywords = <String>{
@@ -76,13 +78,13 @@ class NeteaseLyricsRepository implements LyricsRepository {
       title,
     }..removeWhere((k) => k.isEmpty);
     for (final kw in keywords) {
-      final id = await _searchId(kw, song);
-      if (id != null) return id;
+      final hit = await _searchId(kw, song);
+      if (hit != null) return hit;
     }
     return null;
   }
 
-  Future<int?> _searchId(String keyword, Song song) async {
+  Future<({int id, double score})?> _searchId(String keyword, Song song) async {
     try {
       final res = await _dio.get<String>(
         '/api/search/get/',
@@ -121,7 +123,7 @@ class NeteaseLyricsRepository implements LyricsRepository {
           bestId = (raw['id'] as num?)?.toInt();
         }
       }
-      return bestId;
+      return bestId == null ? null : (id: bestId, score: bestScore);
     } on DioException {
       return null;
     }

@@ -8,6 +8,7 @@ import 'package:aura_music_player/presentation/providers/playback_providers.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:aura_music_player/core/l10n/app_localizations.dart';
 
 Song _s1() => Song(
@@ -26,6 +27,11 @@ Song _s1() => Song(
 void main() {
   testWidgets('lyrics view shows bundled lines for the current track',
       (tester) async {
+    // The lookup consults the SharedPreferences-backed cache before the
+    // repository. Give it a real (empty) store so that step resolves normally
+    // instead of failing through.
+    SharedPreferences.setMockInitialValues({});
+
     final fake = FakeAudioController(autoTick: false);
     addTearDown(fake.dispose);
     await fake.playQueue([_s1()]);
@@ -51,8 +57,12 @@ void main() {
     // LyricsPage contains an infinite ambient animation so pumpAndSettle would
     // time out. Pump past SampleLyricsRepository's 150ms simulated latency so
     // the lyrics FutureProvider has resolved.
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
+    // The lookup is a chain: the playback stream yields the track, that
+    // rebuild starts the lyrics provider, the cache read fails through, then
+    // the repository's 150ms delay resolves — each stage needs its own frame.
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
 
     expect(find.text('Aurora skyline'), findsOneWidget);
     expect(find.text('Light spills over the line'), findsOneWidget);

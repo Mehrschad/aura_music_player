@@ -35,9 +35,11 @@ class QQLyricsRepository implements LyricsRepository {
 
   @override
   Future<Lyrics?> lyricsFor(Song song) async {
-    final mid = await _findSongMid(song);
-    if (mid == null) return null;
-    return _fetchLyric(mid);
+    final hit = await _findSongMid(song);
+    if (hit == null) return null;
+    // Carry the search's blended match score through as confidence so the
+    // resolver can prefer a well-matched result over a merely synced one.
+    return (await _fetchLyric(hit.mid))?.withConfidence(hit.score);
   }
 
   /// Decodes a response body that may arrive as a raw JSON string or wrapped
@@ -61,14 +63,14 @@ class QQLyricsRepository implements LyricsRepository {
 
   /// Searches QQ and returns the best-scoring song mid above the accept
   /// threshold. Tries "title artist", then title alone.
-  Future<String?> _findSongMid(Song song) async {
+  Future<({String mid, double score})?> _findSongMid(Song song) async {
     final title = cleanForQuery(song.title);
     final artist = cleanForQuery(song.artist);
     final keywords = <String>{'$title $artist'.trim(), title}
       ..removeWhere((k) => k.isEmpty);
     for (final kw in keywords) {
-      final mid = await _searchMid(kw, song);
-      if (mid != null) return mid;
+      final hit = await _searchMid(kw, song);
+      if (hit != null) return hit;
     }
     return null;
   }
@@ -77,7 +79,8 @@ class QQLyricsRepository implements LyricsRepository {
   /// `client_search_cp` endpoint now returns HTTP 500 without login cookies,
   /// while smartbox still answers anonymously. It carries no track duration,
   /// so duration scores neutral and title/artist similarity decides.
-  Future<String?> _searchMid(String keyword, Song song) async {
+  Future<({String mid, double score})?> _searchMid(
+      String keyword, Song song) async {
     try {
       final res = await _dio.get<String>(
         'https://c.y.qq.com/splcloud/fcgi-bin/smartbox_new.fcg',
@@ -111,7 +114,7 @@ class QQLyricsRepository implements LyricsRepository {
           bestMid = raw['mid'] as String?;
         }
       }
-      return bestMid;
+      return bestMid == null ? null : (mid: bestMid, score: bestScore);
     } on DioException {
       return null;
     }

@@ -91,11 +91,26 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Hide from library'));
+
+    // The actions sheet is a lazy ListView, so the entry may not be built yet.
+    // Scope the scroll to the sheet's own list — the library's horizontal
+    // rails underneath are Scrollables too, and dragging one of those misses.
+    final hide = find.text('Hide from library');
+    await tester.scrollUntilVisible(
+      hide,
+      80,
+      scrollable: find.descendant(
+        of: find.byType(ListView).last,
+        matching: find.byType(Scrollable),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(hide);
     await tester.pumpAndSettle();
 
-    // All three hidden → the library shows its empty state.
+    // All three hidden → the library shows its empty state. The shell builds
+    // every tab, so Artists and Albums show it too.
     expect(find.text('Song A'), findsNothing);
-    expect(find.text('No music found'), findsOneWidget);
+    expect(find.text('No music found'), findsWidgets);
   });
 }
