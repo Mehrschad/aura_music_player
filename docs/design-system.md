@@ -1,8 +1,10 @@
 # Aura — Design System
 
-> **Status:** derived from the shipped code at `6428b8b`, cross-checked against the
+> **Status:** derived from the shipped code, cross-checked against the
 > `ui-ux-pro-max` skill database (Flutter stack rules, 119 UX guidelines, native
-> app pro-rules).
+> app pro-rules). The contrast findings this document opened have since been
+> fixed in `color_scheme.dart` and `app.dart`; the audit at the end records
+> what changed.
 >
 > **Source of truth:** the Dart token files are normative. This document describes
 > them; where the two disagree, the code wins and this document is the bug.
@@ -135,11 +137,11 @@ Three variants ship: `amoled` (pure black), `dark` (near-black), `light`
 | `surfaceElevated` | `#161618` | `#1E1E22` | `#FFFFFF` |
 | `onSurface` | `#F5F5F7` | `#F5F5F7` | `#15151A` |
 | `onSurfaceMuted` | `#9A9AA0` | `#9A9AA0` | `#5A5A66` |
-| `onSurfaceFaint` | `#6A6A70` | `#6A6A70` | `#9494A0` |
+| `onSurfaceFaint` | `#7F7F85` | `#85858B` | `#6F6F7B` |
 | `accent` | `#5FC6BC` | `#5FC6BC` | `#16161B` |
 | `divider` | `#1C1C1F` | `#222226` | `#E7E7ED` |
 | `glassTint` | `#04FFFFFF` | `#04FFFFFF` | `#9EFFFFFF` |
-| `danger` | `#FF6B6B` | `#FF6B6B` | `#D93A3A` |
+| `danger` | `#FF6B6B` | `#FF6B6B` | `#D62B2B` |
 | `favorite` | `#E66A6A` | `#E66A6A` | `#E0466A` |
 
 Note the light theme is **not** a tinted inversion: `accent` becomes near-black
@@ -233,11 +235,9 @@ bar.
 - Light and dark are verified separately. Light-mode values are never inferred
   from dark (§4.2 explains why they cannot be).
 
-**Known gaps — measured, not asserted** (see the audit table at the end):
-
-- `onSurfaceFaint` fails 4.5:1 in all three themes while being used for real
-  caption text.
-- System font-size preference is discarded.
+**Verified** (see the audit at the end): every text role clears 4.5:1 against
+every ground it can land on — `background`, `surface` and `surfaceElevated` — in
+all three themes, and the system font-size preference is honoured.
 
 ## §12 Localisation & RTL
 
@@ -286,39 +286,67 @@ small clean overshoot). Drive it with
 
 ## Audit — measured against the shipped tokens
 
-Contrast computed per WCAG 2.x from the hex values in `color_scheme.dart`.
+Contrast computed per WCAG 2.x directly from the hex values in
+`color_scheme.dart`, against **every ground a role can land on** —
+`background`, `surface` and `surfaceElevated` — in all three themes. Text roles
+are held to 4.5:1; `favorite` and `accent` are graphics and held to 3:1.
 
-### Findings
+**Current status: no failures.** The four findings below were open when this
+document was first written and have since been fixed in code.
 
-| # | Finding | Severity | Evidence |
+### Resolved
+
+| # | Finding | Was | Now |
 |---|---|---|---|
-| 1 | `onSurfaceFaint` fails 4.5:1 as caption text | **High** | 3.42:1 dark · 3.64:1 amoled · 3.00:1 light (on `surface`). 140 references across 40 files, applied to `AppTextTheme.caption` for timestamps and counts — normal text, so 4.5:1 applies, not 3:1. |
-| 2 | System font-size preference discarded | **High** | `app.dart:35` sets `textScaler: TextScaler.linear(settings.textScale)`, replacing the inherited scaler. A user with a large system font gets Aura's default unless they find the in-app slider. Contrast with the line directly below it, which correctly composes reduced motion with the OS flag. |
-| 3 | `positive` / `warning` are dead tokens | Low | Defined and interpolated in `color_scheme.dart`, but zero `colors.positive` / `colors.warning` references anywhere in `lib/`. Both would also fail 4.5:1 as light-mode text (3.56:1 and 3.73:1). |
-| 4 | Dividers are near-invisible | Judgement | 1.16:1 dark · 1.15:1 amoled · 1.23:1 light. Decorative separators are exempt from 1.4.11, so this is not a violation — but if a divider is ever the only thing separating two rows, it is not doing the job. |
+| 1 | `onSurfaceFaint` failed 4.5:1 as caption text in all three themes, across 136 references in 40 files | 3.09 / 3.36 / 2.73:1 | **4.53 / 4.54 / 4.52:1** |
+| 2 | `app.dart` replaced the inherited `textScaler`, discarding the OS font-size preference | system pref ignored | composed, clamped 0.85–2.0 |
+| 3 | `positive` / `warning` would fail 4.5:1 as light-mode text | 3.25 / 3.39:1 | **4.53 / 4.51:1** |
+| 4 | `danger` passed on white cards but failed on the light page background | 4.14:1 | **4.51:1** |
 
-### Passing
+Finding 4 was surfaced only when the audit was widened to measure every role
+against `background` as well as `surface`. The original pass measured `danger`
+against `surface` alone, where it read 4.55:1 — a reminder that a role has to
+clear the *worst* ground it can land on, not a representative one.
 
-Everything else measured clean: primary text 16.6–19.3:1 across all three
-themes; secondary (`onSurfaceMuted`) 6.2–7.5:1; `accent` 9.7–16.4:1;
-`onAccent` on `accent` 8.4–18.0:1; `danger` and `favorite` pass in all themes.
-Spacing is a clean 4/8 rhythm, icon sizes and radii are fully tokenised, five
-nav tabs is within the ≤5 ceiling, reduced motion composes with the OS, and one
-icon family is used throughout with outline/filled marking selection.
+### A note on finding 1
 
-### Suggested fixes
+The first draft of this document proposed *splitting* the role: keep
+`onSurfaceFaint` for disabled text, which is exempt from contrast minimums, and
+add a compliant `onSurfaceCaption` for real content. Checking the call sites
+before implementing showed the premise was wrong — there are **zero**
+disabled-state usages. Every one of the 136 references is a caption, a count, a
+timestamp, or an icon. With nothing left to claim the exemption, the correct fix
+was simply to lift the role itself to meet 4.5:1, which is what shipped.
 
-1. Lift `onSurfaceFaint` to ≈ `#8A8A92` (dark/amoled) and ≈ `#6E6E7A` (light) to
-   clear 4.5:1, **or** split the role: keep the current value for genuinely
-   disabled text (exempt from contrast minimums) and add a `onSurfaceCaption`
-   role that meets 4.5:1 for timestamps and counts. The split is the more honest
-   fix — the current role is documented as serving both purposes, and only one
-   of them is exempt.
-2. Derive the text scaler from `mq.textScaler` instead of discarding it, so
-   `settings.textScale` reads as a multiplier *on top of* the system preference
-   and is clamped to a range the layouts survive. This is not a one-line swap —
-   `TextScaler.linear` replaces rather than composes, so it needs a small
-   `TextScaler` wrapper — but it makes text scaling behave like the
-   reduced-motion line directly beneath it, which already composes correctly.
-3. Either adopt `positive` / `warning` (scrobble confirmed, slow network) or drop
-   them. If adopted, re-tune the light-mode values first.
+### Still open — by decision, not oversight
+
+- **`positive` and `warning` remain unused.** Their values are now correct in
+  every theme, so adopting them is safe whenever a real site appears (scrobble
+  confirmed, slow network). Wiring them into the existing snackbars is a design
+  decision, not a defect, and was deliberately left alone.
+- **Dividers sit near the threshold of visibility** — 1.16:1 dark, 1.15:1
+  amoled, 1.23:1 light. Decorative separators are exempt from the non-text
+  contrast rule, so this is not a violation. It becomes one the moment a divider
+  is the only thing separating two rows.
+- **Four decorative graphics derive from `onSurfaceFaint` via `withOpacity()`**
+  (0.28–0.45): a drag handle, an equaliser track, and two inactive-dot
+  indicators. All improved automatically with the lift. They are graphics rather
+  than text, so they are out of scope for a caption-contrast fix; the
+  inactive/current page dots are the ones worth a second look, since they carry
+  state.
+
+### Clean
+
+Primary text 15.3–16.6:1 worst-case across all three themes; secondary
+5.9–6.5:1. Spacing holds a 4/8 rhythm; icon sizes, radii and motion are fully
+tokenised; five nav tabs is within the ≤5 ceiling; one icon family throughout
+with outline/filled marking selection; and reduced motion composes with the OS
+flag across `PressScale`, the nav bar and Now Playing.
+
+### Not verified here
+
+There is no Flutter SDK in the environment these changes were made in, so
+`flutter analyze` and the widget tests have **not** been run against them. The
+colour changes are literal constant swaps and carry little risk. The
+`textScaler` change is real logic and should be exercised on device — in
+particular at a 2.0 composed scale, which the app could not previously reach.
