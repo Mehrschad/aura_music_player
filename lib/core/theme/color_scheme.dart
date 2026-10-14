@@ -42,7 +42,18 @@ class AppColors extends ThemeExtension<AppColors> {
   /// Secondary text — artist · album metadata (400 weight).
   final Color onSurfaceMuted;
 
-  /// Tertiary text — timestamps, captions, disabled (300 weight).
+  /// Tertiary text — timestamps, captions, counts, and secondary icons.
+  ///
+  /// This tier carries **real content**, not disabled text: every current call
+  /// site is a caption or an icon, so it is held to the 4.5:1 normal-text floor
+  /// rather than the 3:1 exemption disabled text would get. Each theme's value
+  /// is the lightest (dark/amoled) or darkest (light) shade that clears 4.5:1
+  /// against the worst ground it lands on — `surfaceElevated` in the dark
+  /// themes, `background` in light — while staying visibly below
+  /// [onSurfaceMuted] so the three-step text ladder is preserved.
+  ///
+  /// If a genuinely disabled tier is ever needed, add a separate role for it;
+  /// do not darken this one back down.
   final Color onSurfaceFaint;
 
   /// Default accent before dynamic album-art colour takes over.
@@ -89,7 +100,7 @@ class AppColors extends ThemeExtension<AppColors> {
     surfaceElevated: Color(0xFF161618),
     onSurface: Color(0xFFF5F5F7),
     onSurfaceMuted: Color(0xFF9A9AA0),
-    onSurfaceFaint: Color(0xFF6A6A70),
+    onSurfaceFaint: Color(0xFF7F7F85), // 4.54:1 on surfaceElevated
     accent: Color(0xFF5FC6BC), // brand teal — the single desaturated accent
     onAccent: Color(0xFF04201D), // deep teal complement
     divider: Color(0xFF1C1C1F),
@@ -108,7 +119,7 @@ class AppColors extends ThemeExtension<AppColors> {
     surfaceElevated: Color(0xFF1E1E22),
     onSurface: Color(0xFFF5F5F7),
     onSurfaceMuted: Color(0xFF9A9AA0),
-    onSurfaceFaint: Color(0xFF6A6A70),
+    onSurfaceFaint: Color(0xFF85858B), // 4.53:1 on surfaceElevated
     accent: Color(0xFF5FC6BC), // brand teal
     onAccent: Color(0xFF04201D), // deep teal complement
     divider: Color(0xFF222226),
@@ -130,17 +141,17 @@ class AppColors extends ThemeExtension<AppColors> {
     surfaceElevated: Color(0xFFFFFFFF),
     onSurface: Color(0xFF15151A),
     onSurfaceMuted: Color(0xFF5A5A66),
-    onSurfaceFaint: Color(0xFF9494A0),
+    onSurfaceFaint: Color(0xFF6F6F7B), // 4.52:1 on background
     accent: Color(0xFF16161B),
     onAccent: Color(0xFFFFFFFF),
     divider: Color(0xFFE7E7ED), // visible hairline
     glassTint: Color(0x9EFFFFFF), // 62% white frost
     glassBorder: Color(0x1414141C), // dark hairline, shows on white
     scrim: Color(0x73FFFFFF), // 45% white over blurred art
-    danger: Color(0xFFD93A3A), // deeper red for contrast on white
+    danger: Color(0xFFD62B2B), // 4.51:1 on background — used as text
     favorite: Color(0xFFE0466A), // deeper rose for contrast on white
-    positive: Color(0xFF1F9A6B), // re-tuned darker/richer for light ground
-    warning: Color(0xFFB5772A), // re-tuned darker/richer for light ground
+    positive: Color(0xFF1A7F58), // 4.53:1 on background — safe as text
+    warning: Color(0xFF996524), // 4.51:1 on background — safe as text
   );
 
   @override
